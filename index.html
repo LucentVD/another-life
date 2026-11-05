@@ -91,10 +91,11 @@ h1,h2,h3{font-family:var(--pixel);font-weight:400;margin:0;line-height:1.3}
 .slot.dim{filter:brightness(.5) saturate(.6)}
 .slot.speaking{z-index:2}
 .sprite{margin:0;position:relative;line-height:0}
-.sprite img{width:96px;height:96px;display:block}
-.stage.tall .sprite img{width:128px;height:128px}
-.stage.short .sprite img{width:72px;height:72px}
-.small-slot .sprite img{width:64px!important;height:64px!important}
+.stage{--s:3} .stage.tall{--s:4} .stage.huge{--s:5} .stage.short{--s:2}
+.stage.tall .cast.n3,.stage.huge .cast.n3{--s:3} .stage.huge .cast.n2{--s:4}
+.sprite img{display:block;width:calc(var(--w,32) * var(--s,3) * 1px);height:calc(var(--h,32) * var(--s,3) * 1px)}
+.small-slot{--s:2!important}
+canvas.fx{position:absolute;inset:2px;width:calc(100% - 4px);height:calc(100% - 4px);image-rendering:pixelated;pointer-events:none;z-index:2}
 .sprite figcaption{position:absolute;bottom:4px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:10px;line-height:1;padding:3px 5px;background:var(--edge);color:var(--ink);border:2px solid var(--frame)}
 .slot.speaking figcaption{color:var(--gold)}
 .stage-top{position:absolute;top:8px;left:8px;right:8px;display:flex;align-items:flex-start;justify-content:space-between;gap:8px;z-index:2;line-height:1.2;pointer-events:none}
@@ -137,7 +138,7 @@ h1,h2,h3{font-family:var(--pixel);font-weight:400;margin:0;line-height:1.3}
 .game .stage{flex:1 1 auto;height:auto;min-height:150px}
 .game .panel{flex:0 0 auto;max-height:none}
 .game .dlg-text{flex:none;height:clamp(8.4em,20vh,12em)}
-.stage.huge .sprite img{width:160px;height:160px}
+
 .dlg{padding:16px 14px 6px;display:flex;flex-direction:column;gap:6px;min-height:0}
 .nameplate{position:absolute;top:-13px;left:12px;z-index:2;font-size:12px;line-height:1;padding:5px 10px;background:var(--sakura);color:#2a0b1a;border:2px solid var(--edge);box-shadow:0 2px 0 var(--edge)}
 .nameplate.you{background:var(--gold)}
@@ -204,7 +205,7 @@ h1,h2,h3{font-family:var(--pixel);font-weight:400;margin:0;line-height:1.3}
 .carousel .lead-card:only-child{flex-basis:100%}
 .lead-art{position:relative;flex:1 1 auto;min-height:80px;border:2px solid var(--edge);overflow:hidden}
 .lead-art .scene-box{inset:0}
-.lead-who{position:absolute;right:6px;bottom:0;width:96px;height:96px}
+.lead-who{position:absolute;right:6px;bottom:0;height:96px;width:auto}
 .lead-body{display:flex;flex-direction:column;gap:4px;padding:0 6px}
 .lead-body h3{font-size:18px;color:#fff}
 .lead-body p{margin:0;font-size:13.5px;line-height:1.6;color:var(--soft);display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
@@ -3800,6 +3801,7 @@ ARCS.push(
 /* =========================================================
    PIXEL ART — buffers, anime portraits, dithered scenes
    ========================================================= */
+const PXC = {};
 const PX = (()=>{
   const colCache = new Map();
   function ci(hex){
@@ -4016,8 +4018,9 @@ const PX = (()=>{
   function portrait(sp, mode){
     const key = (mode||'full')+JSON.stringify(sp);
     if(cache.has(key)) return cache.get(key);
-    let b = draw(sp);
-    if(mode==='head') b = b.crop(4,0,24,26);
+    let b;
+    if(sp.custom && PXC[sp.custom]){ const c=PXC[sp.custom]; b=c.draw(); if(mode==='head') b=b.crop(...c.head); }
+    else { b = draw(sp); if(mode==='head') b = b.crop(4,0,24,26); }
     const u = b.url(); cache.set(key,u); return u;
   }
 
@@ -4044,7 +4047,8 @@ const PX = (()=>{
     night:{sky:['#060a18','#0b1226','#26315c'], stars:true, moon:true, layers:[['houses',125,'#0c1024','#ffd27a'],['hills',148,4,'#070a16']]},
     camp:{sky:['#080c20','#0e1430','#2b3a6a'], stars:true, layers:[['pines',110,'#121a33',10],['tents',140,'#1d2440'],['fire',140]]},
     shrine:{sky:['#cfe6ff','#fff0f5','#ffc2d6'], sun:'#ffffff', layers:[['hills',110,10,'#d9a8c4'],['gate',140,'#d64561'],['hills',150,4,'#b07a9a']], petals:true},
-    office:{interior:['#ffffff','#f6f7fb','#e2e5f0'], layers:[['papers','#c9cde0']], petals:true}
+    office:{interior:['#ffffff','#f6f7fb','#e2e5f0'], layers:[['papers','#c9cde0']], petals:true},
+    realm:{sky:['#9a88ee','#c6acff','#ffc8e2','#ffeadb'], layers:[['holyglow'],['rays'],['islands'],['clouds',104,'#ffffff','#ffe0f0'],['pavilion',124],['ground',124],['sakura',124],['cloudsea',150]], petals:true}
   };
   function scene(key, seed, W, H){
     const sc = SCN[key] || SCN.village;
@@ -4101,6 +4105,31 @@ const PX = (()=>{
       tents:(y,col)=>{ const c=Cx(200); P([[c-130,y],[c-90,y-40],[c-50,y]],col); P([[c+50,y],[c+85,y-34],[c+120,y]],col); R(0,y,VW,150,col); },
       fire:(y)=>{ const c=Cx(200); G(c,y-10,45,'#ff9a3a',.6); P([[c,y-30],[c+10,y-12],[c,y-4],[c-10,y-12]],'#ffd27a'); D(c,y-14,'#fff6c8'); },
       gate:(y,col)=>{ const c=Cx(200); R(c-50,y-80,c-42,y,col); R(c+42,y-80,c+50,y,col); P([[c-66,y-86],[c,y-94],[c+66,y-86],[c+66,y-78],[c-66,y-78]],col); R(c-54,y-66,c+54,y-60,col); },
+      holyglow:()=>{ for(let i=0;i<W*H/260;i++){ const x=Math.floor(r()*W), y=Math.floor(r()*Y(30)); b.set(x,y,r()<.4?'#ffffff':'#e6dcff'); } G(VW*.42,84,90,'#fff4ea',.35); G(VW*.42,84,40,'#ffffff',.4); },
+      rays:()=>{ const ax=X(VW*.42), ay=Y(TOP)-H*.2; const wedges=[[-.45,-.38],[-.12,-.06],[.18,.23]];
+        for(let py=0;py<H;py++) for(let px=0;px<W;px++){ const a=Math.atan2(px-ax, py-ay+0.01); for(const [a0,a1] of wedges){ if(a>a0 && a<a1){ const f=1-(py/H)*0.6; { const i=py*W+px, v=b.d[i]; const k=.16*f; const rr=v&255, gg=(v>>8)&255, bb=(v>>16)&255; b.d[i]=((255<<24)|(Math.round(bb+(250-bb)*k)<<16)|(Math.round(gg+(250-gg)*k)<<8)|Math.round(rr+(255-rr)*k))>>>0; } break; } } } },
+      islands:()=>{ [[VW*.13,28,18],[VW*.86,18,13],[VW*.52,70,8]].forEach(([x,y,w])=>{ P([[x-w,y],[x+w,y],[x+w*.35,y+w*.9],[x,y+w*1.3],[x-w*.4,y+w*.8]],'#a894d8'); E(x,y,w,w*.22,'#d8c8f4'); E(x-w*.3,y-1,w*.5,w*.12,'#f2e6ff'); for(let k=0;k<3;k++) D(x-w*.5+k*w*.6,y-2,'#ffd6ea');
+          const fx=x+w*.6; for(let t=0;t<w*1.6;t+=1.2) if(by(Math.round(X(fx)),Math.round(Y(y+t)))<.7) D(fx,y+t,'#ffffff'); }); },
+      clouds:(y,c1,c2)=>{ for(let i=0;i*34<VW+40;i++){ const x=i*34+r()*14-10, rr=14+r()*12; E(x,y-rr*.35+2,rr,rr*.55,c2); E(x-3,y-rr*.45,rr*.9,rr*.5,c1); } R(0,y,VW,y+8,c1); },
+      pavilion:(y)=>{ const c=Math.max(36,VW*.2); R(c-24,y-36,c-19,y,'#fbf8ff'); R(c+19,y-36,c+24,y,'#fbf8ff'); R(c-23,y-36,c-21,y,'#ffffff'); R(c-28,y-40,c+28,y-36,'#f0b840');
+          P([[c-34,y-40],[c,y-56],[c+34,y-40]],'#ffffff'); P([[c-30,y-41],[c,y-53],[c+30,y-41]],'#f6eeff'); R(c-34,y-41,c+34,y-39,'#f0b840'); D(c,y-58,'#ffe680'); D(c,y-60,'#fff6c0');
+          R(c-28,y-2,c+28,y+2,'#e8e2f8'); },
+      ground:(y)=>{ const hs=[]; for(let i=0;i<=Math.ceil(VW/40)+1;i++) hs.push(y-2-r()*5);
+          for(let px=0;px<W;px++){ const vx=px/s, i=Math.floor(vx/40), f=(vx%40)/40, t=(1-Math.cos(f*Math.PI))/2, vy=hs[i]*(1-t)+hs[i+1]*t; const top=Math.round(Y(vy));
+            for(let py=top;py<H;py++){ const d=py-top; b.set(px,py, d<2?'#c8f0b8': d<5?'#9ad49a': d<9?'#7ab88a':'#8a78c0'); } }
+          for(let i=0;i<W*.9;i++){ const px=Math.floor(r()*W), vx=px/s, k=Math.floor(vx/40), f=(vx%40)/40, t=(1-Math.cos(f*Math.PI))/2, vy=hs[k]*(1-t)+hs[k+1]*t, py=Math.round(Y(vy))+1+Math.floor(r()*5); b.set(px,py, r()<.5?'#ffd6e6':'#ff9cc4'); }
+          for(let px=0;px<W;px+=2){ const vx=px/s; b.set(px, Y(150)-1-Math.round(2+Math.sin(vx/9)*2), '#6a5aa8'); } },
+      sakura:(y)=>{ const c=Math.min(VW-40,VW*.72);
+          const trunk='#6a3a4a', trunk2='#8a5060';
+          P([[c-7,y],[c+7,y],[c+4,y-22],[c-2,y-46],[c-8,y-60],[c-12,y-60],[c-6,y-44],[c-4,y-22]],trunk);
+          b.line(X(c-5),Y(y-10),X(c-6),Y(y-40),trunk2);
+          [[c-6,y-46,c-40,y-66],[c-6,y-50,c+26,y-74],[c-10,y-58,c-24,y-86],[c,y-30,c+34,y-50]].forEach(([x0,y0,x1,y1])=>{ for(let t=-1;t<=1;t++) L(x0+t*.6,y0,x1+t*.6,y1,trunk); });
+          const blobs=[[c-42,y-72,24],[c-18,y-94,28],[c+14,y-90,30],[c+38,y-64,24],[c-8,y-70,22],[c+24,y-54,18],[c-60,y-58,16],[c+50,y-88,18],[c-2,y-108,20]];
+          blobs.forEach(([x,yy,rr])=>{ E(x,yy+2,rr,rr*.72,'#e27aa8'); });
+          blobs.forEach(([x,yy,rr])=>{ E(x-2,yy-1,rr*.86,rr*.6,'#ff9cc4'); });
+          blobs.forEach(([x,yy,rr])=>{ E(x-5,yy-4,rr*.55,rr*.38,'#ffc4dc'); b.dell(X(x-6),Y(yy-6),rr*.4*s,rr*.26*s,'#fff0f6',.55); });
+          for(let i=0;i<40;i++){ const bl=blobs[Math.floor(r()*blobs.length)]; const a=r()*6.28, d=bl[2]*(.85+r()*.3); D(bl[0]+Math.cos(a)*d, bl[1]+Math.sin(a)*d*.72, r()<.5?'#ffc4dc':'#e27aa8'); } },
+      cloudsea:(y)=>{ for(let i=0;i*26<VW+30;i++){ const x=i*26+r()*10-8, rr=10+r()*8; E(x,y-2,rr,rr*.5,'#ffffff'); E(x+4,y-4,rr*.6,rr*.3,'#fff6fb'); } },
       papers:(col)=>{ for(let i=0;i<14;i++){ const x=r()*VW, y=40+r()*90; R(x,y,x+18+r()*10,y+24,'#ffffff'); R(x,y,x+20,y+2,col); } }
     };
     for(const l of sc.layers){ const [t,...a]=l; if(LAY[t]) LAY[t](...a); }
@@ -4112,7 +4141,7 @@ const PX = (()=>{
   const scache = new Map();
   function sceneURL(key, seed, W, H){ const k=key+'|'+seed+'|'+W+'x'+H; if(scache.has(k)) return scache.get(k); const u=scene(key,seed,W,H).url(); if(scache.size>80) scache.clear(); scache.set(k,u); return u; }
 
-  return {portrait, sceneURL, SKIN, HAIR, EYES, STY, hash, rngF};
+  return {portrait, sceneURL, SKIN, HAIR, EYES, STY, hash, rngF, Buf, ci, by, cache, custom:{}};
 })();
 
 /* ---------- who looks like what ---------- */
@@ -4212,6 +4241,111 @@ function presentChars(texts, castMap, arcId){
 
 ;
 /* =========================================================
+   GODDESS LUMI — hand-built 48x64 sprite
+   ========================================================= */
+PXC.lumi = { w:48, h:64, head:[12,5,24,26], draw(){
+  const b = new PX.Buf(48,64);
+  const K='#2a1a3a';
+  const HA='#fff2f8', HB='#ffc8e0', HC='#ff9cc8', HD='#e070a8', HE='#a84a86';
+  const s1='#fff2e6', S='#fcd8c0', T='#eab09a';
+  const Ey='#fff4b0', EY='#f2c040', EZ='#a8700c', W='#ffffff';
+  const H1='#fff8c8', H2='#ffd86a';
+  const R1='#ffffff', R='#ecebfa', Q='#c8c6e6', Q2='#a8a4d0';
+  const G1='#ffe08a', G='#f0b840', G2='#b8862a';
+  const L1='#f6eaff', L='#d6bcff', L2='#a888e8';
+  const P1='#ffe0ec', P='#ff8fb6', P2='#e0607e', O='#ffe680';
+  const set=(x,y,c)=>b.set(x,y,c);
+  const pts=(arr,c)=>arr.forEach(([x,y])=>set(x,y,c));
+  const bez=(p0,p1,p2,r,c,steps=60)=>{ for(let i=0;i<=steps;i++){ const t=i/steps, u=1-t; const x=u*u*p0[0]+2*u*t*p1[0]+t*t*p2[0], y=u*u*p0[1]+2*u*t*p1[1]+t*t*p2[1]; b.ell(x,y,r,r,c); } };
+  const bezLine=(p0,p1,p2,c,steps=60)=>{ for(let i=0;i<=steps;i++){ const t=i/steps, u=1-t; set(Math.round(u*u*p0[0]+2*u*t*p1[0]+t*t*p2[0]), Math.round(u*u*p0[1]+2*u*t*p1[1]+t*t*p2[1]), c); } };
+
+  // celestial shawl, back loop
+  bez([2,63],[2,40],[14,33],1.7,L); bezLine([2,62],[2,41],[13,34],L1);
+  bez([34,33],[47,38],[45,63],1.7,L); bezLine([35,33],[46,39],[44,62],L2);
+
+  // long back hair
+  b.poly([[13,9],[9,18],[8,30],[7,42],[5,54],[7,63],[41,63],[43,54],[41,42],[40,30],[39,18],[35,9],[29,4],[19,4]],HD);
+  [[10,26,8,62],[13,30,12,63],[36,30,37,63],[39,26,41,62]].forEach(([x0,y0,x1,y1])=>b.line(x0,y0,x1,y1,HE));
+  [[11,24,9,50],[38,24,40,50]].forEach(([x0,y0,x1,y1])=>b.line(x0,y0,x1,y1,HC));
+  [[6,62],[9,63],[12,61],[38,61],[41,63],[44,62]].forEach(([x,y])=>set(x,y,HE));
+
+  // robe
+  b.rect(21,28,27,35,S); b.rect(21,29,27,31,T);
+  b.poly([[13,37],[18,34],[30,34],[35,37],[38,46],[39,64],[9,64],[10,46]],R);
+  b.poly([[13,37],[18,34],[20,34],[15,46],[12,64],[9,64],[10,46]],R1);
+  b.line(16,46,14,63,Q); b.line(32,46,34,63,Q); b.line(24,48,24,63,Q); b.line(36,44,38,63,Q2);
+  b.poly([[20,34],[28,34],[24,41]],S); pts([[23,39],[24,39],[24,40]],T);
+  b.line(19,34,24,42,G); b.line(29,34,24,42,G); b.line(18,35,13,38,G); b.line(30,35,35,38,G);
+  b.ell(13,38.5,2.2,1.6,G); b.ell(35,38.5,2.2,1.6,G); set(12,38,G1); set(34,38,G1); set(14,39,G2); set(36,39,G2);
+  pts([[24,43],[23,44],[25,44],[24,45]],G2); set(24,44,'#8ad8f2'); set(23,43,G1);
+  b.rect(10,55,39,57,G); b.rect(10,57,39,58,G2); for(let x=11;x<39;x+=3) set(x,55,G1);
+  b.line(27,58,29,63,G); b.line(28,58,31,63,G2);
+
+  // front drape of the shawl
+  bez([13,41],[9,50],[6,63],1.5,L); bezLine([12,41],[8,50],[5,62],L1);
+  bez([35,42],[40,50],[42,63],1.5,L); bezLine([36,42],[41,50],[43,62],L2);
+
+  // sleeves, hands, clipboard
+  b.poly([[13,40],[21,46],[26,52],[23,55],[12,50]],R); b.line(14,45,22,53,Q);
+  b.poly([[35,40],[39,46],[39,53],[36,51]],R); set(38,50,Q);
+  b.rect(26,44,38,58,'#b07a4a'); b.rect(26,57,38,58,'#7a4a2a'); b.rect(37,44,38,58,'#7a4a2a');
+  b.rect(27,46,36,56,R1); for(let y=48;y<=54;y+=2) b.line(28,y,35,y,Q);
+  pts([[33,54],[35,54],[33,55],[34,55],[35,55],[34,56]],P); set(34,54,P1);
+  b.rect(30,43,34,46,'#c8ccd8'); b.line(30,45,33,45,'#8a90a8');
+  b.rect(24,49,28,53,S); set(24,52,T); set(27,52,T); b.rect(37,47,39,51,S); set(38,50,T);
+
+  // face
+  const HW={11:5,12:6,25:7,26:7,27:6,28:5,29:4,30:2};
+  for(let y=11;y<=30;y++){ const w=HW[y]||8; for(let x=24-w;x<=23+w;x++) set(x,y,S); set(23+w,y,T); }
+  for(let x=22;x<=25;x++) set(x,30,T);
+  for(let y=13;y<=22;y++) set(17,y,s1);
+  // eyes (left: x17-21, right: x26-30, mirrored)
+  const eye=(x0,flip)=>{ const X=c=>flip? x0+4-c : x0+c;
+    for(let c=0;c<5;c++) set(X(c),18,K); set(X(1),17,K); set(X(2),17,K); set(X(3),17,K); set(X(0),19,K);
+    set(X(1),19,EZ); set(X(2),19,EZ); set(X(3),19,W); set(X(4),19,EZ);
+    set(X(0),20,W); set(X(1),20,EY); set(X(2),20,EZ); set(X(3),20,W); set(X(4),20,EY);
+    set(X(0),21,W); set(X(1),21,EY); set(X(2),21,EY); set(X(3),21,EY); set(X(4),21,EY);
+    set(X(1),22,Ey); set(X(2),22,EY); set(X(3),22,EY); set(X(4),22,Ey);
+    set(X(2),23,Ey); set(X(3),23,Ey); set(X(2),22,W);
+    set(X(1),24,T); set(X(2),24,T); set(X(3),24,T);
+  };
+  eye(17,false); eye(26,true);
+  b.line(18,15,20,15,HD); b.line(27,15,29,15,HD);
+  pts([[17,25],[19,25],[18,26],[28,25],[30,25],[29,26]],'#ffa6b8');
+  set(24,25,T);
+  pts([[22,26],[23,27],[24,27],[25,26]],'#c0506a'); set(23,28,'#ff8fa8'); set(24,28,'#e0607e');
+
+  // front hair: crown, bangs, side locks
+  for(let y=3;y<=14;y++) for(let x=10;x<=37;x++){ const dx=(x+.5-24)/13.2, dy=(y+.5-13.5)/10; if(dx*dx+dy*dy<=1) set(x,y,HC); }
+  const depth=[20,19,17,15,14,15,16,15,14,16,18,15,14,15,16,15,14,15,17,19];
+  for(let i=0;i<depth.length;i++){ const x=14+i; if(x>33) break; const d=depth[i]; for(let y=8;y<=d;y++) set(x,y,HC); set(x,d,HD); if(d>=17) set(x,d-1,HD); }
+  for(let x=17;x<=31;x+=2){ const d=depth[x-14]; if(b.get(x,d+1)===PX.ci(S)) set(x,d+1,T); }
+  b.poly([[10,13],[15.5,13],[15.5,28],[14,38],[15,47],[12,52],[9,47],[9.5,37],[9.5,24]],HC);
+  b.line(15,15,13,46,HD); b.line(11,22,10,44,HB); pts([[10,50],[11,52],[13,51],[14,49]],HD);
+  b.poly([[32.5,13],[38,13],[38.5,24],[38.5,34],[37.5,42],[34.5,44],[33.5,38],[32.5,28]],HC);
+  b.line(33,15,34,40,HD); b.line(37,22,37,36,HB);
+  [[18,9,17,14],[21,9,21,15],[26,9,26,14],[29,9,30,15]].forEach(([x0,y0,x1,y1])=>b.line(x0,y0,x1,y1,HD));
+  // shine
+  for(const x of [15,16,17,18,19,20]) set(x,7,HA); for(const x of [16,17,18,19]) set(x,6,HB);
+  for(const x of [27,28,29,30,31,32]) set(x,7,HA); for(const x of [28,29,30,31]) set(x,6,HB);
+  set(22,9,HB); set(23,9,HB); set(25,10,HB);
+
+  // sakura blossoms in her hair
+  const bloom=(x,y)=>{ pts([[x,y-1],[x-1,y],[x+1,y],[x-1,y+1],[x+1,y+1]],P); set(x,y,O); pts([[x,y-2],[x-2,y],[x+2,y]],P1); set(x,y+1,P2); };
+  bloom(12,11); bloom(15,8); bloom(35,12); set(13,13,'#7ab06a'); set(14,13,'#5a9a4a'); set(36,14,'#7ab06a');
+
+  // halo
+  for(let y=0;y<=7;y++) for(let x=10;x<=38;x++){ const dx=(x+.5-24)/11.6, dy=(y+.5-3.6)/2.7, ix=(x+.5-24)/9.4, iy=(y+.5-3.6)/1.25; if(dx*dx+dy*dy<=1 && !(ix*ix+iy*iy<=1)) set(x,y, y>=4?H2:H1); }
+
+  b.outline(K);
+  // sparkles beyond the outline
+  [[7,4],[41,2],[43,8],[4,14]].forEach(([x,y])=>{ set(x,y,H1); set(x-1,y,H2); set(x+1,y,H2); set(x,y-1,H2); set(x,y+1,H2); });
+  return b;
+}};
+CHAR_ART.lumi = {custom:'lumi'};
+
+;
+/* =========================================================
    ANOTHER LIFE — full-screen visual-novel interface
    Layout: HUD / stage (scene + sprites) / panel (dialogue, menus)
    ========================================================= */
@@ -4226,9 +4360,34 @@ const $ = s => document.querySelector(s);
 const buzz = ()=>{ try{ navigator.vibrate && navigator.vibrate(6); }catch(e){} };
 
 /* ---------- pixel helpers ---------- */
-function sprite(spec, name, cls){ return `<figure class="sprite ${cls||''}"><img alt="" src="${PX.portrait(spec)}">${name?`<figcaption>${esc(name)}</figcaption>`:''}</figure>`; }
+function sprite(spec, name, cls){ const d = spec.custom && PXC[spec.custom] ? PXC[spec.custom] : {w:32,h:32}; return `<figure class="sprite ${cls||''}"><img alt="" style="--w:${d.w};--h:${d.h}" src="${PX.portrait(spec)}">${name?`<figcaption>${esc(name)}</figcaption>`:''}</figure>`; }
 function headImg(spec, cls){ return `<img class="head ${cls||''}" alt="" src="${PX.portrait(spec,'head')}">`; }
 function stageScene(){ const st=stageOf(S.age); if(st==='child') return 'village'; if(st==='academy') return 'academy'; return S.path==='shop'?'cafe':S.path==='crown'?'palace':S.path==='adv'?'tavern':'capital'; }
+/* falling sakura petals and leaves over holy scenes */
+let FX=null;
+function startFx(){
+  if(FX){ FX.stop=true; FX=null; }
+  const cv=document.querySelector('canvas.fx'); if(!cv) return;
+  const w=Math.ceil(cv.clientWidth/3), h=Math.ceil(cv.clientHeight/3); if(!w||!h) return;
+  cv.width=w; cv.height=h; const cx=cv.getContext('2d');
+  const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const mk=(any)=>({x:Math.random()*(w+40), y:any?Math.random()*h:-3, vx:-(0.12+Math.random()*0.3), vy:0.18+Math.random()*0.3, ph:Math.random()*6.28, leaf:Math.random()<.18, big:Math.random()<.35});
+  const ps=Array.from({length:Math.round(w*h/260)+8},()=>mk(true));
+  const me={stop:false}; FX=me;
+  const draw=()=>{
+    if(me.stop || !cv.isConnected) return;
+    cx.clearRect(0,0,w,h);
+    for(const p of ps){
+      if(!reduce){ p.ph+=0.06; p.x+=p.vx+Math.sin(p.ph)*0.18; p.y+=p.vy; }
+      if(p.y>h+3||p.x<-4) Object.assign(p,mk(false));
+      const x=Math.floor(p.x), y=Math.floor(p.y), flip=Math.sin(p.ph*1.3)>0;
+      if(p.leaf){ cx.fillStyle=flip?'#9ad49a':'#6aa87a'; cx.fillRect(x,y,2,1); cx.fillRect(x+(flip?1:0),y+1,1,1); }
+      else { cx.fillStyle=flip?'#ffc4dc':'#ff9cc4'; cx.fillRect(x,y,1,1); if(p.big){ cx.fillRect(x+1,y,1,1); cx.fillStyle='#fff0f6'; cx.fillRect(flip?x:x+1,y+1,1,1); } }
+    }
+    if(!reduce) setTimeout(()=>requestAnimationFrame(draw), 33);
+  };
+  draw();
+}
 /* paint a scene at the exact pixel size of its box, 3 screen px per art px */
 function paintScenes(){
   document.querySelectorAll('[data-scene]').forEach(el=>{
@@ -4237,9 +4396,10 @@ function paintScenes(){
     const url = PX.sceneURL(el.dataset.scene, el.dataset.seed||'x', W, H);
     el.style.backgroundImage = `url(${url})`; el.style.backgroundSize = `${W*3}px ${H*3}px`;
   });
+  setTimeout(startFx, 0);
   document.querySelectorAll('.stage').forEach(st=>{ st.classList.toggle('tall', st.clientHeight>330 && st.clientHeight<=470); st.classList.toggle('huge', st.clientHeight>470 && st.clientWidth>=340); st.classList.toggle('short', st.clientHeight<190); });
 }
-function sceneBox(key, seed, cls){ return `<div class="scene-box ${cls||''}" data-scene="${key}" data-seed="${esc(seed)}"></div>`; }
+function sceneBox(key, seed, cls){ return `<div class="scene-box ${cls||''}" data-scene="${key}" data-seed="${esc(seed)}"></div>${(key==='realm'||key==='shrine')&&!cls?'<canvas class="fx" aria-hidden="true"></canvas>':''}`; }
 
 /* ---------- text: formatting, pages, typewriter ---------- */
 function prose(t){
@@ -4326,7 +4486,7 @@ function buildFlow(){
   const y=S.year; const f={key:flowKey(), pages:[], i:0, mode:'pages', chars:[], scene:stageScene(), seed:S.id+S.age, top:'', end:null};
   if(S.ending){
     const e=S.ending, t=topComp();
-    f.scene = e.kind==='peace'?'shrine':e.kind==='death'||e.kind==='fallen'?'office':e.kind==='stayed'?'cafe':'north';
+    f.scene = e.kind==='peace'?'shrine':e.kind==='death'||e.kind==='fallen'?'realm':e.kind==='stayed'?'cafe':'north';
     f.chars = [{key:'you', name:S.name, spec:playerArt(S)}].concat(t && rel(t)>=5 ? [{key:t, name:COMP[t].name, spec:CHAR_ART[t]}] : []).concat(e.kind==='peace'?[{key:'mal',name:'Mal',spec:CHAR_ART.mal}]:[]);
     f.top = `<div class="tag-title gold">THE END</div>`;
     f.card = {big:e.title, small:'The End'};
@@ -4578,7 +4738,7 @@ function renderTitle(){
   const can = S && !S.ending;
   app.innerHTML = `<div class="screen title-screen">
     <section class="stage tstage">
-      ${sceneBox('shrine','title')}
+      ${sceneBox('realm','title')}
       <div class="cast n3">${['lina','lumi','sera'].map((k,i)=>`<div class="slot ${i===1?'speaking':''}">${sprite(CHAR_ART[k])}</div>`).join('')}</div>
       <div class="logo"><span class="kanji">転生 ・ ISEKAI LIFE RPG</span><h1>Another<br>Life</h1></div>
     </section>
@@ -4638,9 +4798,9 @@ function renderCreate(){
   const chars = c.step===3 ? `<div class="slot small-slot">${sprite(previewSpec(c,7),'Age 7')}</div><div class="slot speaking">${sprite(previewSpec(c,16), c.name.trim()||'You')}</div>` : `<div class="slot speaking">${sprite(CHAR_ART.lumi,'Lumi')}</div>`;
   app.innerHTML = `<div class="screen create">
     <section class="stage cstage">
-      ${sceneBox('office','create')}
+      ${sceneBox('realm','create')}
       <div class="cast n${c.step===3?2:1}">${chars}</div>
-      <div class="stage-top"><div class="tag-title">The White Office</div><div class="pips">${Array.from({length:n},(_,i)=>i<=c.step?'◆':'<i>◇</i>').join('')}</div></div>
+      <div class="stage-top"><div class="tag-title">The Celestial Garden</div><div class="pips">${Array.from({length:n},(_,i)=>i<=c.step?'◆':'<i>◇</i>').join('')}</div></div>
     </section>
     <section class="panel">
       <div class="win dlg lumi"><div class="nameplate">Lumi</div><div class="dlg-text story" id="lumiText">${prose(CREATE_LINES[c.step])}</div></div>
