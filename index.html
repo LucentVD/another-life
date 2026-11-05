@@ -61,7 +61,7 @@ h1,h2,h3{font-family:var(--pixel);font-weight:400;margin:0;line-height:1.3}
 /* HUD */
 .hud{flex:none;display:flex;align-items:center;gap:10px;padding:8px 10px 6px}
 .face{flex:none;width:50px;height:54px;background:linear-gradient(#3a4ea8,#22307a);border:3px solid var(--frame);box-shadow:0 0 0 2px var(--edge),0 3px 0 2px rgba(0,0,0,.4);display:flex;align-items:flex-end;justify-content:center;overflow:hidden}
-.face .head{width:44px;height:48px}
+.face .head{width:40px;height:44px}
 .who{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;line-height:1.2}
 .who-top{display:flex;align-items:baseline;gap:8px;min-width:0}
 .who-top b{font-weight:400;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -91,10 +91,10 @@ h1,h2,h3{font-family:var(--pixel);font-weight:400;margin:0;line-height:1.3}
 .slot.dim{filter:brightness(.5) saturate(.6)}
 .slot.speaking{z-index:2}
 .sprite{margin:0;position:relative;line-height:0}
-.stage{--s:3} .stage.tall{--s:4} .stage.huge{--s:5} .stage.short{--s:2}
-.stage.tall .cast.n3,.stage.huge .cast.n3{--s:3} .stage.huge .cast.n2{--s:4}
-.sprite img{display:block;width:calc(var(--w,32) * var(--s,3) * 1px);height:calc(var(--h,32) * var(--s,3) * 1px)}
-.small-slot{--s:2!important}
+.stage{--s:2} .stage.tall{--s:3} .stage.short{--s:1.5}
+.stage.tall .cast.n3{--s:2}
+.sprite img{display:block;width:calc(var(--w,64) * var(--s,2) * 1px);height:calc(var(--h,64) * var(--s,2) * 1px)}
+.small-slot{--s:1.5!important}
 canvas.fx{position:absolute;inset:2px;width:calc(100% - 4px);height:calc(100% - 4px);image-rendering:pixelated;pointer-events:none;z-index:2}
 .sprite figcaption{position:absolute;bottom:4px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:10px;line-height:1;padding:3px 5px;background:var(--edge);color:var(--ink);border:2px solid var(--frame)}
 .slot.speaking figcaption{color:var(--gold)}
@@ -205,7 +205,7 @@ canvas.fx{position:absolute;inset:2px;width:calc(100% - 4px);height:calc(100% - 
 .carousel .lead-card:only-child{flex-basis:100%}
 .lead-art{position:relative;flex:1 1 auto;min-height:80px;border:2px solid var(--edge);overflow:hidden}
 .lead-art .scene-box{inset:0}
-.lead-who{position:absolute;right:6px;bottom:0;height:96px;width:auto}
+.lead-who{position:absolute;right:6px;bottom:0;height:128px;width:128px}
 .lead-body{display:flex;flex-direction:column;gap:4px;padding:0 6px}
 .lead-body h3{font-size:18px;color:#fff}
 .lead-body p{margin:0;font-size:13.5px;line-height:1.6;color:var(--soft);display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
@@ -306,7 +306,7 @@ canvas.fx{position:absolute;inset:2px;width:calc(100% - 4px);height:calc(100% - 
 .kv span{font-size:9px;color:var(--muted)} .kv b{font-weight:400;font-size:13px}
 .person{display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:2px dotted #2c3a80}
 .person:last-child{border-bottom:none}
-.person .head{width:40px;height:44px;flex:none;background:linear-gradient(#3a4ea8,#22307a);border:2px solid var(--edge)}
+.person .head{width:36px;height:40px;flex:none;background:linear-gradient(#3a4ea8,#22307a);border:2px solid var(--edge)}
 .p-main{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.4}
 .p-main b{font-weight:400;font-size:14px} .p-main span{font-size:11.5px;color:var(--muted)}
 .hearts{color:var(--sakura);font-size:11px;white-space:nowrap} .hearts i{font-style:normal;opacity:.25}
@@ -4144,20 +4144,20 @@ const PX = (()=>{
   return {portrait, sceneURL, SKIN, HAIR, EYES, STY, hash, rngF, Buf, ci, by, cache, custom:{}};
 })();
 
-/* ---------- who looks like what ---------- */
+/* ---------- who looks like what (HD specs, see 82_hd.js) ---------- */
 const CHAR_ART = {
-  lina:{skin:0, hair:'ginger', style:'pony', eye:'green', mouth:'grin', clothes:'leather', cloth:['#9ad08a','#5a9a4a','#3a6a32'], accent:'#c97a3a', acc:['freckles']},
-  sera:{skin:0, hair:'silver', style:'hime', eye:'ice', eyes:'sharp', mouth:'frown', clothes:'noble', cloth:['#8aa8f2','#4a6ad2','#2c3e8e'], accent:'#f3c96e', acc:['tiara','blush']},
-  rook:{skin:2, hair:'grey', style:'spiky', eye:'amber', eyes:'sharp', mouth:'neutral', clothes:'rags', cloth:['#a88a6a','#7a5e44','#52402c'], accent:'#c94a4a', animal:'wolf', ears:'none', acc:['scar']},
-  nimue:{skin:0, hair:'mint', style:'long', eye:'violet', eyes:'sleepy', mouth:'smile', clothes:'robe', cloth:['#a88ad8','#6a4aa8','#442c78'], accent:'#f3c96e', ears:'elf', acc:['flower']},
-  lumi:{skin:0, hair:'pink', style:'long', eye:'gold', eyes:'round', mouth:'grin', clothes:'dress', cloth:['#ffffff','#f0f0fa','#c8c8e0'], accent:'#f3c96e', acc:['halo','blush']},
-  mal:{skin:5, hair:'black', style:'long', eye:'red', eyes:'sleepy', mouth:'neutral', clothes:'cloak', cloth:['#4a4460','#2a2640','#16142a'], accent:'#c94a6a', hood:['#4a4460','#2a2640','#16142a']},
-  vexa:{skin:1, hair:'crimson', style:'long', eye:'red', eyes:'sharp', mouth:'smirk', clothes:'armor', cloth:['#8a4a5a','#5a2a3a','#3a1626'], accent:'#f3c96e', horns:'demon', ears:'elf'},
-  kenji:{skin:1, hair:'black', style:'spiky', eye:'brown', mouth:'grin', clothes:'gakuran', cloth:['#3a3a4a','#22222e','#121218'], accent:'#f3c96e', acc:['headband']},
-  pia:{skin:1, hair:'lilac', style:'bob', eye:'red', eyes:'round', mouth:'o', clothes:'rags', cloth:['#8a7a9a','#5a4a6a','#3a2e4a'], accent:'#f3c96e', horns:'stub', acc:['blush']},
-  aria:{skin:0, hair:'blonde', style:'long', eye:'violet', eyes:'round', mouth:'smile', clothes:'noble', cloth:['#d0b0f2','#9a6ad2','#6a3e9a'], accent:'#f3c96e', acc:['crown']},
-  hilde:{skin:1, hair:'brown', style:'bun', eye:'brown', mouth:'smile', clothes:'apron', cloth:['#d08a8a','#a85a5a','#783a3a'], accent:'#fff'},
-  bram:{skin:2, hair:'brown', style:'short', eye:'brown', eyes:'closed', mouth:'smile', clothes:'tunic', cloth:['#a8b0c0','#6a7a90','#4a5468'], accent:'#c99a4a', acc:['beard']}
+  lina:{skin:0, hair:'ginger', style:'pony', eye:'green', eyes:'round', mouth:'grin', clothes:'leather', cloth:[0,'#4f8f46'], accent:'#c98a4a', acc:['freckles','blush'], prop:'bow'},
+  sera:{skin:0, hair:'silver', style:'hime', eye:'ice', eyes:'sharp', mouth:'pout', brows:'angry', clothes:'noble', fur:true, cloth:[0,'#3a58b8'], accent:'#f3c96e', acc:['tiara','blush']},
+  rook:{skin:2, hair:'grey', style:'messy', eye:'amber', eyes:'sharp', mouth:'neutral', brows:'angry', clothes:'rags', cloth:[0,'#7a5e44'], accent:'#c94a4a', animal:'wolf', ears:'none', acc:['scar']},
+  nimue:{skin:0, hair:'mint', style:'long', eye:'violet', eyes:'sleepy', mouth:'smile', clothes:'robe', cloth:[0,'#6a4aa8'], accent:'#f3c96e', ears:'elf', acc:['flower'], prop:'staff'},
+  lumi:{skin:0, hair:'pink', style:'long', eye:'gold', eyes:'round', mouth:'grin', clothes:'dress', cloth:[0,'#f2f0fa'], accent:'#f0b840', acc:['halo','flower','blush'], prop:'clipboard', ahoge:true},
+  mal:{skin:5, hair:'black', style:'long', eye:'red', eyes:'sleepy', mouth:'neutral', brows:'sad', clothes:'cloak', cloth:[0,'#2a2640'], accent:'#c94a6a', hood:[0,'#2e2a44']},
+  vexa:{skin:1, hair:'crimson', style:'long', eye:'red', eyes:'sharp', mouth:'smirk', brows:'angry', clothes:'armor', cloth:[0,'#6a3040'], accent:'#f3c96e', horns:'demon', ears:'elf'},
+  kenji:{skin:1, hair:'black', style:'spiky', eye:'brown', mouth:'grin', clothes:'gakuran', cloth:[0,'#24242e'], accent:'#f3c96e', acc:['headband'], prop:'sword'},
+  pia:{skin:1, hair:'lilac', style:'bob', eye:'red', eyes:'round', mouth:'o', clothes:'rags', cloth:[0,'#5a4a6a'], accent:'#f3c96e', horns:'stub', acc:['blush']},
+  aria:{skin:0, hair:'blonde', style:'long', eye:'violet', eyes:'round', mouth:'smile', clothes:'noble', cloth:[0,'#8a5ad2'], accent:'#f3c96e', acc:['crown','earring']},
+  hilde:{skin:1, hair:'brown', style:'bun', eye:'brown', mouth:'smile', clothes:'apron', cloth:[0,'#a85a5a'], accent:'#ffffff'},
+  bram:{skin:2, hair:'brown', style:'short', eye:'brown', eyes:'closed', mouth:'smile', clothes:'tunic', cloth:[0,'#6a7a90'], accent:'#c99a4a', acc:['beard']}
 };
 const CHAR_NAMES = {lina:'Lina', sera:'Seraphine', rook:'Rook', nimue:'Nimue', lumi:'Lumi', mal:'Mal', vexa:'Vexa', kenji:'Kenji', pia:'Pia', aria:'Aria', hilde:'Mama Hilde', bram:'Papa Bram'};
 const CHAR_FIND = [
@@ -4165,7 +4165,7 @@ const CHAR_FIND = [
   ['mal',/\bMal\b/],['vexa',/\bVexa\b/],['kenji',/\bKenji\b/],['pia',/\bPia\b/],['aria',/\bAria\b/],
   ['hilde',/Mama Hilde|\bMama\b/],['bram',/Papa Bram|\bPapa\b/]
 ];
-const LOOK_STYLES = {messy:'Messy', short:'Short', spiky:'Spiky', bob:'Bob', long:'Long', hime:'Hime cut', pony:'Ponytail', twin:'Twin tails', bun:'Bun'};
+const LOOK_STYLES = {messy:'Messy', short:'Short', spiky:'Spiky', bob:'Bob', long:'Long', hime:'Hime cut', pony:'Ponytail', twin:'Twin tails', bun:'Bun', braid:'Braid'};
 const LOOK_HAIR = ['black','brown','chestnut','blonde','ginger','pink','silver','blue','mint','lilac','crimson','white'];
 const LOOK_EYES = ['blue','green','amber','violet','brown','gold','ice','grey','red'];
 const DEFAULT_LOOK = {style:'messy', hair:'brown', eye:'blue', skin:1};
@@ -4173,62 +4173,70 @@ const DEFAULT_LOOK = {style:'messy', hair:'brown', eye:'blue', skin:1};
 function playerArt(s, age){
   const L = Object.assign({}, DEFAULT_LOOK, s.look||{});
   const st = stageOf(age!=null?age:s.age);
-  let clothes='tunic', cloth=['#9ad0a0','#5a9a6a','#3a6a48'], accent='#c99a4a';
-  if(st==='academy'){ clothes='uniform'; cloth=['#5a6ab0','#2c3a78','#1a2450']; accent='#d84a5a'; }
-  if(st==='adult' && s.path==='adv'){ clothes='leather'; cloth=['#c08a5a','#8a5a34','#5a3a20']; accent='#d84a5a'; }
-  if(st==='adult' && s.path==='shop'){ clothes='apron'; cloth=['#6a8ad0','#3a5aa0','#24386a']; accent='#ffffff'; }
-  if(st==='adult' && s.path==='crown'){ clothes='armor'; cloth=['#e8eef8','#a8b4c8','#6a7890']; accent='#4a8ae0'; }
+  let clothes='tunic', cloth=[0,'#5a9a6a'], accent='#c99a4a', prop=null;
+  if(st==='academy'){ clothes='uniform'; cloth=[0,'#2c3a78']; accent='#d84a5a'; }
+  if(st==='adult' && s.path==='adv'){ clothes='leather'; cloth=[0,'#8a5a34']; accent='#c84a4a'; prop = s.cheat==='mana'?'staff':'sword'; }
+  if(st==='adult' && s.path==='shop'){ clothes='apron'; cloth=[0,'#3a5aa0']; accent='#ffffff'; }
+  if(st==='adult' && s.path==='crown'){ clothes='armor'; cloth=[0,'#a8b4c8']; accent='#4a8ae0'; }
   const sp = {skin:L.skin, hair:L.hair, style:L.style, eye: s.race==='demon'?'red':L.eye, eyes: st==='child'?'round':'normal', mouth:'smile', clothes, cloth, accent};
+  if(prop) sp.prop=prop;
   if(s.race==='elf') sp.ears='elf';
   if(s.race==='beast') sp.animal='fox';
   if(s.race==='dragon') sp.horns='dragon';
   if(s.race==='demon') sp.horns='demon';
   return sp;
 }
-const ROLE_CLOTHES = {
-  merchant:['tunic',['#e8c88a','#c09a4a','#8a6a2a'],'#c23c5a'], bandit:['rags',['#8a7a6a','#5a4a3a','#3a2e22'],'#8a2a2a'], noble:['noble',null,'#f3c96e'],
-  knight:['armor',['#e8eef8','#a8b4c8','#6a7890'],'#d84a5a'], guard:['armor',['#c8d0dc','#8a96aa','#5a6478'],'#4a8ae0'], mage:['robe',null,'#f3c96e'],
-  priest:['robe',['#ffffff','#e8e8f2','#b8b8d0'],'#f3c96e'], adventurer:['leather',['#c08a5a','#8a5a34','#5a3a20'],null], thief:['cloak',['#5a5a6a','#3a3a48','#22222e'],'#9a9ab2'],
-  farmer:['tunic',['#c8b088','#9a8258','#6a5a3a'],'#5a9a4a'], healer:['robe',['#e8f8ee','#b8e0c8','#7ab09a'],'#3eb85a'], scholar:['robe',['#a8a0c0','#6a6290','#463e62'],'#c99a4a'],
-  guardsman:['armor',null,null], student:['uniform',['#5a6ab0','#2c3a78','#1a2450'],'#d84a5a'], innkeeper:['apron',['#c88a6a','#9a5a3a','#6a3a24'],null], smith:['apron',['#6a6a7a','#4a4a58','#2c2c38'],null],
-  bard:['noble',['#ffb0c8','#e0607a','#a03a52'],'#f3c96e'], hunter:['leather',['#8ab07a','#5a804a','#3a5a30'],'#c97a3a'], cultist:['cloak',['#3a2a3a','#22162a','#120a18'],'#e23c3c']
+const ROLE_ART = {
+  merchant:{clothes:'tunic', cloth:'#c09a4a', accent:'#c23c5a', prop:'pouch'}, bandit:{clothes:'rags', cloth:'#5a4a3a', accent:'#8a2a2a', acc:['bandana']},
+  noble:{clothes:'noble', accent:'#f3c96e'}, knight:{clothes:'armor', cloth:'#a8b4c8', accent:'#d84a5a', prop:'sword'}, guard:{clothes:'armor', cloth:'#8a96aa', accent:'#4a8ae0'},
+  mage:{clothes:'robe', accent:'#f3c96e', prop:'staff'}, priest:{clothes:'robe', cloth:'#e8e8f2', accent:'#f3c96e', prop:'book'}, adventurer:{clothes:'leather', cloth:'#8a5a34'},
+  thief:{clothes:'cloak', cloth:'#3a3a48', accent:'#9a9ab2'}, farmer:{clothes:'tunic', cloth:'#9a8258', accent:'#5a9a4a'}, healer:{clothes:'robe', cloth:'#b8e0c8', accent:'#3eb85a', prop:'orb'},
+  scholar:{clothes:'robe', cloth:'#6a6290', accent:'#c99a4a', acc:['glasses'], prop:'book'}, student:{clothes:'uniform', cloth:'#2c3a78', accent:'#d84a5a'}, innkeeper:{clothes:'apron', cloth:'#9a5a3a'},
+  smith:{clothes:'apron', cloth:'#4a4a58', acc:['headband'], accent:'#c84a4a'}, bard:{clothes:'noble', cloth:'#e0607a', accent:'#f3c96e', acc:['ribbon']}, hunter:{clothes:'leather', cloth:'#5a804a', accent:'#c97a3a', prop:'bow'},
+  cultist:{clothes:'cloak', cloth:'#22162a', accent:'#e23c3c', hood:'#2a1a2e'}
 };
 function npcArt(n){
   const r = PX.rngF(PX.hash(n.id));
   const pick = a => a[Math.floor(r()*a.length)];
   const natural = ['black','brown','brown','chestnut','blonde','ginger','black','grey'];
   const fancy = ['pink','silver','blue','mint','lilac','crimson','white'];
-  let hair = r()<.72 ? pick(natural) : pick(fancy);
+  let hair = r()<.7 ? pick(natural) : pick(fancy);
   if(/silver-streaked/.test(n.look)) hair='silver';
-  const style = n.g==='m' ? pick(['messy','short','spiky','short','messy','bald','long']) : pick(['bob','long','pony','twin','hime','bun','long']);
+  let style = n.g==='m' ? pick(['messy','short','spiky','short','messy','long','bald']) : pick(['bob','long','pony','twin','hime','bun','long','braid']);
+  if(/braid/.test(n.look)) style='braid';
   let eye = pick(['blue','green','amber','violet','brown','gold','ice','grey']);
   if(/green eyes/.test(n.look)) eye='green';
   const T = n.trait;
   const eyes = ['cunning','suspicious','proud','hotheaded'].includes(T) ? 'sharp' : ['lazy','gloomy'].includes(T) ? 'sleepy' : ['cheerful','timid','kind'].includes(T) ? 'round' : 'normal';
-  let mouth = ['cheerful','kind'].includes(T) ? 'smile' : T==='hotheaded' ? 'grin' : ['gloomy','suspicious'].includes(T) ? 'frown' : T==='proud'||T==='cunning' ? 'smirk' : 'neutral';
+  let mouth = ['cheerful','kind'].includes(T) ? 'smile' : T==='hotheaded' ? 'grin' : ['gloomy','suspicious'].includes(T) ? 'frown' : T==='proud'||T==='cunning' ? 'smirk' : T==='timid' ? 'pout' : 'neutral';
   if(/never quite smiles/.test(n.look)) mouth='neutral';
   if(/laugh|missing front tooth/.test(n.look)) mouth='grin';
-  const rc = ROLE_CLOTHES[n.role] || ROLE_CLOTHES.adventurer;
-  const randCloth = ()=>{ const h=Math.floor(r()*360); const c=(l)=>{ const k=(n)=>(n+h/30)%12, a=.55*Math.min(l,1-l); const f=n=>Math.round(255*(l-a*Math.max(-1,Math.min(k(n)-3,9-k(n),1)))).toString(16).padStart(2,'0'); return '#'+f(0)+f(8)+f(4); }; return [c(.7),c(.5),c(.32)]; };
-  const sp = {skin: Math.floor(r()*5), hair, style, eye, eyes, mouth, clothes: rc[0], cloth: rc[1]||randCloth(), accent: rc[2]||'#f3c96e', acc:[]};
-  if(n.role==='mage' && r()<.6) sp.acc.push('wizard');
-  if(n.role==='scholar') sp.acc.push('glasses');
-  if(n.role==='bandit') sp.acc.push('bandana');
-  if(n.role==='smith') sp.acc.push('headband');
-  if(n.role==='farmer' && r()<.5) sp.acc.push('straw');
+  const brows = ['hotheaded','proud','suspicious'].includes(T) ? 'angry' : ['timid','gloomy'].includes(T) ? 'sad' : 'neutral';
+  const ra = ROLE_ART[n.role] || ROLE_ART.adventurer;
+  const hue = Math.floor(r()*360);
+  const cloth = ra.cloth || HD_hsl(hue, .45, .42);
+  const sp = {skin: Math.floor(r()*5), hair, style, eye, eyes, mouth, brows, clothes: ra.clothes, cloth:[0,cloth], accent: ra.accent||HD_hsl((hue+150)%360,.6,.55), acc:(ra.acc||[]).slice()};
+  if(ra.prop && r()<.75) sp.prop = ra.prop;
+  if(ra.hood) sp.hood=[0,ra.hood];
+  if(n.role==='mage' && r()<.6) sp.acc.push(r()<.5?'wizard':'witch');
+  if(n.role==='farmer' && r()<.6) sp.acc.push('straw');
   if(n.role==='noble' && n.g==='f' && r()<.5) sp.acc.push('tiara');
-  if((n.role==='cultist') || (n.role==='thief' && r()<.4)) sp.hood=sp.cloth;
-  if(n.g==='m' && style!=='spiky' && r()<.18) sp.acc.push('beard');
+  if(n.role==='noble' && r()<.5) sp.fur=true;
+  if(n.role==='innkeeper' && n.g==='f' && r()<.6) sp.acc.push('maid');
+  if(n.role==='thief' && r()<.5){ sp.hood=[0,'#2e2e3a']; if(r()<.5) sp.acc.push('mask'); }
+  if(n.g==='m' && style!=='spiky' && r()<.22) sp.acc.push(r()<.6?'beard':'stache');
   if(/scar/.test(n.look)) sp.acc.push('scar');
   if(/rings/.test(n.look)) sp.acc.push('earring');
-  if(n.g==='f' && r()<.25) sp.acc.push(pick(['ribbon','flower','earring']));
+  if(n.g==='f' && r()<.3) sp.acc.push(pick(['ribbon','flower','earring','flowercrown']));
   if(T==='timid' || (T==='cheerful' && r()<.5)) sp.acc.push('blush');
-  if(r()<.12) sp.acc.push('freckles');
+  if(r()<.14) sp.acc.push('freckles');
   if(r()<.1 && n.role!=='cultist') sp.ears='elf';
-  if(r()<.08) sp.animal = pick(['fox','wolf']);
-  if(sp.animal) sp.hood=null;
+  if(r()<.07){ sp.animal = pick(['fox','wolf']); sp.ears='none'; sp.hood=null; }
+  if(r()<.05 && !sp.animal) sp.horns = pick(['stub','dragon']);
+  if(r()<.12) sp.ahoge = true;
   return sp;
 }
+function HD_hsl(h,s,l){ const c=(1-Math.abs(2*l-1))*s, x=c*(1-Math.abs((h/60)%2-1)), m=l-c/2; const [r,g,b] = h<60?[c,x,0]:h<120?[x,c,0]:h<180?[0,c,x]:h<240?[0,x,c]:h<300?[x,0,c]:[c,0,x]; return '#'+[r,g,b].map(v=>Math.round((v+m)*255).toString(16).padStart(2,'0')).join(''); }
 function presentChars(texts, castMap, arcId){
   const all = texts.join('\n');
   const found = [];
@@ -4241,108 +4249,302 @@ function presentChars(texts, castMap, arcId){
 
 ;
 /* =========================================================
-   GODDESS LUMI — hand-built 48x64 sprite
+   HD PORTRAITS — 64x64 anime busts
+   Hue-shifted colour ramps, clump-built hair, hand-shaped eyes,
+   selective (coloured) outlines.
    ========================================================= */
-PXC.lumi = { w:48, h:64, head:[12,5,24,26], draw(){
-  const b = new PX.Buf(48,64);
-  const K='#2a1a3a';
-  const HA='#fff2f8', HB='#ffc8e0', HC='#ff9cc8', HD='#e070a8', HE='#a84a86';
-  const s1='#fff2e6', S='#fcd8c0', T='#eab09a';
-  const Ey='#fff4b0', EY='#f2c040', EZ='#a8700c', W='#ffffff';
-  const H1='#fff8c8', H2='#ffd86a';
-  const R1='#ffffff', R='#ecebfa', Q='#c8c6e6', Q2='#a8a4d0';
-  const G1='#ffe08a', G='#f0b840', G2='#b8862a';
-  const L1='#f6eaff', L='#d6bcff', L2='#a888e8';
-  const P1='#ffe0ec', P='#ff8fb6', P2='#e0607e', O='#ffe680';
-  const set=(x,y,c)=>b.set(x,y,c);
-  const pts=(arr,c)=>arr.forEach(([x,y])=>set(x,y,c));
-  const bez=(p0,p1,p2,r,c,steps=60)=>{ for(let i=0;i<=steps;i++){ const t=i/steps, u=1-t; const x=u*u*p0[0]+2*u*t*p1[0]+t*t*p2[0], y=u*u*p0[1]+2*u*t*p1[1]+t*t*p2[1]; b.ell(x,y,r,r,c); } };
-  const bezLine=(p0,p1,p2,c,steps=60)=>{ for(let i=0;i<=steps;i++){ const t=i/steps, u=1-t; set(Math.round(u*u*p0[0]+2*u*t*p1[0]+t*t*p2[0]), Math.round(u*u*p0[1]+2*u*t*p1[1]+t*t*p2[1]), c); } };
+const HD = (()=>{
+  const {Buf, ci} = PX;
+  /* ---------- colour ---------- */
+  const hex2rgb = h=>[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];
+  const rgb2hex = (r,g,b)=>'#'+[r,g,b].map(v=>Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,'0')).join('');
+  function rgb2hsl(r,g,b){ r/=255; g/=255; b/=255; const mx=Math.max(r,g,b), mn=Math.min(r,g,b); let h=0,s=0; const l=(mx+mn)/2; if(mx!==mn){ const d=mx-mn; s=l>.5?d/(2-mx-mn):d/(mx+mn); h = mx===r?(g-b)/d+(g<b?6:0) : mx===g?(b-r)/d+2 : (r-g)/d+4; h*=60; } return [h,s,l]; }
+  function hsl2hex(h,s,l){ h=((h%360)+360)%360; s=Math.max(0,Math.min(1,s)); l=Math.max(0,Math.min(1,l)); const c=(1-Math.abs(2*l-1))*s, x=c*(1-Math.abs((h/60)%2-1)), m=l-c/2; let r,g,b; [r,g,b] = h<60?[c,x,0]:h<120?[x,c,0]:h<180?[0,c,x]:h<240?[0,x,c]:h<300?[x,0,c]:[c,0,x]; return rgb2hex((r+m)*255,(g+m)*255,(b+m)*255); }
+  function toward(h, target, amt){ let d=((target-h+540)%360)-180; return h+d*amt; }
+  /* five-step ramp from a base colour: highlight, light, base, shade, deep */
+  function ramp(base){
+    const [h,s,l] = rgb2hsl(...hex2rgb(base));
+    const sh = s<0.08 ? s : s;
+    const satC = v => Math.min(1, v);
+    return [
+      hsl2hex(toward(h,55,.2), satC(sh*0.8), Math.min(.97, l+(1-l)*0.6)),
+      hsl2hex(toward(h,50,.1), satC(sh*0.92), Math.min(.94, l+(1-l)*0.3)),
+      base,
+      hsl2hex(toward(h,280,.1), satC(sh*0.82+0.06), l*0.8),
+      hsl2hex(toward(h,280,.2), satC(sh*0.78+0.1), l*0.6)
+    ];
+  }
+  function mix(a,b,t){ const A=hex2rgb(a), B=hex2rgb(b); return rgb2hex(A[0]+(B[0]-A[0])*t, A[1]+(B[1]-A[1])*t, A[2]+(B[2]-A[2])*t); }
+  const int2hex = v => rgb2hex(v&255,(v>>8)&255,(v>>16)&255);
 
-  // celestial shawl, back loop
-  bez([2,63],[2,40],[14,33],1.7,L); bezLine([2,62],[2,41],[13,34],L1);
-  bez([34,33],[47,38],[45,63],1.7,L); bezLine([35,33],[46,39],[44,62],L2);
+  /* ---------- palettes ---------- */
+  const SKIN = ['#fde2cf','#f6caa8','#e3a77c','#c08058','#8c5a3c','#e6e2f2'].map(ramp);
+  const HAIRC = {black:'#3c3c5a', brown:'#87543a', chestnut:'#a44e30', blonde:'#f0c860', ginger:'#ee7a3c', pink:'#ff96bf', silver:'#d6d8ee', blue:'#4f8ee6', mint:'#86dcbc', lilac:'#b796f0', crimson:'#cc3448', white:'#eef0f8', grey:'#8c8ea2'};
+  const EYEC = {blue:'#3f8de6', green:'#3db35d', amber:'#e39a2c', red:'#df3a3a', violet:'#9758df', brown:'#8a5a34', gold:'#f0bd3c', ice:'#7fd2ee', grey:'#9a9ab2'};
 
-  // long back hair
-  b.poly([[13,9],[9,18],[8,30],[7,42],[5,54],[7,63],[41,63],[43,54],[41,42],[40,30],[39,18],[35,9],[29,4],[19,4]],HD);
-  [[10,26,8,62],[13,30,12,63],[36,30,37,63],[39,26,41,62]].forEach(([x0,y0,x1,y1])=>b.line(x0,y0,x1,y1,HE));
-  [[11,24,9,50],[38,24,40,50]].forEach(([x0,y0,x1,y1])=>b.line(x0,y0,x1,y1,HC));
-  [[6,62],[9,63],[12,61],[38,61],[41,63],[44,62]].forEach(([x,y])=>set(x,y,HE));
+  /* ---------- helpers ---------- */
+  function P(b,pts,c){ pts.forEach(([x,y])=>b.set(x,y,c)); }
+  function selout(b){
+    const o = new Uint32Array(b.d), W=b.w, H=b.h;
+    for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+      if(b.d[y*W+x]) continue;
+      const n = b.get(x,y+1)||b.get(x+1,y)||b.get(x-1,y)||b.get(x,y-1);
+      if(!n) continue;
+      const [h,s,l] = rgb2hsl(n&255,(n>>8)&255,(n>>16)&255);
+      o[y*W+x] = ci(hsl2hex(toward(h,265,.35), Math.min(1,s*0.9+0.18), Math.min(.22, l*0.32)));
+    }
+    b.d = o;
+  }
+  function clump(b, x0, y0, x1, y1, w, R, bend, hl){
+    // a tapered lock of hair from (x0,y0) to tip (x1,y1); R = hair ramp
+    const steps = Math.max(8, Math.ceil(Math.hypot(x1-x0,y1-y0))*2);
+    for(let i=0;i<=steps;i++){
+      const t=i/steps, cx=x0+(x1-x0)*t + Math.sin(t*Math.PI)*(bend||0), cy=y0+(y1-y0)*t, hw=Math.max(.5,(w/2)*Math.pow(1-t,.75));
+      for(let x=Math.floor(cx-hw); x<=Math.ceil(cx+hw); x++){
+        const d = (x+.5-cx)/hw; if(Math.abs(d)>1.05) continue;
+        let c = R[2];
+        if(d>0.45) c = R[3];
+        if(t>0.78) c = d>0 ? R[4] : R[3];
+        if(hl && d<-0.25 && d>-0.85 && t>0.12 && t<0.55) c = R[1];
+        b.set(x, Math.round(cy), c);
+      }
+    }
+  }
+  function strand(b, pts, c){ for(let i=0;i+1<pts.length;i++) b.line(pts[i][0],pts[i][1],pts[i+1][0],pts[i+1][1],c); }
 
-  // robe
-  b.rect(21,28,27,35,S); b.rect(21,29,27,31,T);
-  b.poly([[13,37],[18,34],[30,34],[35,37],[38,46],[39,64],[9,64],[10,46]],R);
-  b.poly([[13,37],[18,34],[20,34],[15,46],[12,64],[9,64],[10,46]],R1);
-  b.line(16,46,14,63,Q); b.line(32,46,34,63,Q); b.line(24,48,24,63,Q); b.line(36,44,38,63,Q2);
-  b.poly([[20,34],[28,34],[24,41]],S); pts([[23,39],[24,39],[24,40]],T);
-  b.line(19,34,24,42,G); b.line(29,34,24,42,G); b.line(18,35,13,38,G); b.line(30,35,35,38,G);
-  b.ell(13,38.5,2.2,1.6,G); b.ell(35,38.5,2.2,1.6,G); set(12,38,G1); set(34,38,G1); set(14,39,G2); set(36,39,G2);
-  pts([[24,43],[23,44],[25,44],[24,45]],G2); set(24,44,'#8ad8f2'); set(23,43,G1);
-  b.rect(10,55,39,57,G); b.rect(10,57,39,58,G2); for(let x=11;x<39;x+=3) set(x,55,G1);
-  b.line(27,58,29,63,G); b.line(28,58,31,63,G2);
-
-  // front drape of the shawl
-  bez([13,41],[9,50],[6,63],1.5,L); bezLine([12,41],[8,50],[5,62],L1);
-  bez([35,42],[40,50],[42,63],1.5,L); bezLine([36,42],[41,50],[43,62],L2);
-
-  // sleeves, hands, clipboard
-  b.poly([[13,40],[21,46],[26,52],[23,55],[12,50]],R); b.line(14,45,22,53,Q);
-  b.poly([[35,40],[39,46],[39,53],[36,51]],R); set(38,50,Q);
-  b.rect(26,44,38,58,'#b07a4a'); b.rect(26,57,38,58,'#7a4a2a'); b.rect(37,44,38,58,'#7a4a2a');
-  b.rect(27,46,36,56,R1); for(let y=48;y<=54;y+=2) b.line(28,y,35,y,Q);
-  pts([[33,54],[35,54],[33,55],[34,55],[35,55],[34,56]],P); set(34,54,P1);
-  b.rect(30,43,34,46,'#c8ccd8'); b.line(30,45,33,45,'#8a90a8');
-  b.rect(24,49,28,53,S); set(24,52,T); set(27,52,T); b.rect(37,47,39,51,S); set(38,50,T);
-
-  // face
-  const HW={11:5,12:6,25:7,26:7,27:6,28:5,29:4,30:2};
-  for(let y=11;y<=30;y++){ const w=HW[y]||8; for(let x=24-w;x<=23+w;x++) set(x,y,S); set(23+w,y,T); }
-  for(let x=22;x<=25;x++) set(x,30,T);
-  for(let y=13;y<=22;y++) set(17,y,s1);
-  // eyes (left: x17-21, right: x26-30, mirrored)
-  const eye=(x0,flip)=>{ const X=c=>flip? x0+4-c : x0+c;
-    for(let c=0;c<5;c++) set(X(c),18,K); set(X(1),17,K); set(X(2),17,K); set(X(3),17,K); set(X(0),19,K);
-    set(X(1),19,EZ); set(X(2),19,EZ); set(X(3),19,W); set(X(4),19,EZ);
-    set(X(0),20,W); set(X(1),20,EY); set(X(2),20,EZ); set(X(3),20,W); set(X(4),20,EY);
-    set(X(0),21,W); set(X(1),21,EY); set(X(2),21,EY); set(X(3),21,EY); set(X(4),21,EY);
-    set(X(1),22,Ey); set(X(2),22,EY); set(X(3),22,EY); set(X(4),22,Ey);
-    set(X(2),23,Ey); set(X(3),23,Ey); set(X(2),22,W);
-    set(X(1),24,T); set(X(2),24,T); set(X(3),24,T);
+  /* ---------- geometry (64x64 bust) ----------
+     face x22..41, eyes y23..29, mouth y35, chin y39, shoulders from y43 */
+  const CX = 31.5;
+  // bangs: [rootX, tipX, tipY, width]
+  const STY = {
+    messy:{bangs:[[18,16,26,6],[22,20,25,6],[26,25,22,5],[30,30,25,5],[34,35,22,5],[38,40,25,6],[42,45,24,6],[46,47,20,5]], side:33, ahoge:true, spikes:[[19,6,-4],[26,2,-2],[34,1,1],[41,3,3],[46,8,5]]},
+    short:{bangs:[[18,17,23,6],[23,22,24,6],[28,29,21,5],[33,35,23,5],[38,41,22,6],[44,46,21,5]], side:29},
+    spiky:{bangs:[[18,15,25,6],[22,21,26,6],[27,27,22,5],[32,33,25,5],[37,39,23,6],[42,46,25,6]], side:31, back:30, spikes:[[13,9,-7],[17,2,-5],[23,-2,-3],[31,-3,0],[38,-2,3],[44,2,5],[49,9,7]]},
+    bob:{bangs:[[18,17,25,6],[22,22,24,6],[26,26,24,5],[30,30,24,5],[34,34,24,5],[38,38,24,6],[42,43,24,6],[46,46,25,5]], side:38, back:40},
+    long:{bangs:[[18,16,27,6],[22,21,26,6],[26,27,22,5],[30,31,19,5],[34,33,19,5],[38,37,22,5],[42,44,26,6],[46,48,27,6]], side:50, back:63},
+    hime:{bangs:[[18,18,23,5],[22,22,23,5],[26,26,23,5],[30,30,23,5],[34,34,23,5],[38,38,23,5],[42,42,23,5],[46,46,23,5]], side:40, back:63, cut:true},
+    pony:{bangs:[[18,16,26,6],[22,23,25,6],[27,29,23,5],[32,35,22,5],[37,40,21,5],[42,45,22,6],[46,48,24,5]], side:32, tail:'pony'},
+    twin:{bangs:[[18,17,25,6],[22,21,26,6],[27,28,23,5],[32,33,25,5],[37,38,23,5],[42,44,26,6],[46,47,24,5]], side:31, tail:'twin'},
+    bun:{bangs:[[18,16,25,6],[23,22,23,5],[28,29,20,5],[35,34,20,5],[40,42,23,5],[45,47,25,6]], side:30, tail:'bun'},
+    braid:{bangs:[[18,16,26,6],[22,22,25,6],[27,28,22,5],[32,34,23,5],[37,39,25,6],[42,45,25,6],[46,48,23,5]], side:33, tail:'braid'},
+    bald:{none:true}
   };
-  eye(17,false); eye(26,true);
-  b.line(18,15,20,15,HD); b.line(27,15,29,15,HD);
-  pts([[17,25],[19,25],[18,26],[28,25],[30,25],[29,26]],'#ffa6b8');
-  set(24,25,T);
-  pts([[22,26],[23,27],[24,27],[25,26]],'#c0506a'); set(23,28,'#ff8fa8'); set(24,28,'#e0607e');
 
-  // front hair: crown, bangs, side locks
-  for(let y=3;y<=14;y++) for(let x=10;x<=37;x++){ const dx=(x+.5-24)/13.2, dy=(y+.5-13.5)/10; if(dx*dx+dy*dy<=1) set(x,y,HC); }
-  const depth=[20,19,17,15,14,15,16,15,14,16,18,15,14,15,16,15,14,15,17,19];
-  for(let i=0;i<depth.length;i++){ const x=14+i; if(x>33) break; const d=depth[i]; for(let y=8;y<=d;y++) set(x,y,HC); set(x,d,HD); if(d>=17) set(x,d-1,HD); }
-  for(let x=17;x<=31;x+=2){ const d=depth[x-14]; if(b.get(x,d+1)===PX.ci(S)) set(x,d+1,T); }
-  b.poly([[10,13],[15.5,13],[15.5,28],[14,38],[15,47],[12,52],[9,47],[9.5,37],[9.5,24]],HC);
-  b.line(15,15,13,46,HD); b.line(11,22,10,44,HB); pts([[10,50],[11,52],[13,51],[14,49]],HD);
-  b.poly([[32.5,13],[38,13],[38.5,24],[38.5,34],[37.5,42],[34.5,44],[33.5,38],[32.5,28]],HC);
-  b.line(33,15,34,40,HD); b.line(37,22,37,36,HB);
-  [[18,9,17,14],[21,9,21,15],[26,9,26,14],[29,9,30,15]].forEach(([x0,y0,x1,y1])=>b.line(x0,y0,x1,y1,HD));
-  // shine
-  for(const x of [15,16,17,18,19,20]) set(x,7,HA); for(const x of [16,17,18,19]) set(x,6,HB);
-  for(const x of [27,28,29,30,31,32]) set(x,7,HA); for(const x of [28,29,30,31]) set(x,6,HB);
-  set(22,9,HB); set(23,9,HB); set(25,10,HB);
+  /* ---------- body ---------- */
+  function shoulderRange(y){ if(y<43) return null; const t=y-43; const half = Math.min(27, 9 + t*3.2 - Math.max(0,t-5)*1.9); return [Math.round(CX-half), Math.round(CX+half)]; }
+  function drawBody(b, sp, C, A, K){
+    for(let y=43;y<64;y++){ const [x0,x1]=shoulderRange(y); for(let x=x0;x<=x1;x++){ let c=C[2]; const rel=(x-CX)/(x1-x0+1)*2; if(rel<-0.6 && y<52) c=C[1]; if(rel>0.5) c=C[3]; if(rel>0.84) c=C[4]; b.set(x,y,c); } }
+    b.line(15,51,13,63,C[3]); b.line(48,51,50,63,C[4]);
+    const A2 = ramp(A);
+    const V = (depth, col)=>{ for(let y=43;y<43+depth;y++){ const hw=Math.max(0,4.5-(y-43)*4.5/depth); for(let x=Math.round(CX-hw); x<=Math.round(CX+hw); x++) b.set(x,y,col||K[2]); } };
+    switch(sp.clothes){
+      case 'tunic': V(7); b.line(27,43,31,50,A2[2]); b.line(36,43,32,50,A2[3]); P(b,[[30,46],[33,46],[30,48],[33,48]],A2[3]); break;
+      case 'uniform': { V(6); for(let y=44;y<53;y++){ for(let x=12;x<=51;x++){ const d=Math.abs(x-CX); const inner = 4.5-(y-43)*0.45; if(d>inner && d<inner+10-(y-44)*0.7) b.set(x,y, y<=45?'#ffffff':'#eef0fb'); } }
+        for(let x=13;x<=50;x++){ const d=Math.abs(x-CX); if(d>9 && d<17) b.set(x,51,A2[2]); }
+        b.ell(CX,50.5,3.2,2.2,A2[2]); P(b,[[30,53],[29,54],[29,55],[33,53],[34,54],[34,55]],A2[2]); P(b,[[31,50],[32,50]],A2[1]); break; }
+      case 'gakuran': for(let x=26;x<=37;x++){ b.set(x,43,C[3]); b.set(x,44,C[3]); } P(b,[[31,48],[32,48],[31,52],[32,52],[31,56],[32,56],[31,60],[32,60]],A2[1]); P(b,[[32,49],[32,53],[32,57]],A2[3]); break;
+      case 'armor': { const M=C; b.ell(12,50,7,5,M[1]); b.ell(51,50,7,5,M[2]); b.ell(10.5,48.2,3.4,1.6,M[0]); b.ell(49.5,48.2,3.4,1.6,M[1]); b.line(6,54,18,54,M[4]); b.line(45,54,57,54,M[4]);
+        for(let x=24;x<=39;x++){ b.set(x,43,M[3]); b.set(x,44,M[3]); } b.line(31,47,31,63,M[0]); b.line(32,47,32,63,M[3]); b.line(22,48,26,60,M[1]); P(b,[[31,50],[32,50]],A2[1]); P(b,[[31,51],[32,51]],A2[2]); break; }
+      case 'robe': { for(let x=24;x<=39;x++){ b.set(x,43,A2[2]); b.set(x,44,A2[3]); } V(4); for(let y=45;y<64;y++){ b.set(29,y,A2[2]); b.set(34,y,A2[3]); } b.ell(CX,47.5,2,2,A2[1]); b.set(31,47,'#8ad8f2'); b.set(32,48,'#3a8ab2'); break; }
+      case 'noble': { b.line(26,43,30,56,C[4]); b.line(37,43,33,56,C[4]);
+        for(let y=43;y<52;y++){ const hw=y<47?3.5:2.5-(y-47)*0.5; for(let x=Math.round(CX-hw);x<=Math.round(CX+hw);x++) b.set(x,y, (x+y)%3===0?'#d8dcec':'#ffffff'); }
+        P(b,[[25,52],[38,52],[24,56],[39,56],[23,60],[40,60]],A2[1]);
+        if(sp.fur){ for(let x=8;x<=55;x++){ if(Math.abs(x-CX)>6){ const yy=44+Math.round(Math.abs(x-CX)*0.14)+((x%3)?0:1); b.set(x,yy,'#ffffff'); b.set(x,yy+1,(x%2)?'#e8eaf6':'#ffffff'); b.set(x,yy+2,(x%2)?'#c8cce0':'#f2f2fa'); } } } break; }
+      case 'apron': V(6); for(let y=51;y<64;y++) for(let x=20;x<=43;x++) b.set(x,y, x===20||x===43?'#d8dae6':'#fafafa'); for(let y=44;y<51;y++){ b.set(22,y,'#fafafa'); b.set(41,y,'#fafafa'); } for(let x=20;x<=43;x+=2) b.set(x,51,'#e4e6f0'); break;
+      case 'leather': { const S=ramp(A); for(let y=41;y<46;y++) for(let x=23;x<=40;x++) if(Math.abs(x-CX)<8.5-(y-41)*0.5) b.set(x,y, y===41?S[1]:S[2]); P(b,[[38,46],[39,47],[38,48],[39,49],[40,50]],S[3]); b.line(13,47,40,63,C[4]); b.line(14,47,41,63,'#c8a060'); b.set(27,55,'#ffd86a'); break; }
+      case 'cloak': V(5); b.line(27,43,24,63,C[4]); b.line(36,43,39,63,C[4]); b.ell(CX,45.5,2,1.6,A2[1]); b.set(31,45,A2[0]); for(let x=20;x<=43;x++){ if(Math.abs(x-CX)>4) b.set(x,43+Math.round(Math.abs(x-CX)*0.16),C[1]); } break;
+      case 'rags': V(6); P(b,[[12,57],[13,57],[12,58],[13,58]],C[1]); P(b,[[47,55],[48,55],[48,56]],C[4]); b.line(9,63,13,59,C[4]); b.line(52,63,54,60,C[4]); break;
+      case 'dress': { for(let y=43;y<46;y++){ const hw=7-(y-43); for(let x=Math.round(CX-hw);x<=Math.round(CX+hw);x++) b.set(x,y,K[2]); } for(let x=22;x<=41;x++){ const yy=46+Math.round(1.6-Math.abs(x-CX)*0.18); b.set(x,yy,A2[2]); } b.line(24,47,31,50,A2[1]); b.line(39,47,32,50,A2[2]); b.ell(CX,50.5,1.5,1.5,'#8ad8f2'); b.set(31,50,'#ffffff'); break; }
+    }
+  }
 
-  // sakura blossoms in her hair
-  const bloom=(x,y)=>{ pts([[x,y-1],[x-1,y],[x+1,y],[x-1,y+1],[x+1,y+1]],P); set(x,y,O); pts([[x,y-2],[x-2,y],[x+2,y]],P1); set(x,y+1,P2); };
-  bloom(12,11); bloom(15,8); bloom(35,12); set(13,13,'#7ab06a'); set(14,13,'#5a9a4a'); set(36,14,'#7ab06a');
+  /* ---------- face ---------- */
+  const FHW = y => y<8?0 : ({8:5,9:7,10:8.5,11:9.5,12:10})[y] || (y<=28?10 : ({29:9.7,30:9.4,31:9,32:8.5,33:8,34:7.2,35:6.4,36:5.5,37:4.5,38:3.5,39:2.2})[y]||0);
+  function drawHead(b, K, sp){
+    for(let y=34;y<46;y++) for(let x=28;x<=35;x++) b.set(x,y, x>=34?K[3]:K[2]);
+    for(let y=36;y<40;y++) for(let x=28;x<=35;x++) b.set(x,y, y<38?K[4]:K[3]);
+    if(sp.ears!=='elf' && !sp.hood){ for(let y=24;y<=31;y++){ for(const x of [20,21]) b.set(x,y,K[2]); for(const x of [42,43]) b.set(x,y,K[3]); } P(b,[[21,26],[21,27],[21,28],[20,29]],K[3]); P(b,[[42,26],[42,27],[42,28],[43,29]],K[4]); }
+    for(let y=8;y<=39;y++){ const w=FHW(y); if(!w) continue; const x0=Math.round(32-w), x1=Math.round(31+w);
+      for(let x=x0;x<=x1;x++){ let c=K[2]; const rel=(x-x0)/(x1-x0+.001); if(rel>0.82) c=K[3]; if(y>=33 && rel>0.62) c=K[3]; if(y>=38) c=K[3]; if(rel<0.2 && y>=29 && y<=32) c=K[1]; b.set(x,y,c); } }
+  }
+  function eye(b, xo, y0, dir, shape, E, K){
+    // 8px wide; dir -1 = left eye (outer corner on the left)
+    const X = u => dir<0 ? xo+u : xo+7-u;
+    const L = mix(E[4],'#1a1024',.62), Lm = mix(L,K[3],.45);
+    const W='#ffffff', Wv='#dde2f2';
+    const set=(u,v,c)=>b.set(X(u),y0+v,c);
+    if(shape==='closed'){ [[1,3],[2,2],[3,1],[4,1],[5,1],[6,2],[7,3]].forEach(([u,v])=>set(u,v,L)); set(0,4,Lm); return; }
+    if(shape==='sleepy'){ for(let u=1;u<=7;u++) set(u,3,L); set(0,4,L); for(let u=2;u<=6;u++) set(u,2,K[3]);
+      [E[3],E[4],E[4],E[3],E[3]].forEach((c,j)=>set(2+j,4,c)); [E[2],E[1],E[2],E[1],E[2]].forEach((c,j)=>set(2+j,5,c)); set(1,4,Wv); set(7,4,Wv); for(let u=2;u<=6;u++) set(u,6,K[3]);
+      const ix0 = dir<0 ? xo+2 : xo+1; b.set(ix0,y0+4,W); return; }
+    const sharp = shape==='sharp', round = shape==='round';
+    if(!sharp) for(let u=2;u<=6;u++) set(u,0,L);
+    for(let u=1;u<=7;u++) set(u,1,L);
+    set(0,2,L); set(7,2,L);
+    if(sharp){ set(6,0,L); set(7,0,L); set(0,1,L); }
+    set(1,2,Wv); set(1,3,W); set(1,4,Wv); set(7,3,W);
+    const P_=mix(E[4],'#140a1c',.55);
+    const rows = round ? [[E[4],E[4],E[4],E[4],E[4]],[E[3],E[3],P_,E[3],E[3]],[E[2],E[3],P_,E[3],E[2]],[E[2],E[2],E[1],E[2],E[2]],[E[1],E[1],E[0],E[0],E[1]]]
+               : sharp ? [[E[4],E[4],P_,E[4],E[4]],[E[3],E[2],P_,E[2],E[3]],[E[2],E[1],E[0],E[1],E[2]]]
+               : [[E[4],E[4],E[4],E[4],E[4]],[E[3],E[3],P_,E[3],E[3]],[E[2],E[2],P_,E[2],E[2]],[null,E[1],E[0],E[1],null]];
+    rows.forEach((r,i)=>r.forEach((c,j)=>{ if(c) set(2+j,2+i,c); }));
+    const bottom = 2+rows.length;
+    if(sharp) for(let u=1;u<=6;u++) set(u,bottom,Lm); else for(let u=3;u<=5;u++) set(u,bottom,mix(K[2],K[3],.6));
+    const ix0 = dir<0 ? xo+2 : xo+1;
+    b.set(ix0,y0+3,W); b.set(ix0+1,y0+3,W); b.set(ix0,y0+4,mix(W,E[2],.25));
+    if(!sharp) b.set(ix0+3,y0+bottom-1,mix(W,E[0],.35));
+  }
+  function brows(b, kind, col){
+    const offs = {neutral:[1,0,0,0,0,1], angry:[2,1,1,0,0,-1], sad:[-1,0,0,1,1,2], up:[1,0,-1,-1,0,1]}[kind]||[1,0,0,0,0,1];
+    for(let i=0;i<6;i++){ b.set(29-i, 20+offs[i], col); b.set(34+i, 20+offs[i], col); }
+  }
+  function mouth(b, m, K){
+    const M=mix(K[4],'#b03050',.45), D='#5a1a2c', T='#e8707e', y=35;
+    if(m==='smile') P(b,[[29,y-1],[30,y],[31,y],[32,y],[33,y],[34,y-1]],M);
+    else if(m==='grin'){ P(b,[[29,y-1],[34,y-1]],M); for(let x=30;x<=33;x++){ b.set(x,y,D); b.set(x,y+1,D);} P(b,[[31,y],[32,y]],'#ffffff'); P(b,[[31,y+1],[32,y+1]],T); }
+    else if(m==='frown') P(b,[[30,y+1],[31,y],[32,y],[33,y+1]],M);
+    else if(m==='smirk') P(b,[[30,y],[31,y],[32,y],[33,y-1],[34,y-2]],M);
+    else if(m==='o'){ P(b,[[31,y],[32,y],[31,y+1],[32,y+1]],D); }
+    else if(m==='pout') P(b,[[30,y],[31,y+1],[32,y+1],[33,y]],M);
+    else P(b,[[30,y],[31,y],[32,y],[33,y]],M);
+  }
 
-  // halo
-  for(let y=0;y<=7;y++) for(let x=10;x<=38;x++){ const dx=(x+.5-24)/11.6, dy=(y+.5-3.6)/2.7, ix=(x+.5-24)/9.4, iy=(y+.5-3.6)/1.25; if(dx*dx+dy*dy<=1 && !(ix*ix+iy*iy<=1)) set(x,y, y>=4?H2:H1); }
+  /* ---------- hair ---------- */
+  function hairBack(b, st, R, A){
+    if(st.none) return;
+    if(st.back){ const bottom=st.back;
+      for(let y=10;y<=bottom;y++){ const half = y<28 ? 15.5 : 15.5+Math.min(6,(y-28)*0.32);
+        for(let x=Math.round(32-half); x<=Math.round(31+half); x++){ const jag = ((x*7)%5)-2; if(y>bottom-3+jag*0.6) continue; b.set(x,y,R[3]); } }
+      for(let k=0;k<6;k++){ const x=18+k*5+((k%2)?1:0); strand(b,[[x,18],[x-1+(k%3),36],[x+(k%2?1:-1),bottom-2]],R[4]); }
+      for(const x of [17,46]) strand(b,[[x,22],[x-(x<32?1:-1),bottom-4]],R[2]);
+    }
+    if(st.tail==='pony'){ clump(b,45,10,55,50,11,R,3,true); clump(b,47,14,52,56,7,R,-2,false); b.ell(44.5,11,2.6,2.6,A); b.set(44,10,mix(A,'#ffffff',.5)); }
+    if(st.tail==='twin'){ clump(b,15,12,7,56,10,R,-3,true); clump(b,48,12,56,56,10,R,3,false); clump(b,14,16,10,60,6,R,2,false); clump(b,49,16,53,60,6,R,-2,false); b.ell(16,13,2.6,2.6,A); b.ell(47.5,13,2.6,2.6,A); }
+    if(st.tail==='bun'){ b.ell(32,4.5,7,5.5,R[2]); b.ell(30,3,3.6,2.2,R[1]); b.line(36,1,37,6,R[3]); }
+    if(st.tail==='braid'){ for(let i=0;i<8;i++){ const y=36+i*3, x=46+Math.round(Math.sin(i)*1); b.ell(x,y,3,2,i%2?R[2]:R[3]); b.set(x-1,y-1,R[1]); } b.ell(46,62,2,1.5,A); }
+  }
+  function hairFront(b, st, R, K, sp){
+    if(st.none){ for(let y=7;y<=12;y++) for(let x=21;x<=42;x++) if(Math.abs(x-CX)<10-(12-y)*1.5) b.set(x,y, y<9?K[1]:K[2]); return; }
+    for(let y=4;y<=19;y++) for(let x=15;x<=48;x++){ const dx=(x+.5-32)/15, dy=(y+.5-20)/15.5; if(dx*dx+dy*dy<=1){ const lit=(x-32)*0.6+(y-10); b.set(x,y, lit< -6 ? R[1] : lit>8 ? R[3] : R[2]); } }
+    (st.spikes||[]).forEach(([x,y,lean],i)=>clump(b,x,12,x+lean,y,7,R,0,i%2===0));
+    const side = st.side;
+    if(st.cut){ for(let y=12;y<=side;y++){ for(let x=16;x<=21;x++) b.set(x,y, x===21?R[3]:x===17?R[1]:R[2]); for(let x=42;x<=47;x++) b.set(x,y, x===42?R[3]:x>=46?R[3]:R[2]); } }
+    else { clump(b,19,12,17,side,7,R,-1.5,true); clump(b,44,12,46,side,7,R,1.5,false); clump(b,21,14,21,side-6,4,R,-1,false); clump(b,42,14,42,side-6,4,R,1,false); }
+    const order = st.bangs.map((c,i)=>[c,i]).sort((a,b)=>Math.abs(b[0][0]-CX)-Math.abs(a[0][0]-CX));
+    order.forEach(([[rx,tx,ty,w],i])=>clump(b,rx,8,tx,ty,w,R,(tx-rx)*0.2,!st.cut && i%3===1));
+    if(st.cut) for(let x=20;x<=44;x+=4) b.line(x,13,x,22,R[3]);
+    // shine
+    [[18,25,11],[27,32,10],[35,39,10],[41,44,11]].forEach(([x0,x1,y])=>{ for(let x=x0;x<=x1;x++){ const yy=y+Math.round(Math.abs(x-CX)*0.1); const c=b.get(x,yy); if(c===ci(R[2])||c===ci(R[1])||c===ci(R[3])){ b.set(x,yy,R[0]); if(x>x0 && x<x1) b.set(x,yy+1,R[1]); } } });
+    if(st.ahoge || sp.ahoge){ strand(b,[[31,5],[30,0],[33,-2],[35,0]],R[2]); strand(b,[[32,5],[31,1],[33,-1]],R[1]); }
+    for(let x=22;x<=41;x++){ for(let y=14;y<=30;y++){ const c=b.get(x,y); if(c===ci(K[2])||c===ci(K[1])||c===ci(K[3])){ const above=b.get(x,y-1); if(above===ci(R[3])||above===ci(R[4])||above===ci(R[2])||above===ci(R[1])) b.set(x,y,K[3]); break; } } }
+  }
 
-  b.outline(K);
-  // sparkles beyond the outline
-  [[7,4],[41,2],[43,8],[4,14]].forEach(([x,y])=>{ set(x,y,H1); set(x-1,y,H2); set(x+1,y,H2); set(x,y-1,H2); set(x,y+1,H2); });
-  return b;
-}};
-CHAR_ART.lumi = {custom:'lumi'};
+  /* ---------- extras ---------- */
+  function elfEars(b,K){ const L=[[22,24],[22,31],[19,30],[12,19],[14,19]]; b.poly(L,K[2]); b.poly(L.map(([x,y])=>[64-x,y]),K[3]); b.line(20,28,15,21,K[3]); b.line(43,28,48,21,K[4]); P(b,[[14,20],[13,20]],K[1]); }
+  function animalEars(b,kind,R){
+    const L = kind==='wolf' ? [[14,15],[15,0],[25,8]] : [[15,15],[16,1],[26,9]];
+    const Lin = kind==='wolf' ? [[17,12],[17,5],[22,9]] : [[18,12],[18,5],[23,10]];
+    const mir = pts=>pts.map(([x,y])=>[64-x,y]);
+    b.poly(L,R[2]); b.poly(mir(L),R[3]); const ic = kind==='wolf' ? '#d6c4d4' : '#ffe0e6'; b.poly(Lin,ic); b.poly(mir(Lin),mix(ic,'#000000',.1));
+    b.line(15,1,16,9,R[1]); if(kind==='fox'){ P(b,[[16,1],[16,2],[15,2],[48,1],[48,2],[49,2]],'#ffffff'); }
+  }
+  function horns(b,kind){
+    if(kind==='demon'){ const B='#3a2a48', Lt='#6a5a84', D='#1e1428';
+      [1,-1].forEach(s=>{ const m=x=>s>0?x:63-x; [[23,11],[20,8],[17,7],[14,7],[11,6],[9,4],[8,1],[9,-1]].forEach(([x,y],i)=>{ const th = i<3?2:1; for(let t=0;t<=th;t++) b.set(m(x),y+t, t===0?Lt:i>4?D:B); }); }); }
+    else if(kind==='dragon'){ const B='#efe2c4', D='#b8a07a'; [[21,10],[20,8],[19,6],[19,4],[18,2],[18,1]].forEach(([x,y],i)=>{ b.set(x,y,i>3?D:B); b.set(x+1,y,B); b.set(63-x,y,D); b.set(62-x,y,B); }); }
+    else if(kind==='stub'){ P(b,[[24,8],[24,7],[25,7],[25,6],[39,8],[39,7],[38,7],[38,6]],'#e6d6bc'); P(b,[[25,8],[38,8]],'#b8a07a'); }
+  }
+  function hood(b, C, front, K){
+    if(!front){ b.ell(32,22,20,21,C[3]); for(let y=26;y<64;y++) for(let x=6;x<=57;x++) if(Math.abs(x-CX)<20+(y-26)*0.18) b.set(x,y,C[3]); return; }
+    for(let y=1;y<=18;y++) for(let x=11;x<=52;x++){ const dx=(x+.5-32)/20.5, dy=(y+.5-22)/20.5; const ix=(x+.5-32)/12.5, iy=(y+.5-25)/12.5; if(dx*dx+dy*dy<=1 && !(ix*ix+iy*iy<=1 && y>13)) b.set(x,y, (x<24 && y<10)?C[1]:x>40?C[3]:C[2]); }
+    for(let y=14;y<=42;y++){ for(let x=12;x<=21;x++) if(x<=21-Math.max(0,(y-34))) b.set(x,y, x===21?C[4]:C[2]); for(let x=42;x<=51;x++) if(x>=42+Math.max(0,(y-34))) b.set(x,y, x===42?C[4]:C[3]); }
+    for(let x=22;x<=41;x++){ b.set(x,13,C[4]); b.set(x,14,C[4]); if(K){ const c=b.get(x,15); if(c) b.set(x,15,K[3]); } }
+  }
+  function hand(b,x,y,K,flip){ b.ell(x,y,3.2,2.6,K[2]); b.set(x+(flip?2:-2),y-2,K[1]); b.line(x-2,y+1,x+2,y+1,K[3]); P(b,[[x-1,y],[x+1,y]],K[3]); }
+  const PROPS = {
+    staff:(b,K,A)=>{ const W='#8a5a34', Wl='#b07a4a'; for(let y=14;y<64;y++){ b.set(8,y,W); b.set(9,y,Wl); } const G=ramp(A); b.ell(8.5,11,4,4,G[2]); b.ell(8.5,11,2.2,2.2,'#8ad8f2'); b.set(7,10,'#ffffff'); b.line(5,15,12,15,G[3]); hand(b,9,52,K,false); },
+    orb:(b,K)=>{ b.ell(12,50,6.5,6.5,'#3a7ae6'); b.ell(11,48.5,4.5,4.5,'#6aaaf6'); b.ell(10,47,2,2,'#c8e6ff'); b.set(9,46,'#ffffff'); hand(b,13,58,K,false); },
+    book:(b,K)=>{ b.rect(18,51,46,64,'#5a3a2a'); b.rect(19,52,31,63,'#f6efe0'); b.rect(32,52,45,63,'#ece2cc'); for(let y=54;y<62;y+=2){ b.line(20,y,29,y,'#c8b89c'); b.line(34,y,43,y,'#c8b89c'); } b.line(31,51,31,63,'#3a2418'); hand(b,18,57,K,false); hand(b,46,57,K,true); },
+    clipboard:(b,K)=>{ b.rect(38,46,53,64,'#b07a4a'); b.rect(52,46,53,64,'#7a4a2a'); b.rect(40,49,51,63,'#ffffff'); for(let y=51;y<62;y+=2) b.line(41,y,49,y,'#c8c6e6'); b.rect(43,45,48,48,'#c8ccd8'); b.line(43,47,47,47,'#8a90a8'); P(b,[[48,59],[50,59],[48,60],[49,60],[50,60],[49,61]],'#ff8fb6'); hand(b,38,55,K,false); },
+    sword:(b,K)=>{ b.line(52,26,52,63,'#d8dce8'); b.line(53,26,53,63,'#8a90a8'); b.rect(48,41,58,43,'#c89a34'); b.rect(51,37,55,41,'#7a4a2a'); b.ell(53,36,1.6,1.6,'#e23c3c'); hand(b,53,45,K,true); },
+    pouch:(b,K)=>{ b.ell(13,56,5,4.5,'#9a6a3a'); b.ell(12,54,3,2,'#b88a5a'); b.line(9,52,17,52,'#5a3a1a'); b.set(13,59,'#ffd86a'); hand(b,14,52,K,false); },
+    bow:(b,K)=>{ for(let i=0;i<32;i++){ const y=30+i, x=6+Math.round(Math.sin(i/31*Math.PI)*-4+4); b.set(x,y,'#8a5a34'); b.set(x+1,y,'#b07a4a'); } b.line(10,30,10,61,'#e8e8e8'); hand(b,7,48,K,false); }
+  };
+  const ACCF = {
+    halo:(b)=>{ for(let y=0;y<=7;y++) for(let x=14;x<=49;x++){ const dx=(x+.5-32)/14, dy=(y+.5-3.2)/3, ix=(x+.5-32)/11.4, iy=(y+.5-3.2)/1.5; if(dx*dx+dy*dy<=1 && !(ix*ix+iy*iy<=1)) b.set(x,y, y>=3?'#ffd86a':'#fff6c0'); } },
+    tiara:(b,A)=>{ const G=ramp(A); for(let x=20;x<=43;x++) b.set(x,11+Math.round(Math.abs(x-CX)*0.08),G[2]); P(b,[[31,7],[32,7],[30,8],[31,8],[32,8],[33,8],[30,9],[33,9],[31,10],[32,10]],G[1]); P(b,[[31,8],[32,8],[31,9],[32,9]],'#8ad8f2'); P(b,[[25,10],[38,10]],G[1]); },
+    crown:(b,A)=>{ const G=ramp(A); for(let y=3;y<=8;y++) for(let x=22;x<=41;x++) b.set(x,y, y===8?G[3]:x<28?G[1]:G[2]); [[22,0],[22,1],[22,2],[27,1],[27,2],[31,-1],[32,-1],[31,0],[32,0],[31,1],[32,1],[31,2],[32,2],[36,1],[36,2],[41,0],[41,1],[41,2]].forEach(([x,y])=>b.set(x,y,G[1])); P(b,[[31,5],[32,5],[31,6],[32,6]],'#e23c5a'); P(b,[[25,5],[38,5]],'#8ad8f2'); },
+    wizard:(b,A,C)=>{ const H=ramp(C||'#4a3a8a'); b.ell(32,13,25,4,H[3]); b.ell(31,12,23,3,H[2]); b.poly([[18,12],[45,12],[40,0],[33,-6],[27,-3]],H[2]); b.poly([[18,12],[25,12],[28,1],[27,-3]],H[1]); for(let x=19;x<=44;x++){ b.set(x,10,ramp(A)[2]); b.set(x,11,ramp(A)[3]); } P(b,[[37,4],[36,5],[38,5],[37,6]],'#fff2a0'); },
+    witch:(b,A)=>{ ACCF.wizard(b,A,'#2a2a3a'); P(b,[[29,9],[30,8],[31,9],[30,10]],'#e0e0f0'); },
+    straw:(b)=>{ const S=ramp('#e8c870'); b.ell(32,13,26,4.4,S[3]); b.ell(31,12,24,3.4,S[2]); b.ell(32,7,11,7,S[2]); b.ell(29,5,6,3.5,S[1]); for(let x=21;x<=43;x++){ b.set(x,10,'#7a8ad8'); b.set(x,11,'#5a6ab0'); } b.ell(40,10,2.2,2,'#ffffff'); },
+    headband:(b,A)=>{ const G=ramp(A); for(let x=17;x<=46;x++){ b.set(x,13,G[2]); b.set(x,14,G[3]); } P(b,[[47,14],[48,15],[49,16],[48,16],[49,17],[50,18]],G[2]); },
+    bandana:(b,A)=>{ const G=ramp(A); for(let y=7;y<=12;y++) for(let x=15;x<=48;x++){ const dx=(x+.5-32)/15.5, dy=(y+.5-20)/15.8; if(dx*dx+dy*dy<=1.03) b.set(x,y, y===12?G[3]:G[2]); } P(b,[[49,13],[50,14],[51,15],[50,15],[51,16]],G[3]); P(b,[[21,9],[26,10],[37,9],[43,10]],G[0]); },
+    maid:(b)=>{ for(let x=20;x<=43;x++){ b.set(x,7+Math.round(Math.abs(x-CX)*0.12),'#ffffff'); b.set(x,8+Math.round(Math.abs(x-CX)*0.12),(x%2)?'#e8eaf4':'#ffffff'); } },
+    ribbon:(b,A)=>{ const G=ramp(A); b.ell(43,8,3.2,2.8,G[2]); b.ell(50,8,3.2,2.8,G[3]); b.rect(46,7,48,10,G[4]); P(b,[[43,7],[42,8]],G[1]); },
+    flower:(b)=>{ [[45,11],[48,14]].forEach(([x,y])=>{ P(b,[[x,y-2],[x-2,y],[x+2,y],[x-1,y+2],[x+1,y+2]],'#ffb0d0'); P(b,[[x,y-1],[x-1,y],[x+1,y],[x,y+1]],'#ff8fb6'); b.set(x,y,'#ffe680'); }); P(b,[[43,14],[44,15]],'#6aa86a'); },
+    flowercrown:(b)=>{ for(let i=0;i<8;i++){ const x=Math.round(18+i*3.9), y=10+Math.round(Math.abs(x-CX)*0.1)+(i%2); const col=['#ffffff','#ffd86a','#ffb0d0'][i%3]; P(b,[[x,y-1],[x-1,y],[x+1,y],[x,y+1]],col); b.set(x,y,'#ffe680'); if(i%2) P(b,[[x+2,y+1],[x+2,y]],'#6aa86a'); } },
+    glasses:(b)=>{ const G='#4a3a5a'; for(const x0 of [21,33]){ for(let x=x0;x<=x0+9;x++){ b.set(x,22,G); b.set(x,30,G); } for(let y=22;y<=30;y++){ b.set(x0,y,G); b.set(x0+9,y,G); } } P(b,[[31,24],[32,24]],G); },
+    eyepatch:(b)=>{ b.ell(37.5,26,4.6,4.2,'#1e1420'); b.line(33,22,17,14,'#1e1420'); b.line(42,23,46,21,'#1e1420'); },
+    mask:(b,A,C)=>{ const M=ramp(C||'#3a3a4a'); for(let y=31;y<=44;y++) for(let x=18;x<=45;x++){ const w=FHW(Math.min(y,39))||2; if(x>=32-w-1 && x<=31+w+1) b.set(x,y, x<26?M[1]:x>38?M[3]:M[2]); } b.line(20,31,43,31,M[0]); },
+    scar:(b)=>{ b.line(36,22,40,33,'#c4646a'); P(b,[[35,24],[37,27],[39,31]],'#e8909a'); },
+    freckles:(b,A,C,K)=>{ P(b,[[24,32],[26,31],[37,31],[39,32]],mix(K[3],K[4],.4)); },
+    blush:(b,A,C,K)=>{ const p1=mix(K[2],'#ff7a8a',.38), p2=mix(K[2],'#ff7a8a',.22); P(b,[[23,31],[24,31],[25,31],[38,31],[39,31],[40,31]],p1); P(b,[[22,31],[26,31],[37,31],[41,31]],p2); },
+    earring:(b,A)=>{ const G=ramp(A); P(b,[[20,32],[20,33],[43,32],[43,33]],G[2]); P(b,[[20,34],[43,34]],'#8ad8f2'); },
+    beard:(b,A,C,K,R)=>{ for(let y=30;y<=48;y++) for(let x=19;x<=44;x++){ const w = y<40 ? (FHW(Math.min(y,39))||2)+0.5 : 8-(y-40)*0.9; if(Math.abs(x-CX)<=w && (y>=34 || Math.abs(x-CX)>7)) b.set(x,y, (x%3===0 && y%2)?R[1]:(x>37?R[3]:(x%3===1 && y%3===0)?R[3]:R[2])); }
+      for(let x=26;x<=37;x++) b.set(x,34,R[1]); for(let x=27;x<=36;x++) b.set(x,35,R[2]); P(b,[[30,36],[31,36],[32,36],[33,36]],'#a04a5a'); },
+    stache:(b,A,C,K,R)=>{ for(let x=26;x<=37;x++){ b.set(x,34,R[2]); if(x<29||x>34) b.set(x,35,R[3]); } },
+    shawl:(b)=>{ const L=['#f6eaff','#e2ccff','#c4a6f4','#9a7ae0']; for(let i=0;i<=40;i++){ const t=i/40; const x=3+Math.sin(t*Math.PI)*-2+t*6, y=40+t*24; b.ell(x,y,1.6,1.6,L[1]); b.set(Math.round(x)-1,Math.round(y),L[0]); const x2=61-Math.sin(t*Math.PI)*-2-t*6; b.ell(x2,y,1.6,1.6,L[2]); b.set(Math.round(x2)+1,Math.round(y),L[3]); } }
+  };
+
+  /* ---------- assemble ---------- */
+  function draw(sp){
+    const b = new Buf(64,64);
+    const K = SKIN[sp.skin||0] || SKIN[0];
+    const R = ramp(sp.hairHex || HAIRC[sp.hair] || HAIRC.brown);
+    const E = ramp(EYEC[sp.eye] || EYEC.blue);
+    const C = ramp((sp.cloth && sp.cloth[1]) || '#4a6ab0');
+    const A = sp.accent || '#f3c96e';
+    const st = STY[sp.style] || STY.messy;
+    const acc = sp.acc || [];
+    const H = sp.hood ? ramp(sp.hood[1]||sp.hood) : null;
+    if(acc.includes('shawl')) ACCF.shawl(b);
+    if(H) hood(b,H,false); else hairBack(b, st, R, A);
+    drawBody(b, sp, C, A, K);
+    drawHead(b, K, sp);
+    const eyesShape = sp.eyes || 'normal';
+    eye(b, 22, 23, -1, eyesShape, E, K);
+    eye(b, 34, 23, +1, eyesShape, E, K);
+    brows(b, sp.brows || 'neutral', H ? '#3a2a3a' : R[4]);
+    P(b,[[32,30],[32,31]],K[3]);
+    mouth(b, sp.mouth||'neutral', K);
+    ['blush','freckles','scar'].forEach(a=>{ if(acc.includes(a)) ACCF[a](b,A,null,K,R); });
+    if(acc.includes('beard')) ACCF.beard(b,A,null,K,R); else if(acc.includes('stache')) ACCF.stache(b,A,null,K,R);
+    if(acc.includes('mask')) ACCF.mask(b,A,sp.maskC);
+    if(H) hood(b,H,true,K); else hairFront(b, st, R, K, sp);
+    if(sp.ears==='elf') elfEars(b,K);
+    if(sp.horns) horns(b,sp.horns);
+    if(sp.animal) animalEars(b,sp.animal,R);
+    acc.filter(a=>!['blush','freckles','scar','beard','stache','mask','shawl','halo'].includes(a)).forEach(a=>ACCF[a] && ACCF[a](b,A,sp.hatC,K,R));
+    if(sp.prop && PROPS[sp.prop]) PROPS[sp.prop](b,K,A);
+    selout(b);
+    if(acc.includes('halo')){ ACCF.halo(b); [[9,6],[54,4],[57,12]].forEach(([x,y])=>{ b.set(x,y,'#fff6c0'); P(b,[[x-1,y],[x+1,y],[x,y-1],[x,y+1]],'#ffd86a'); }); }
+    return b;
+  }
+  return {draw, ramp, HAIRC, EYEC, SKIN, STY, mix};
+})();
+
+/* route every portrait through the HD renderer */
+PXC.hd = null;
+(function(){
+  const cache = new Map();
+  PX.portrait = function(sp, mode){
+    const key=(mode||'full')+JSON.stringify(sp);
+    if(cache.has(key)) return cache.get(key);
+    let b = HD.draw(sp);
+    if(mode==='head') b = b.crop(14,2,36,40);
+    const u=b.url(); cache.set(key,u); return u;
+  };
+})();
 
 ;
 /* =========================================================
@@ -4360,7 +4562,7 @@ const $ = s => document.querySelector(s);
 const buzz = ()=>{ try{ navigator.vibrate && navigator.vibrate(6); }catch(e){} };
 
 /* ---------- pixel helpers ---------- */
-function sprite(spec, name, cls){ const d = spec.custom && PXC[spec.custom] ? PXC[spec.custom] : {w:32,h:32}; return `<figure class="sprite ${cls||''}"><img alt="" style="--w:${d.w};--h:${d.h}" src="${PX.portrait(spec)}">${name?`<figcaption>${esc(name)}</figcaption>`:''}</figure>`; }
+function sprite(spec, name, cls){ const d = {w:64,h:64}; return `<figure class="sprite ${cls||''}"><img alt="" style="--w:${d.w};--h:${d.h}" src="${PX.portrait(spec)}">${name?`<figcaption>${esc(name)}</figcaption>`:''}</figure>`; }
 function headImg(spec, cls){ return `<img class="head ${cls||''}" alt="" src="${PX.portrait(spec,'head')}">`; }
 function stageScene(){ const st=stageOf(S.age); if(st==='child') return 'village'; if(st==='academy') return 'academy'; return S.path==='shop'?'cafe':S.path==='crown'?'palace':S.path==='adv'?'tavern':'capital'; }
 /* falling sakura petals and leaves over holy scenes */
@@ -4368,7 +4570,7 @@ let FX=null;
 function startFx(){
   if(FX){ FX.stop=true; FX=null; }
   const cv=document.querySelector('canvas.fx'); if(!cv) return;
-  const w=Math.ceil(cv.clientWidth/3), h=Math.ceil(cv.clientHeight/3); if(!w||!h) return;
+  const w=Math.ceil(cv.clientWidth/2), h=Math.ceil(cv.clientHeight/2); if(!w||!h) return;
   cv.width=w; cv.height=h; const cx=cv.getContext('2d');
   const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
   const mk=(any)=>({x:Math.random()*(w+40), y:any?Math.random()*h:-3, vx:-(0.12+Math.random()*0.3), vy:0.18+Math.random()*0.3, ph:Math.random()*6.28, leaf:Math.random()<.18, big:Math.random()<.35});
@@ -4392,12 +4594,12 @@ function startFx(){
 function paintScenes(){
   document.querySelectorAll('[data-scene]').forEach(el=>{
     const w=el.clientWidth, h=el.clientHeight; if(!w||!h) return;
-    const W=Math.ceil(w/3), H=Math.ceil(h/3);
+    const W=Math.ceil(w/2), H=Math.ceil(h/2);
     const url = PX.sceneURL(el.dataset.scene, el.dataset.seed||'x', W, H);
-    el.style.backgroundImage = `url(${url})`; el.style.backgroundSize = `${W*3}px ${H*3}px`;
+    el.style.backgroundImage = `url(${url})`; el.style.backgroundSize = `${W*2}px ${H*2}px`;
   });
   setTimeout(startFx, 0);
-  document.querySelectorAll('.stage').forEach(st=>{ st.classList.toggle('tall', st.clientHeight>330 && st.clientHeight<=470); st.classList.toggle('huge', st.clientHeight>470 && st.clientWidth>=340); st.classList.toggle('short', st.clientHeight<190); });
+  document.querySelectorAll('.stage').forEach(st=>{ st.classList.toggle('tall', st.clientHeight>300); st.classList.toggle('short', st.clientHeight<170); });
 }
 function sceneBox(key, seed, cls){ return `<div class="scene-box ${cls||''}" data-scene="${key}" data-seed="${esc(seed)}"></div>${(key==='realm'||key==='shrine')&&!cls?'<canvas class="fx" aria-hidden="true"></canvas>':''}`; }
 
