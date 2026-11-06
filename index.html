@@ -346,6 +346,13 @@ canvas.fx{position:absolute;inset:2px;width:calc(100% - 4px);height:calc(100% - 
 .key{display:flex;gap:8px;margin-top:6px;font-size:13px;line-height:1.35;opacity:.55}
 .key.on{opacity:1}
 .key b{flex:0 0 18px;text-align:center}
+.book .story{margin:6px 0 10px;line-height:1.55}
+.book-title{font-size:22px;color:var(--gold, #ffd36b);margin:4px 0 2px}
+.turn{border-left:2px solid var(--gold, #ffd36b);padding:4px 0 4px 10px;margin:10px 0}
+.turn-h{display:flex;gap:8px;align-items:baseline}.turn-h b{color:var(--gold, #ffd36b)}
+.turn-c{font-size:13px;opacity:.85;margin:2px 0}
+.turn-r{font-size:13px;margin:2px 0 0 6px}
+button.hall-item{width:100%;text-align:left;color:inherit;font:inherit;cursor:pointer}
 </style>
 </head>
 <body>
@@ -636,7 +643,7 @@ const DISASTERS = ['Great Fire','Red Fever','Flood Year','Hungry Winter','Black 
    ========================================================= */
 function genesis(key, opts={}){
   key = normKey(key) || randomWorldKey();
-  const rng = ekRng(key), N = Namer(rng), pick = N.pick;
+  let baseRng = ekRng(key); const rng = ()=>baseRng(), N = Namer(rng), pick = N.pick;
   const chance = p=>rng()<p, rint=(a,b)=>a+Math.floor(rng()*(b-a+1));
   const classic = opts.classic || key==='CLASSIC';
   const W = {v:1, key, places:{}, kingdom:{}, village:{}, fams:{}, history:[], cast:{}, people:[], news:[], log:[]};
@@ -682,6 +689,9 @@ function genesis(key, opts={}){
   const lms = LANDMARKS.slice().sort(()=>rng()-.5).slice(0,3);
   W.village.landmarks = lms.map(l=>({k:l.k, name:sub(l.n), why:sub(l.why)}));
   const fest = pick(FESTIVALS); W.village.festival = {name:sub(fest.n), season:fest.s, custom:sub(fest.c)};
+
+  /* a later era of the same world: same land and legends, new people */
+  if(opts.era){ baseRng = ekRng(key+'#era'+opts.era); W.era = opts.era; }
 
   /* families */
   const econ = TERRAINS[terrain].econ;
@@ -782,6 +792,7 @@ function genesis(key, opts={}){
   if(ck==='otherworlder') W.factions.dominion = {name:capFirst(W.crisis.empire), power:3};
   W.places.home.prosper = 0; W.places.home.size = 'village';
   if(typeof genEnigmas==='function'){ genEnigmas(W, rng); genProphecy(W, rng); }
+  if(opts.legacy && typeof applyLegacy==='function') applyLegacy(W, opts.legacy, rng);
   W.genesisLog = `${W.people.length} people, ${Object.keys(W.fams).length} families, ${Object.keys(W.places).length} places`;
   return W;
 }
@@ -1145,11 +1156,11 @@ function applyFx(fx, ctx){
     else if(k==='rel'){ for(const c in v){ if(!v[c]) continue; S.rel[c]=clamp(rel(c)+v[c],0,10); chips.push([`${COMP[c].name} ${v[c]>0?'♥+'+v[c]:'♥'+v[c]}`, v[c]>0?'heart':'down']); } }
     else if(k==='relAll'){ let any=false; for(const c in COMP){ if(met(c)){ S.rel[c]=clamp(S.rel[c]+v,0,10); any=true; } } if(any) chips.push([`Friends ♥+${v}`,'heart']); }
     else if(k==='relTop'){ const c=topComp(); if(c){ S.rel[c]=clamp(S.rel[c]+v,0,10); chips.push([`${COMP[c].name} ♥+${v}`,'heart']); } }
-    else if(k==='npc'){ for(const r in v){ const n=npcOf(r); if(!n||!v[r]) continue; n.att=clamp(n.att+v[r],-5,5); chips.push([`${n.name} ${v[r]>0?'trust +'+v[r]:'trust '+v[r]}`, v[r]>0?'heart':'down']); if(typeof remember==='function') chips.push(...remember(n, v[r])); } }
+    else if(k==='npc'){ for(const r in v){ const n=npcOf(r); if(!n||!v[r]) continue; n.att=clamp(n.att+v[r],-5,5); if(S._turn && !S._turn.npcs.includes(n.id)) S._turn.npcs.push(n.id); chips.push([`${n.name} ${v[r]>0?'trust +'+v[r]:'trust '+v[r]}`, v[r]>0?'heart':'down']); if(typeof remember==='function') chips.push(...remember(n, v[r])); } }
     else if(k==='npcSet'){ for(const r in v){ const n=npcOf(r); if(n) Object.assign(n, v[r]); } }
     else if(k==='note'){ for(const r in v){ const n=npcOf(r); if(n) n.notes.push({age:S.age, t:fmt(v[r], ctx)}); } }
     else if(k==='kill'){ [].concat(v).forEach(r=>{ const n=npcOf(r); if(n){ n.alive=false; chips.push([`${n.name} is gone`,'down']); } }); }
-    else if(k==='flag'){ [].concat(v).forEach(f=>{ if(!S.flags[f]){ S.flags[f]=true; if(FLAG_NAMES[f]) chips.push([fmt(FLAG_NAMES[f]),'seed']); } }); }
+    else if(k==='flag'){ [].concat(v).forEach(f=>{ if(!S.flags[f]){ S.flags[f]=true; if(S._turn) S._turn.flags.push(f); if(FLAG_NAMES[f]) chips.push([fmt(FLAG_NAMES[f]),'seed']); } }); }
     else if(k==='unflag'){ [].concat(v).forEach(f=>{ delete S.flags[f]; }); }
     else if(k==='path'){ S.path=v; chips.push([`Path: ${PATH_NAME[v]}`,'seed']); }
     else if(k==='finale'){ S.finale=v; }
@@ -1161,7 +1172,7 @@ function applyFx(fx, ctx){
       [].concat(v).forEach(sd=>{
         if(typeof sd==='string') sd={k:sd};
         const n = sd.npc ? npcOf(sd.npc) : null;
-        const entry = {k:sd.k, npc: n?n.id:null, age:S.age, label: sd.label ? fmt(sd.label, ctx) : null};
+        const entry = {k:sd.k, npc: n?n.id:null, age:S.age, label: sd.label ? fmt(sd.label, ctx) : null, turn: S._turn ? S._turn.id : null};
         S.seeds.push(entry);
         chips.push(['🌱 '+seedLabel(entry),'seed']);
       });
@@ -1263,7 +1274,8 @@ function mainFor(age){ let m = MAIN_AT[age]; const k = S.world && S.world.crisis
    phases: open (pick a lead) -> beat (scenes) -> done (arc result) -> yearend (downtime) -> next chapter
    ========================================================= */
 function newLife(c){
-  const world = genesis(c.key || randomWorldKey(), {crisis:c.crisis});
+  if(c.legacy && !c.crisis && typeof legacyCrisis==='function') c.crisis = legacyCrisis(c.legacy);
+  const world = genesis(c.legacy ? c.legacy.key : (c.key || randomWorldKey()), {crisis:c.crisis, era: c.legacy ? (c.legacy.era||0)+1 : 0, legacy:c.legacy||null});
   S = {v:2, id:uid(), name:c.name, death:c.death, race:c.race, job:c.job, cheat:c.cheat, dream:null, look:c.look||null,
        age:5, ch:0, st:{str:2, mag:2, wit:2, cha:2, luck:2}, hp:RACES[c.race].hp, maxhp:RACES[c.race].hp,
        gold:0, fame:0, omen:0, income:0, path:null, rel:{}, flags:{}, npcs:{}, seeds:[], seen:{},
@@ -1275,6 +1287,7 @@ function newLife(c){
   S.hp = S.maxhp;
   if(c.cheat==='tamer') S.flags.puru = true;
   chronicle(`Died: ${DEATHS[c.death].name.toLowerCase()}. Reborn as a ${RACES[c.race].name} with ${CHEATS[c.cheat].name}.`, 0);
+  if(world.prev) chronicle(`Reborn into ${world.kingdom.name}, ${world.prev.gap} years after your last life here as ${world.prev.name}.`, 0);
   chronicle(`Born to the ${world.fams.fp.sur} family in ${world.places.home.name}, ${world.places.home.desc}. World Key ${world.key}.`, 0);
   startYear(null);
 }
@@ -1356,6 +1369,7 @@ function chooseLead(i){
   const arc = ARC[L.id];
   for(const r in L.cast){ const n=S.npcs[L.cast[r]]; if(n && !n.met){ n.met=true; n.metAge=S.age; n.w=1; } }
   S.seen[arc.id] = true;
+  if(typeof threadReturns==='function') threadReturns(arc, L.cast);
   const D = dirState(); D.last[arc.id] = S.age; D.kinds.unshift(arcKind(arc)); D.kinds.length = Math.min(D.kinds.length, 3);
   const vars = {};
   S.year.arc = {id:arc.id, cast:L.cast, vars, beat:null, prev:null, path:[]};
@@ -1399,7 +1413,10 @@ function choose(i){
   } else br = c;
   const label = fmt(c.label);
   const text = fmt(br.t);
+  S._turn = {id:uid(), age:S.age, arc:fmt(arc.title), label, npcs:[], flags:[], rip:[]};
   const chips = applyFx(br.fx);
+  if(typeof keepTurn==='function') keepTurn(S._turn, chips);
+  delete S._turn;
   S.year.chips.push(...chips);
   if(br.log || c.log){ const lg = fmt(br.log || c.log); chronicle(lg); if(typeof spawnRumour==='function') spawnRumour(lg, chips); }
   let go = typeof br.go==='function' ? br.go(S, ctxVars(), castObj()) : br.go;
@@ -1451,7 +1468,7 @@ function chooseDowntime(id){
 
 /* ---------- world news shown at the start of a year ---------- */
 function yearNews(){
-  const out = (typeof prophecyNews==='function' ? prophecyNews() : []).concat(typeof socialNews==='function' ? socialNews() : [], worldNews(2));
+  const out = (typeof legacyNews==='function' ? legacyNews() : []).concat(typeof prophecyNews==='function' ? prophecyNews() : []).concat(typeof socialNews==='function' ? socialNews() : [], worldNews(2));
   const st = stageOf(S.age);
   if(crisisIs('demon') && S.omen>=3 && st!=='child') out.push('Frost came early in the north again. Travelers whisper about horned shapes in the snow.');
   else if(crisisIs('demon') && S.omen>=1 && st==='adult') out.push('The northern border has been quiet. Too quiet, the soldiers say.');
@@ -1517,7 +1534,7 @@ function finish(kind){
   title = fmt(title, C0);
   S.ending = {kind, title, body: fmt(body, C0), lines: lines.map(l=>fmt(l, C0)), rank, score};
   S.year && (S.year.phase = 'ending');
-  HALL.unshift({id:S.id, name:S.name, race:RACES[S.race].name, cheat:CHEATS[S.cheat].name, title, rank, age:S.age, when:Date.now()});
+  HALL.unshift({id:S.id, name:S.name, race:RACES[S.race].name, cheat:CHEATS[S.cheat].name, title, rank, age:S.age, when:Date.now(), key:S.world&&S.world.key, leg: typeof makeLegacy==='function' ? makeLegacy(kind) : null});
   HALL = HALL.slice(0,30);
   HOOKS.save();
 }
@@ -5858,10 +5875,10 @@ FX_EXT.fadeRumour = id=>{ const r = rumours().find(x=>x.id===id); if(r) r.age = 
 const VOWS = {
   mystery:{ name:'Uncover the secrets of this world', line:'to uncover the secrets of this world', kinds:['mystery'] },
   home:{ name:'Make {home} prosper', line:'to make {home} prosper', ids:/^p_/ },
-  peace:{ name:'End the crisis without a war', line:'to end it without a war', kinds:['mystery','love'] },
+  peace:{ name:'End the crisis without a war', line:'to end the {cn} without a war', kinds:['mystery','love'] },
   revenge:{ name:'Bring down your nemesis', line:'to bring down {vt}', kinds:['nemesis','rumour'] },
   friend:{ name:'Protect someone dear', line:'to keep {vt} safe, whatever came', kinds:['love','echo'] },
-  name:{ name:'Make your name in {capital}', line:'to make your name in {capital}', kinds:['hero','rumour'] },
+  name:{ name:'Make your name in {capital}', line:'to make a name in {capital}', kinds:['hero','rumour'] },
   fortune:{ name:'Build a fortune', line:'to build a fortune', kinds:['rich'] }
 };
 function vowDone(kind){
@@ -5884,7 +5901,7 @@ function vowWeight(a){
   if(V.kinds && V.kinds.includes(arcKind(a))) return 1.8;
   return 1;
 }
-function vowText(){ const A = S.amb; if(!A) return ''; const t = A.target && S.npcs[A.target]; return fmt(VOWS[A.k].line.replace('{vt}', t ? t.name : 'them')); }
+function vowText(){ const A = S.amb; if(!A) return ''; const t = A.target && S.npcs[A.target]; return fmt(VOWS[A.k].line.replace('{vt}', t ? t.name : 'them').replace('{cn}', ({demon:'conflict with the north', usurper:'coup', otherworlder:'false Hero\'s reign'}[S.world && S.world.crisis ? S.world.crisis.k : 'demon']))); }
 ARCS.push({
   id:'v_vow', stage:'adult', minAge:16, maxAge:19, world:true, kind:'vow',
   title:'A Vow',
@@ -5922,6 +5939,169 @@ function socialEpilogue(kind){
   if(nem) out.push(nem.peace ? `You and ${nem.name} never became friends. But you nod to each other in the street, and that is its own kind of ending.` : nem.broken ? `${nem.name} never troubled you again.` : `${nem.name} is still out there, somewhere, still angry.`);
   const best = rumours().filter(r=>!r.cleared && r.val>0).sort((a,b)=>b.val-a.val)[0];
   if(best) out.push(`Long after you are gone, people in ${placeName(best.p)} still say you ${best.t}.${best.kind==='grand'?' It wasn\'t quite like that.':''}`);
+  return out;
+}
+
+;
+/* =========================================================
+   ENIGMA-KEY — Legacy
+   1. Turning points: the choices that mattered, and what they set off
+   2. The Book of Your Life: a biography written from the chronicle
+   3. Same World, New Life: be reborn into a world that remembers you
+   ========================================================= */
+
+/* ---------- 1. turning points ---------- */
+function turnWeight(chips){
+  let w = 0;
+  (chips||[]).forEach(([t, cls])=>{
+    let m;
+    if(/^🌱/.test(t)) w += 3;
+    else if((m = t.match(/trust ([+-]\d+)/))) w += Math.abs(+m[1]);
+    else if((m = t.match(/^([+-]\d+) Fame/))) w += Math.abs(+m[1])*2;
+    else if((m = t.match(/^([+-]\d+) gold/))) w += Math.min(4, Math.abs(+m[1])/25);
+    else if(/is gone|nemesis|swears|Solved|Vow|is finished|no more/.test(t)) w += 5;
+    else if(cls==='seed') w += 3;
+    else w += 1;
+  });
+  return w;
+}
+function keepTurn(turn, chips){
+  turn.w = Math.round(turnWeight(chips) + turn.flags.length*3);
+  if(turn.w < 4) return;
+  const T = S.turns || (S.turns = []);
+  T.push(turn);
+  if(T.length > 40){ T.sort((a,b)=>(b.w + b.rip.length*4) - (a.w + a.rip.length*4)); T.length = 40; T.sort((a,b)=>a.age-b.age); }
+}
+function rippleTo(turnId, t){
+  const tr = (S.turns||[]).find(x=>x.id===turnId);
+  if(!tr || tr.rip.length>=4 || tr.rip.some(r=>r.t===t)) return;
+  tr.rip.push({age:S.age, t});
+}
+function firstTurnWith(npcId){ return (S.turns||[]).find(t=>t.npcs.includes(npcId) && t.age<S.age); }
+function threadReturns(arc, cast){
+  for(const r in (arc.cast||{})){
+    const c = arc.cast[r]; if(!c.seed) continue;
+    const id = cast && cast[r];
+    const sd = S.seeds.find(x=>x.k===c.seed && (!id || x.npc===id) && x.turn);
+    if(sd) rippleTo(sd.turn, `At ${S.age}, it came back to you: “${fmt(arc.title, {cast, vars:{}})}”.`);
+  }
+}
+// bonds and calls for help trace back to where they began
+(function(){
+  const base = bondsFrom;
+  bondsFrom = function(n, d){
+    const out = base(n, d);
+    out.forEach(([t])=>{ const tr = firstTurnWith(n.id); if(!tr) return;
+      if(/nemesis/.test(t)) rippleTo(tr.id, `At ${S.age}, ${n.name} became your nemesis.`);
+      if(/swears/.test(t)) rippleTo(tr.id, `At ${S.age}, ${n.name} swore to stand by you.`); });
+    return out;
+  };
+  const ally = FX_EXT.allyUsed;
+  FX_EXT.allyUsed = id=>{ const n = S.npcs[id]; const tr = n && firstTurnWith(n.id); if(tr) rippleTo(tr.id, `At ${S.age}, ${n.name} came the moment you called.`); return ally(id); };
+})();
+function butterfly(kind){
+  const T = (S.turns||[]).slice();
+  // flags that shaped the ending
+  const pf = (PEACE_FLAGS[(S.world && S.world.crisis && S.world.crisis.k) || 'demon'] || []);
+  if(kind && kind!=='death') T.forEach(t=>{ if(t.flags.some(f=>pf.includes(f))) { if(!t.rip.some(r=>/In the end/.test(r.t))) t.rip.push({age:S.age, t:`In the end, it helped decide how your story ended.`}); } });
+  const score = t=>t.w + t.rip.length*5;
+  return T.filter(t=>t.rip.length || t.w>=7).sort((a,b)=>score(b)-score(a)).slice(0,4).sort((a,b)=>a.age-b.age)
+    .map(t=>({age:t.age, arc:t.arc, label:t.label, rip:t.rip.slice(0,3)}));
+}
+
+/* ---------- 2. the Book of Your Life ---------- */
+const BOOK_VERB = /^(Had|Took|Kept|Won|Lost|Saved|Fought|Made|Brought|Hid|Met|Found|Became|Beat|Stole|Gave|Ran|Spent|Sent|Left|Tried|Helped|Ended|Stood|Sang|Built|Broke|Caught|Chose|Defeated|Faced|Fed|Freed|Healed|Held|Hunted|Led|Let|Opened|Paid|Proved|Refused|Rescued|Sealed|Shared|Solved|Stopped|Taught|Told|Turned|Walked|Went|Wrote|Got|Set|Talked|Sat|Danced|Tamed|Befriended|Escaped|Exposed|Survived|Lured|Blackmailed|Forgave|Spared|Raised|Threw|Swore|Bought|Sold|Was|Were|Vowed|Broke|Registered|Joined|Learned|Signed|Moved|Visited|Asked|Started|Graduated|Passed|Failed|Earned|Lit|Carried|Dug|Read|Cooked|Baked|Named|Married|Kissed|Followed|Climbed|Crossed|Protected|Warned|Invented|Sneaked|Snuck)\b|^[A-Z][a-z]+ed\b/;
+function bookSentence(t){
+  t = t.trim(); if(!/[.!?”"]$/.test(t)) t += '.';
+  return BOOK_VERB.test(t) ? 'you ' + t.charAt(0).toLowerCase() + t.slice(1) : null;
+}
+function lifeBook(){
+  const W = S.world, home = W.places.home.name;
+  const chapters = [
+    {h:'Childhood', from:0, to:11, open:`You were born in ${home}, in the Kingdom of ${W.kingdom.name}, to the ${W.fams.fp.sur} family. You remembered dying (${DEATHS[S.death].name.toLowerCase()}). You remembered everything. Nobody else did.`},
+    {h:'The Academy', from:12, to:15, open:`At twelve, you left ${home} for the Royal Academy in ${W.places.capital.name}.`},
+    {h:'Adulthood', from:16, to:99, open:`At sixteen, you were grown, at least on paper.`}
+  ];
+  return chapters.map(c=>{
+    const lines = S.log.filter(l=>l.age>=c.from && l.age<=c.to && l.age>0);
+    let last = null; const para = [];
+    lines.forEach(l=>{
+      const sent = bookSentence(l.t);
+      if(sent){ para.push(l.age!==last ? `At ${l.age}, ${sent}` : capFirst(sent.replace(/^you /, vary('{~You also |Then you |That same year, you }', l.t)))); }
+      else para.push(l.age!==last ? `At ${l.age}: ${l.t}` : l.t);
+      last = l.age;
+    });
+    return {h:c.h, open: c.from===0 || lines.length ? c.open : '', t: para.join(' ')};
+  }).filter(c=>c.t);
+}
+
+/* ---------- 3. legacy record, written when a life ends ---------- */
+function makeLegacy(kind){
+  try{
+    const W = S.world, e = S.ending;
+    const nemN = Object.values(S.npcs).find(n=>n.met && (n.nem>0 || n.broken || n.peace));
+    const seenR = new Set();
+    const best = (S.rumours||[]).filter(r=>!r.cleared && r.val>0).sort((a,b)=>b.val-a.val).filter(r=>{ if(seenR.has(r.root)) return false; seenR.add(r.root); return true; }).slice(0,2).map(r=>r.t);
+    const T = W.village && W.village.trouble;
+    return {
+      key:W.key, era:W.era||0, name:S.name, sur:W.fams.fp.sur, race:RACES[S.race].name, title:e.title, kind, rank:e.rank, endAge:S.age,
+      crisis:W.crisis ? W.crisis.k : 'demon', fame:S.fame, biz:S.income>0, path:S.path, home:W.places.home.name, kingdom:W.kingdom.name,
+      vow: S.amb ? {t:vowText(), done:vowDone(kind)} : null,
+      solved: enigmas().filter(E=>E.solved && E.k!=='reborn').map(E=>({k:E.k, truth:E.truth})),
+      legends: best, trouble: T && T.done && T.outcome ? T.outcome.replace(/Only you know why/,'Only '+S.name+' knew why').replace(/^You\b/, S.name).replace(/\byou\b/g, S.name).replace(/\bYou\b/g, S.name) : null,
+      history: W.history.filter(h=>h.legacy), statues: W.village.landmarks.filter(l=>l.legacy), oldLegends: (W.legends||[]).slice(0,2),
+      nemesis: nemN ? {name:nemN.name, sur:nemN.sur, state: nemN.peace ? 'peace' : nemN.broken ? 'broken' : 'nem'} : null,
+      sworn: (typeof sworn==='function' ? sworn() : []).slice(0,2).map(n=>({name:n.name, sur:n.sur})),
+      book: lifeBook(), ending:{title:e.title, body:e.body, lines:e.lines}, turns: butterfly(kind),
+      prev: W.prev ? {name:W.prev.name, gap:W.prev.gap} : null
+    };
+  }catch(err){ return null; }
+}
+
+/* ---------- Same World, New Life ---------- */
+const CRISIS_NOUN = {demon:'war with the north', usurper:'civil war', otherworlder:'war of the false Hero'};
+function legacyCrisis(L){
+  const unfinished = ['repelled','death','stayed','fallen'].includes(L.kind);
+  if(unfinished) return L.crisis;
+  const others = ['demon','usurper','otherworlder'].filter(k=>k!==L.crisis);
+  return others[ekHash(L.key + (L.era||0))[0] % others.length];
+}
+function applyLegacy(W, L, rng){
+  const gap = 40 + Math.floor(rng()*90);
+  const home = W.places.home.name;
+  W.prev = {name:L.name, sur:L.sur, title:L.title, gap, kind:L.kind, crisis:L.crisis, era:L.era||0};
+  // time has passed: old history slides back, your life becomes history
+  W.history.forEach(h=>{ h.ago += gap; });
+  const noun = CRISIS_NOUN[L.crisis] || 'war';
+  const end = {peace:`The ${noun} ended in a treaty instead of a battle, and ${L.name} was the reason.`, slain:`${L.name} ended the ${noun}.`, fallen:`${L.name} fell in the ${noun}, and the people finished what ${L.name} started.`,
+    repelled:`The ${noun} was held back, but never truly ended.`, death:`${L.name} died young, at ${L.endAge}. The ${noun} went on without them.`, stayed:`${L.name} kept out of the ${noun} and lived a quiet life.`}[L.kind] || `${L.name} lived and died.`;
+  (L.history||[]).forEach(h=>W.history.push({ago:h.ago+gap, t:h.t, legacy:true}));
+  W.history.push({ago:gap, legacy:true, t:`${L.name} ${L.sur} was born in ${L.home}. People said the child remembered things nobody had taught them.`});
+  W.history.push({ago:Math.max(1, gap - (L.endAge-5)), legacy:true, t:`${end} History remembers ${L.name} as “${L.title}”.`});
+  W.history.sort((a,b)=>b.ago-a.ago);
+  // what people still say
+  W.legends = (L.legends||[]).map(t=>`They say ${L.name} ${t}.`);
+  if(L.vow) W.legends.push(L.vow.done ? `${L.name} swore ${L.vow.t}, and kept the oath.` : `${L.name} swore ${L.vow.t}. Some say the oath is still waiting to be kept.`);
+  if(L.trouble) W.legends.push(L.trouble);
+  (L.oldLegends||[]).slice(0,1).forEach(l=>W.legends.push(l));
+  // marks on the land
+  (L.statues||[]).forEach(l=>W.village.landmarks.push({k:'statue', legacy:true, name:l.name, why:l.why.replace(/, \d+ years ago$/, ', long ago')}));
+  if(L.fame>=12 || ['slain','peace','fallen'].includes(L.kind)) W.village.landmarks.push({k:'statue', legacy:true, name:`the statue of ${L.name}`, why:`raised for ${L.title}, ${gap} years ago`});
+  if(L.biz) W.village.landmarks.push({k:'shop', name:`${L.name}'s ${L.path==='shop'?'Café':'Trading House'}`, why:`still open, under its fourth owner`});
+  // families that remember: your kin, your nemesis's heirs, your oath-friends' grandchildren
+  const fams = Object.values(W.fams).filter(f=>f.id!=='fp' && f.id!==(W.village.trouble||{}).fa && f.id!==(W.village.trouble||{}).fb);
+  const renameFam = (f, sur, att, tag)=>{ if(!f) return; f.sur = sur; f[tag] = L.name; W.people.forEach(p=>{ if(p.fam===f.id){ p.sur = sur; if(att) p.att = att; } }); };
+  renameFam(fams[0], L.sur, 1, 'kin');
+  if(L.nemesis && L.nemesis.state!=='peace') renameFam(fams[1], L.nemesis.sur, -2, 'grudge');
+  if(L.sworn && L.sworn[0]) renameFam(fams[2], L.sworn[0].sur, 2, 'oath');
+  // the truths you uncovered are still known
+  (L.solved||[]).forEach(s=>{ const E = (W.enigmas||[]).find(x=>x.k===s.k); if(E){ E.truth = s.truth; E.solved = true; E.past = L.name; E.keys.forEach(k=>{ k.found = true; }); } });
+}
+function legacyNews(){
+  const W = S.world, P = W && W.prev; if(!P || S.age>5 || S.flags.legacyNews) return [];
+  S.flags.legacyNews = true;
+  const out = [`Lumi, in a dream: "Welcome back! It's been ${P.gap} years down there. Don't worry, nobody will recognize you. Probably."`];
+  if(W.legends && W.legends.length) out.push(`In ${W.places.home.name}, the old people still tell stories. ${W.legends[0]}`);
   return out;
 }
 
@@ -6976,8 +7156,13 @@ function drawFinal(){
   panel.innerHTML = `<div class="win dlg final">
     <div class="final-top"><div class="rank-box"><small>RANK</small><b>${e.rank}</b></div><div><div class="ending-title">${esc(e.title)}</div><div class="muted small">Score ${e.score} · Fame ${S.fame} · ${S.gold} G · ${people().length} people met</div></div></div>
     ${highlights.length?`<div class="timeline">${highlights.map(l=>`<div><b>${l.age}</b><span>${esc(l.t)}</span></div>`).join('')}</div>`:''}
-    <div class="row"><button class="btn ghost" id="to-title">Title</button><button class="btn primary" id="again">New life ▶</button></div>
+    <div class="row"><button class="btn ghost" id="book">📖 Your story</button><button class="btn primary" id="reborn">Reborn here ▶</button></div>
+    <div class="row"><button class="btn ghost" id="to-title">Title</button><button class="btn ghost" id="again">New world</button></div>
   </div>`;
+  const leg = HALL[0] && HALL[0].id===S.id ? HALL[0].leg : null;
+  $('#book').onclick=()=>openBook(HALL[0]);
+  $('#reborn').onclick=()=>{ S=null; save(); startCreate(leg); };
+  if(!leg){ $('#reborn').disabled = true; $('#book').disabled = true; }
   $('#again').onclick=()=>{ S=null; save(); startCreate(); };
   $('#to-title').onclick=()=>{ S=null; save(); UI.screen='title'; render(); };
 }
@@ -7014,8 +7199,12 @@ function renderTitle(){
    ========================================================= */
 const PREVIEW = {};
 function previewWorld(key){ if(!PREVIEW[key]){ for(const k in PREVIEW) delete PREVIEW[k]; PREVIEW[key] = genesis(key); } return PREVIEW[key]; }
-function startCreate(){ UI.screen='create'; UI.create={step:0, key:randomWorldKey(), name:'', death:null, race:null, look:Object.assign({},DEFAULT_LOOK), lookTab:'style', job:null, cheat:null}; render(); }
+function startCreate(leg){ UI.screen='create'; UI.create={step:0, legacy:leg||null, key:leg?leg.key:randomWorldKey(), name:'', death:null, race:null, look:Object.assign({},DEFAULT_LOOK), lookTab:'style', job:null, cheat:null}; render(); }
 function previewSpec(c, age){ return playerArt({look:c.look, race:c.race||'human', path:null, age:age||16}, age||16); }
+const LEGACY_LINES = [
+  `"Oh! It's you! {n}, right? I watched the whole thing. I cried twice. Want to go back to Valtheria? It's been a while down there. First, though, the paperwork: how did you die this time?"`,
+  `"Same world, new you! Nobody there will remember your face. Some of them might remember your name. What will they call you this time?"`
+];
 const CREATE_LINES = [
   `"Hiii! Welcome to the afterlife! I'm Lumi, goddess of reincarnation. Sorry about all this. So... how did you die?"`,
   `"Oof. Okay! Good news: you're approved for a new life in Valtheria. What will they call you there?"`,
@@ -7035,8 +7224,8 @@ function renderCreate(){
   let body='';
   if(c.step===0) body = grid(DEATHS,'death');
   if(c.step===1) body = `<div class="field"><label class="sr" for="name">Your new name</label><input id="name" maxlength="16" placeholder="Your new name" value="${esc(c.name)}" autocomplete="off" enterkeyhint="done"><button class="btn ghost" id="rand">Random</button></div>
-      <div class="keyrow"><span class="eyebrow">World Key</span><div class="field"><label class="sr" for="wkey">World Key</label><input id="wkey" class="mono" maxlength="24" value="${esc(c.key)}" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="done"><button class="btn ghost" id="rekey" aria-label="Roll a new world">⚄</button></div>
-      <div class="muted small">${esc(previewWorld(c.key).places.home.name)}, in the Kingdom of ${esc(previewWorld(c.key).kingdom.name)}. Same Key, same world: share it with a friend.</div></div>`;
+      ${c.legacy ? `<div class="keyrow"><span class="eyebrow">Returning to ${esc(c.legacy.kingdom)}</span><div class="muted small">The same world, decades after ${esc(c.legacy.name)}, “${esc(c.legacy.title)}”. New people, old legends.</div></div>` : `<div class="keyrow"><span class="eyebrow">World Key</span><div class="field"><label class="sr" for="wkey">World Key</label><input id="wkey" class="mono" maxlength="24" value="${esc(c.key)}" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="done"><button class="btn ghost" id="rekey" aria-label="Roll a new world">⚄</button></div>
+      <div class="muted small">${esc(previewWorld(c.key).places.home.name)}, in the Kingdom of ${esc(previewWorld(c.key).kingdom.name)}. Same Key, same world: share it with a friend.</div></div>`}`;
   if(c.step===2) body = grid(RACES,'race', o=>fxText(o.fx)+`  ${o.hp} HP`);
   if(c.step===3){
     const L=c.look, tabs=[['style','Hair'],['hair','Color'],['face','Face'],['eye','Eyes'],['skin','Skin']];
@@ -7060,7 +7249,7 @@ function renderCreate(){
       <div class="stage-top"><div class="tag-title">The Celestial Garden</div><div class="pips">${Array.from({length:n},(_,i)=>i<=c.step?'◆':'<i>◇</i>').join('')}</div></div>
     </section>
     <section class="panel">
-      <div class="win dlg lumi"><div class="nameplate">Lumi</div><div class="dlg-text story" id="lumiText">${prose(CREATE_LINES[c.step].replace('Valtheria', previewWorld(c.key).kingdom.name))}</div></div>
+      <div class="win dlg lumi"><div class="nameplate">Lumi</div><div class="dlg-text story" id="lumiText">${prose((c.legacy && c.step<2 ? LEGACY_LINES[c.step].replace('{n}', c.legacy.name) : CREATE_LINES[c.step]).replace('Valtheria', c.legacy ? c.legacy.kingdom : previewWorld(c.key).kingdom.name))}</div></div>
       <div class="win opts">${body}</div>
       <div class="navbar"><button class="btn ghost" id="back">${c.step===0?'Cancel':'◀ Back'}</button><button class="btn primary" id="next" ${ready()?'':'disabled'}>${c.step===n-1?'Be reborn ✦':'Next ▶'}</button></div>
     </section>
@@ -7081,7 +7270,7 @@ function renderCreate(){
   $('#next').onclick=()=>{
     if(!ready()) return; buzz();
     if(c.step<n-1){ c.step++; renderCreate(); }
-    else { UI.screen='game'; UI.flow=null; UI.log=[]; newLife({name:c.name.trim().slice(0,16), death:c.death, race:c.race, job:c.job, cheat:c.cheat, look:c.look, key:c.key}); render(); }
+    else { UI.screen='game'; UI.flow=null; UI.log=[]; newLife({name:c.name.trim().slice(0,16), death:c.death, race:c.race, job:c.job, cheat:c.cheat, look:c.look, key:c.key, legacy:c.legacy||undefined}); render(); }
   };
 }
 
@@ -7140,6 +7329,7 @@ function openSheet(tab){
       ${V.trouble.done ? `<div class="kv1"><b>Peace</b><span>${esc(V.trouble.outcome||"The old trouble is over.")}</span></div>` : `<div class="kv1 warn"><b>Trouble</b><span>${esc(V.trouble.t)}</span></div>`}
       <div class="eyebrow">The wider world</div>
       ${place('town','The market town on the road to the capital.')}${place('wood','Wild country near home. Children are told not to go in.')}${place('port','A port town on the coast.')}${place('peak','A mountain nobody climbs for fun.')}${place('ruin','Older than any kingdom.')}${place('elfhome','Home of the elves.')}${place('clanhold','Hold of the beastkin clans.')}${place('north','The frozen north, where the Demon Lord sleeps.')}
+      ${W.legends && W.legends.length ? `<div class="eyebrow">Legends</div>${W.legends.map(l=>`<div class="kv1"><span>${esc(l)}</span></div>`).join('')}${Object.values(W.fams).filter(f=>f.kin||f.grudge||f.oath).map(f=>`<div class="muted small">The ${esc(f.sur)} family: ${f.kin?`${esc(W.prev.name)}'s kin, more or less.`:f.grudge?`descended from ${esc(W.prev.name)}'s old nemesis. They haven't forgotten.`:`grandchildren of ${esc(W.prev.name)}'s sworn friend.`}</div>`).join('')}` : ''}
       <div class="eyebrow">History</div>
       <div class="wtl">${W.history.map(h=>`<div><b>${h.ago}y</b><span>${esc(h.t)}</span></div>`).join('')}</div>
       ${W.log && W.log.length ? `<div class="eyebrow">Since you were born</div><div class="wtl">${W.log.slice(-12).reverse().map(h=>`<div><b>${h.age}</b><span>${esc(h.t)}</span></div>`).join('')}</div>` : ''}`;
@@ -7155,8 +7345,8 @@ function openSheet(tab){
       const n = foundKeys(E), shown = E.solved || n>0 || S.age>=8;
       if(!shown) return '';
       const keys = E.keys.map(kk=>kk.found ? `<div class="key on"><b>🗝</b><span>${ital(keyText(E,kk))}</span></div>` : `<div class="key"><b>?</b><span>${esc(keyHint(E,kk))}</span></div>`).join('');
-      return `<div class="enigma ${E.solved?'solved':''}"><div class="en-h"><b>${esc(enigmaTitle(E))}</b><span class="mono">${E.solved?'SOLVED':`${n}/${E.need} KEYS`}</span></div>
-        <div class="small">${esc(E.solved ? enigmaFmt(E, ENIGMA[E.k].reveal[E.truth]) : enigmaQ(E))}</div>${E.solved?'':keys}</div>`; }).join('');
+      return `<div class="enigma ${E.solved?'solved':''}"><div class="en-h"><b>${esc(enigmaTitle(E))}</b><span class="mono">${E.past?'KNOWN':E.solved?'SOLVED':`${n}/${E.need} KEYS`}</span></div>
+        <div class="small">${E.past?`<i class="muted">Uncovered by ${esc(E.past)}, long ago. </i>`:''}${esc(E.solved ? enigmaFmt(E, ENIGMA[E.k].reveal[E.truth]) : enigmaQ(E))}</div>${E.solved?'':keys}</div>`; }).join('');
     const vow = S.amb ? `<div class="eyebrow">Your vow</div><div class="kv1 ${vowDone()?'':'warn'}"><b>“${esc(capFirst(vowText()))}.”</b><span>${vowDone()?'Kept, so far.':'Sworn at '+S.amb.age+'. Not yet kept.'}</span></div>` : '';
     const RK = {true:'True', grand:'Exaggerated', twisted:'Twisted', lie:'A lie'};
     const rum = (S.rumours||[]).filter(r=>!r.cleared).slice(-6).reverse().map(r=>`<div class="key ${r.val>0?'on':''}"><b>${r.val>0?'✦':'✕'}</b><span><i class="muted">${esc(capFirst(placeName(r.p)))}:</i> they say you ${esc(r.t)}. <i class="muted">(${RK[r.kind]})</i></span></div>`).join('');
@@ -7186,8 +7376,33 @@ function openLog(){
   const b=oroot.querySelector('.log-body'); if(b) b.scrollTop=b.scrollHeight;
 }
 function openHall(){
-  const items = HALL.map(h=>`<div class="hall-item"><div><b>${esc(h.title)}</b><span>${esc(h.name)} · ${esc(h.race)} · ${esc(h.cheat)} · age ${h.age}</span></div><span class="r">${h.rank}</span></div>`).join('');
+  const items = HALL.map((h,i)=>`<${h.leg?'button':'div'} class="hall-item" ${h.leg?`data-life="${i}"`:''}><div><b>${esc(h.title)}</b><span>${esc(h.name)} · ${esc(h.race)} · ${esc(h.cheat)} · age ${h.age}${h.leg?` · ${esc(h.leg.kingdom)}`:''}</span></div><span class="r">${h.rank}</span></${h.leg?'button':'div'}>`).join('');
   overlay(`<div class="sheet-head"><h3>Past lives</h3><button class="x" data-close aria-label="Close">✕</button></div><div class="sheet-body">${items}</div>`, 'side');
+  oroot.querySelectorAll('[data-life]').forEach(b=>b.onclick=()=>openBook(HALL[+b.dataset.life]));
+}
+function bookText(h){
+  const L = h.leg, out = [`${L.name.toUpperCase()}: ${L.title}`, `A life in ${L.home}, Kingdom of ${L.kingdom} · World Key ${L.key}`, ''];
+  L.book.forEach(c=>{ out.push(c.h.toUpperCase()); if(c.open) out.push(c.open); out.push(c.t, ''); });
+  out.push('THE END', L.ending.body, ...L.ending.lines, '');
+  if(L.turns && L.turns.length){ out.push('TURNING POINTS'); L.turns.forEach(t=>{ out.push(`At ${t.age}, ${t.arc}: ${t.label}`); t.rip.forEach(r=>out.push('  → '+r.t)); }); }
+  return out.join('\n').replace(/\*/g,'');
+}
+function openBook(h){
+  if(!h || !h.leg) return;
+  const L = h.leg, it = t=>esc(t).replace(/\*(.+?)\*/g,'<em>$1</em>');
+  const chapters = L.book.map(c=>`<div class="eyebrow">${esc(c.h)}</div>${c.open?`<p class="story">${it(c.open)}</p>`:''}<p class="story">${it(c.t)}</p>`).join('');
+  const turns = (L.turns||[]).map(t=>`<div class="turn"><div class="turn-h"><b>${t.age}</b><span>${esc(t.arc)}</span></div><div class="turn-c">▶ ${esc(t.label)}</div>${t.rip.map(r=>`<div class="turn-r">↳ ${esc(r.t)}</div>`).join('')}</div>`).join('');
+  overlay(`<div class="sheet-head"><h3>The Book of ${esc(L.name)}</h3><button class="x" data-close aria-label="Close">✕</button></div>
+    <div class="sheet-body book">
+      <div class="book-title">${esc(L.title)}</div>
+      <div class="muted small">${esc(L.race)} · born in ${esc(L.home)}, Kingdom of ${esc(L.kingdom)} · lived to ${L.endAge} · rank ${esc(L.rank)}${L.prev?` · reborn ${L.prev.gap} years after ${esc(L.prev.name)}`:''}</div>
+      ${chapters}
+      <div class="eyebrow">The end</div><p class="story">${it(L.ending.body)}</p>${L.ending.lines.map(l=>`<p class="story small">${it(l)}</p>`).join('')}
+      ${turns?`<div class="eyebrow">🦋 Turning points</div><div class="muted small">The choices that mattered most, and what they set off.</div>${turns}`:''}
+      <div class="row"><button class="btn ghost" id="copyBook">Copy as text</button><button class="btn primary" id="rebornB">Reborn in ${esc(L.kingdom)} ▶</button></div>
+    </div>`, 'side');
+  $('#copyBook').onclick=()=>{ try{ navigator.clipboard.writeText(bookText(h)); $('#copyBook').textContent='Copied ✓'; }catch(e){} };
+  $('#rebornB').onclick=()=>{ closeOverlay(); S=null; save(); startCreate(L); };
 }
 function confirmBox(title, msg, yes, fn){
   overlay(`<h3>${title}</h3><div class="muted">${msg}</div><div class="row"><button class="btn ghost" data-close>Cancel</button><button class="btn primary" id="yes">${yes}</button></div>`, 'center');
