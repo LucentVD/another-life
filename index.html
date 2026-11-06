@@ -339,6 +339,13 @@ canvas.fx{position:absolute;inset:2px;width:calc(100% - 4px);height:calc(100% - 
 .hall-item .r{font-size:24px;color:var(--gold)}
 @media (prefers-reduced-motion: reduce){ .slot,.next,.choice .cursor,.dice .die-box,.title-card{animation:none!important} .title-card{display:none} }
 @media (max-height:700px){ .dlg-text{font-size:15px} .hud{padding-top:6px} .face{width:44px;height:48px} .face .head{width:40px;height:44px} .lead-body p{-webkit-line-clamp:3} }
+.enigma{border:2px solid var(--line);padding:10px 12px;margin:6px 0;background:rgba(255,255,255,.03)}
+.enigma.solved{border-color:var(--gold, #ffd36b);background:rgba(255,215,120,.06)}
+.en-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:4px}
+.en-h .mono{font-size:11px;opacity:.75;white-space:nowrap}
+.key{display:flex;gap:8px;margin-top:6px;font-size:13px;line-height:1.35;opacity:.55}
+.key.on{opacity:1}
+.key b{flex:0 0 18px;text-align:center}
 </style>
 </head>
 <body>
@@ -658,7 +665,7 @@ function genesis(key, opts={}){
   const founderFam = N.family(kc), founder = N.given(kc,'m');
   const war = pick(WAR_KINDS), disaster = 'the '+pick(DISASTERS), saint = 'Saint '+N.given(kc, chance(.5)?'f':'m');
   const hero = N.given(kc, chance(.5)?'f':'m')+' '+N.family(kc);
-  const ages = {found: rint(240,420), war: rint(60,160), disaster: rint(20,90), ruin: rint(500,900), seal: rint(280,320), academy: rint(150,260)};
+  const ages = {found: rint(240,420), war: rint(48,70), disaster: rint(20,90), ruin: rint(500,900), seal: rint(280,320), academy: rint(150,260)};
   const sub = s=>s.replace(/\{founder\}/g,founder).replace(/\{home\}/g,W.places.home.name).replace(/\{war\}/g,war).replace(/\{disaster\}/g,disaster.replace(/^the /,''))
     .replace(/\{saint\}/g,saint).replace(/\{hero\}/g,hero).replace(/\{wood\}/g,W.places.wood.name).replace(/\{deed\}/g,pick(SAINT_DEEDS)).replace(/\{deed2\}/g,s2=>sub(pick(HERO_DEEDS)));
   W.history = [
@@ -669,7 +676,7 @@ function genesis(key, opts={}){
     {ago:ages.war, t:sub(`The {war} reached {home}. ${hero} ${pick(HERO_DEEDS).replace(/\{war\}/g,'war').replace(/\{wood\}/g,W.places.wood.name)}.`)},
     {ago:ages.disaster, t:sub(`${capFirst(disaster)} struck {home}. Some families never recovered.`)}
   ].sort((a,b)=>b.ago-a.ago);
-  W.lore = {founder, founderFam, war, disaster, saint, hero};
+  W.lore = {founder, founderFam, war, disaster, saint, hero, warAgo:ages.war};
 
   /* the village: landmarks, festival, trouble */
   const lms = LANDMARKS.slice().sort(()=>rng()-.5).slice(0,3);
@@ -774,6 +781,7 @@ function genesis(key, opts={}){
   if(ck==='usurper') W.factions.banner = {name:capFirst(W.crisis.banner), power:3};
   if(ck==='otherworlder') W.factions.dominion = {name:capFirst(W.crisis.empire), power:3};
   W.places.home.prosper = 0; W.places.home.size = 'village';
+  if(typeof genEnigmas==='function'){ genEnigmas(W, rng); genProphecy(W, rng); }
   W.genesisLog = `${W.people.length} people, ${Object.keys(W.fams).length} families, ${Object.keys(W.places).length} places`;
   return W;
 }
@@ -799,7 +807,7 @@ function worldToken(k, sub){
   if(!sub && W.crisis){ if(k==='banner') return W.crisis.banner||'the rebels'; if(k==='Banner') return capFirst(W.crisis.banner||'the rebels'); if(k==='Empire') return capFirst(W.crisis.empire||'the empire'); if(k==='realm') return W.crisis.realm||'the east'; if(k==='empire') return W.crisis.empire||'the empire'; if(k==='cheat2') return W.crisis.cheat||'a cheat skill'; }
   if(k==='T' && sub){ const T=W.village.trouble||{}, L=W.lore||{};
     if(sub==='fa'||sub==='fb') return W.fams[T[sub]] ? W.fams[T[sub]].sur : 'neighbour';
-    if(sub==='founder') return `${L.founder} ${L.founderFam}`; if(sub==='war') return L.war; if(sub==='disaster') return (L.disaster||'').replace(/^the /,'');
+    if(sub==='founder') return `${L.founder} ${L.founderFam}`; if(sub==='hero') return L.hero; if(sub==='war') return L.war; if(sub==='disaster') return (L.disaster||'').replace(/^the /,'');
     if(sub==='taxman') return T.taxman ? `${T.taxman.name} ${T.taxman.sur}` : 'the tax collector';
     if(sub==='boy') return T.boy ? `${T.boy.name} ${T.boy.sur}` : 'the boy'; return null; }
   if(k==='vil' && sub){ const p = villager(sub); return p ? p.name : 'old '+(TRADES[sub]||sub); }
@@ -906,7 +914,7 @@ function worldTick(years){
         if(p.home==='home' && R()<.25){ p.home='capital'; say(`${p.name} ${p.sur} left ${W.places.home.name} for ${W.places.capital.name} to work as ${an(TRADES[p.role])}.`, [p]); }
         else say(`${p.name} ${p.sur} is grown now, and works as ${an(TRADES[p.role])}.`, [p]); }
       // death
-      const dp = a>80 ? .25 : a>65 ? .07 : a>45 ? .012 : .003;
+      const dp = (a>80 ? .25 : a>65 ? .07 : a>45 ? .012 : .003) * (p.keep ? .15 : 1);
       if(R()<dp){ p.alive=false; p.died=yearAge; say(a<16 ? `${p.name} ${p.sur} died of a fever, aged ${a}. ${W.places[p.home]?W.places[p.home].name:'The town'} mourned.` : `${p.name} ${p.sur}${!['child','student'].includes(p.role)?', the '+(TRADES[p.role]||p.role)+',':''} died ${a>65?'peacefully, at '+a:'suddenly, at '+a}.`, [p], p.met); if(p.met && (p.att||0)>=0) (W.pending=W.pending||[]).push({k:'funeral', a:p.id, age:S.age}); continue; }
       // marriage
       if(a>=18 && a<=40 && !tiesOf(p,'spouse').some(x=>x.alive!==false) && R()<.09){
@@ -1025,6 +1033,7 @@ let HALL = [];         // finished lives
 const ARCS = [];       // every story arc registers here
 const ARC = {};        // id -> arc (filled by indexArcs)
 const DOWNTIME = [];   // year's-end activities
+const FX_EXT = {};     // extra effect keys registered by later modules
 let HOOKS = {save(){}, rand: Math.random};
 
 const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
@@ -1043,7 +1052,7 @@ function seeds(k, f){ return S.seeds.filter(x=>x.k===k && (!x.npc || (S.npcs[x.n
 function hasSeed(k, f){ return seeds(k,f).length>0; }
 function seedNpc(k, f){ const l=seeds(k,f).filter(x=>x.npc); return l.length ? S.npcs[l[l.length-1].npc] : null; }
 function clues(){ return seeds('clue').length; }
-function people(f){ return Object.values(S.npcs).filter(n=>n.met && n.alive!==false && (!f || f(n))); }
+function people(f){ return Object.values(S.npcs).filter(n=>n.met && n.alive!==false && !(n.arch && COMP[n.arch]) && (!f || f(n))); }
 function allyCount(){ return people(n=>n.att>=4).length; }
 
 /* ---------- people ---------- */
@@ -1156,6 +1165,7 @@ function applyFx(fx, ctx){
         chips.push(['🌱 '+seedLabel(entry),'seed']);
       });
     }
+    else if(FX_EXT[k]){ chips.push(...(FX_EXT[k](v, ctx)||[])); }
     else if(k==='useSeed'){
       [].concat(v).forEach(sd=>{
         if(typeof sd==='string') sd={k:sd};
@@ -1241,7 +1251,7 @@ function allies(){
   friends.forEach(n=>a.push([n.name,1]));
   return a;
 }
-const PEACE_FLAGS = {demon:['lore','demonKid','malBond','vexaTruce'], usurper:['usurpProof','heirBond','ariaSafe','lore'], otherworlder:['otherHome','otherCheat','otherMet','kenjiAlly']};
+const PEACE_FLAGS = {demon:['lore','demonKid','malBond','vexaTruce'], usurper:['usurpProof','heirBond','ariaSafe','lore','dukeTruth'], otherworlder:['otherHome','otherCheat','otherMet','kenjiAlly','otherSummon']};
 function peaceScore(){ const k = S.world && S.world.crisis ? S.world.crisis.k : 'demon'; return PEACE_FLAGS[k].filter(f=>S.flags[f]).length; }
 const CRISIS_MAIN = {usurper:{siege:'siege_usurper', finale:'finale_usurper'}, otherworlder:{siege:'siege_other', finale:'finale_other'}};
 function mainFor(age){ let m = MAIN_AT[age]; const k = S.world && S.world.crisis ? S.world.crisis.k : 'demon'; if(m && CRISIS_MAIN[k] && CRISIS_MAIN[k][m]) m = CRISIS_MAIN[k][m]; return m; }
@@ -1436,7 +1446,7 @@ function chooseDowntime(id){
 
 /* ---------- world news shown at the start of a year ---------- */
 function yearNews(){
-  const out = worldNews(2);
+  const out = (typeof prophecyNews==='function' ? prophecyNews() : []).concat(worldNews(2));
   const st = stageOf(S.age);
   if(crisisIs('demon') && S.omen>=3 && st!=='child') out.push('Frost came early in the north again. Travelers whisper about horned shapes in the snow.');
   else if(crisisIs('demon') && S.omen>=1 && st==='adult') out.push('The northern border has been quiet. Too quiet, the soldiers say.');
@@ -1490,6 +1500,7 @@ function finish(kind){
     const done = {hero:S.fame>=30, mage:S.st.mag>=20, rich:S.gold>=600, love:Object.values(S.rel).filter(v=>v>=7).length>=2 || !!romance, free:kind==='stayed'||kind==='peace'}[S.dream];
     lines.push(done ? `As a child, you dreamed ${DREAMS[S.dream].line}. You did it.` : `As a child, you dreamed ${DREAMS[S.dream].line}. Life had other plans, and that was all right too.`);
   }
+  if(typeof enigmaEpilogue==='function') lines.push(...enigmaEpilogue(kind));
   if(kind!=='death') lines.push('Somewhere in an endless white office, Goddess Lumi stamps your file and draws a little heart on it.');
 
   const statSum = Object.values(S.st).reduce((a,b)=>a+b,0);
@@ -4606,12 +4617,12 @@ const TR = {
     urgent:s=>S.age>=9,
     cast:{
       a:{pick:(s,used)=>{ const T=wTrouble(); const k=T.k;
-          if(k==='feud'||k==='missing') return famAdult(T.fa, used);
+          if(k==='feud'||k==='missing') return famAdult(T.fa, used) || makeNpc({role:'farmer', sur:fsur('fa')});
           if(k==='wolves') return homeAdult(p=>p.trade==='hunter', used) || homeAdult(null, used);
           if(k==='sickness') return homeAdult(p=>p.trade==='healer'||p.trade==='herbalist', used) || homeAdult(null, used);
           return homeAdult(p=>['farmer','miller','elder','innkeeper','shepherd','fisher'].includes(p.trade), used) || homeAdult(null, used); }, role:'farmer'},
       b:{pick:(s,used)=>{ const T=wTrouble(); const k=T.k;
-          if(k==='feud') return famAdult(T.fb, used);
+          if(k==='feud') return famAdult(T.fb, used) || makeNpc({role:'farmer', sur:fsur('fb')});
           if(k==='taxes') return namedNpc(T.taxman, {role:'noble', g:'m', home:'town'});
           if(k==='debt') return makeNpc({role:'noble', trait:pick(['proud','greedy','cunning'])});
           if(k==='drought') return makeNpc({role:'noble', trait:pick(['proud','cheerful','timid'])});
@@ -5123,6 +5134,306 @@ function crisisEnding(kind, path){
   const W = S.world, k = W && W.crisis ? W.crisis.k : 'demon';
   const E = CRISIS_END[k]; if(!E || !E[kind]) return null;
   return E[kind](path);
+}
+
+;
+/* =========================================================
+   ENIGMA-KEY — Enigmas, Keys and Prophecy
+   Every world hides a few truths that are different each time.
+   Their evidence (Keys) is scattered across people and places.
+   Find enough Keys and the truth can be confronted.
+   ========================================================= */
+
+/* ---------- the enigmas a world can hide ---------- */
+const ENIGMA = {
+  reborn:{ title:'Why You Were Reborn', q:'Lumi says your rebirth was a clerical error. Is that the whole story?', truths:['mistake','chosen','prayer'],
+    keys:{
+      mom:{ src:W=>({t:'npc', id:W.cast.mom}), hint:'Your mother has never talked about the night you were born.',
+        text:{ mistake:'Mama {mom} admits you were born silent, then sneezed, loudly, as if someone far away had dropped a stamp. "The midwife said it was the oddest thing."',
+               chosen:'Mama {mom} says the shrine candles all lit themselves the night you were born. "Like someone was expecting you."',
+               prayer:'Mama {mom} tells you, crying, that her first baby was stillborn. That night she prayed at Lumi\'s shrine until dawn. A year later there was you.' }},
+      shrine:{ src:()=>({t:'place', p:'home'}), hint:'Lumi\'s little shrine in {home} has an inscription nobody can read.',
+        text:{ mistake:'The inscription is a form. An actual form. *Reincarnation request, section 4, see attached.* Somebody has crossed out a box.',
+               chosen:'Under the moss: *To the one I send on purpose. I am sorry it had to look like an accident.*',
+               prayer:'The inscription is a promise: *Pray here with your whole heart and I will listen.* Below it, scratched recently: a date. Your birthday, minus a year.' }},
+      nimue:{ src:W=>({t:'npc', id:W.cast.nimue}), hint:'{nimue} has studied souls for eight hundred years.',
+        text:{ mistake:'{nimue} squints at your soul. "Filed in a hurry. Wrong drawer. Somebody spilled tea on it." She seems delighted.',
+               chosen:'{nimue} goes very still. "Your soul was placed. Carefully. Like a piece on a board." She will not say more.',
+               prayer:'{nimue} smiles sadly. "Someone here called you. Souls answer love more than anything. Someone loved you before you existed."' }},
+      ruin:{ src:()=>({t:'place', p:'ruin'}), hint:'Something is painted on the walls deep in {ruin}.',
+        text:{ mistake:'A mural of a goddess, surrounded by paperwork, looking deeply stressed. Some things never change.',
+               chosen:'A mural of a star falling into a village, and a goddess watching with her hands clasped. It is nine hundred years old.',
+               prayer:'A mural of a woman kneeling at a shrine, and a light coming down to her. The paint is ancient. The story, apparently, keeps happening.' }}
+    },
+    reveal:{ mistake:'It really was a mistake. Lumi stamped the wrong form, then spent your whole life too embarrassed to admit it, cheering for you from the white office. When you finally ask her, she bursts into tears and apologizes for an hour.',
+             chosen:'It was never a mistake. This world was going wrong, and Lumi had no authority to send help, so she "made an error." She chose you. She has been holding her breath for your whole life.',
+             prayer:'Your mother prayed for her lost child for a whole night, and someone answered. You came because you were called, by love, from across the edge of the world.' },
+    fx:{ mistake:{luck:2}, chosen:{fame:2, mag:1, wit:1}, prayer:{cha:2, heal:1} }
+  },
+  war:{ title:'The Origin of the War', q:'Why did the Demon Lord really come south three hundred years ago?', truths:['famine','betrayal','seal'], crisis:'demon', flag:'lore',
+    keys:{
+      library:{ src:()=>({t:'place', p:'academy'}), hint:'The Academy\'s oldest histories are chained in the Forbidden Section.',
+        text:{ famine:'A ledger of grain shipments, three hundred years old. Every one going north is marked *refused*.', betrayal:'A treaty, signed by the Demon Lord and the First Hero, a month before the "final battle."', seal:'A sketch of the great seal, with a note in the margin: *it drinks the land to hold him*.' }},
+      archives:{ src:()=>({t:'place', p:'capital'}), hint:'The royal archives in {capital} hold the war council\'s minutes.',
+        text:{ famine:'The minutes: *Let the north starve. Hungry enemies are weak enemies.*', betrayal:'The minutes: *The Hero\'s treaty is to be torn up. We need a victory, not a peace.*', seal:'The minutes: *The ice spreads a mile each year. Do not tell the people why.*' }},
+      nimue:{ src:W=>({t:'npc', id:W.cast.nimue}), hint:'{nimue} was alive during the war.',
+        text:{ famine:'"They asked for grain," {nimue} says. "We gave them war. I was there. I said nothing. I have been saying nothing for three hundred years."', betrayal:'"The Hero and the Demon Lord were friends," {nimue} says. "Then the king made one of them a liar."', seal:'"The seal is killing the north," {nimue} says quietly. "Every year it holds him, the ice spreads further. They are not invading. They are fleeing."' }},
+      witness:{ src:(W,P)=>({t:'npc', id:P('scholar','capital')}), hint:'A scholar in {capital} was dismissed for asking the wrong questions about the war.',
+        text:{ famine:'{w} shows you a child\'s letter from the north, preserved in amber: *we have eaten the dogs*.', betrayal:'{w} shows you the First Hero\'s last diary entry: *I gave my word. They made me break it.*', seal:'{w} has measured the ice for thirty years. It moves south exactly as fast as the seal weakens.' }}
+    },
+    reveal:{ famine:'The north was starving, and the old kingdom let it. The Demon Lord came south for bread, and history called it an invasion.', betrayal:'There was a peace. The First Hero signed it. The old king tore it up, and called the betrayal a victory.', seal:'The seal that holds the Demon Lord is killing his land. His people are not invading. They are refugees from a winter your ancestors made.' },
+    fx:{ famine:{wit:2}, betrayal:{wit:1, cha:1}, seal:{mag:2} }
+  },
+  hand:{ title:'The Hand Behind the Duke', q:'{duke} {duke.sur} was a loyal lord for thirty years. What changed?', truths:['cult','grief','debt'], crisis:'usurper', flag:'dukeTruth',
+    keys:{
+      heir:{ src:W=>({t:'npc', id:W.cast.heir}), hint:'{heir} knows {heir.his} father better than anyone.',
+        text:{ cult:'{heir} found a black-sun medallion in {heir.his} father\'s desk. "He never used to pray to anything."', grief:'"My brother died in the king\'s border war," {heir} says. "Father never forgave the crown. He stopped sleeping."', debt:'"We\'re ruined," {heir} whispers. "Father borrowed against everything. If he isn\'t king, we lose it all."' }},
+      archives:{ src:()=>({t:'place', p:'capital'}), hint:'The council\'s records in {capital} show where the duke\'s money comes from.',
+        text:{ cult:'Payments to the duke, every month, from a company that does not exist. Its seal is a black sun.', grief:'A royal order, signed by King {king}, sending the duke\'s eldest son to a battle everyone knew was lost.', debt:'Loan papers. The duke owes the Golden Ledger Consortium more than the treasury holds.' }},
+      library:{ src:()=>({t:'place', p:'academy'}), hint:'The Academy keeps the genealogies of every noble house.',
+        text:{ cult:'The duke\'s grandmother was a founder of the Black Sun. The family tree has been carefully edited.', grief:'A memorial page for the duke\'s son, written in the duke\'s own hand. The last line is scratched out so hard it tore the paper.', debt:'The house has been quietly selling its heirlooms for ten years.' }},
+      witness:{ src:(W,P)=>({t:'npc', id:P('noble','capital')}), hint:'Someone at court has been to the duke\'s private dinners.',
+        text:{ cult:'{w} describes robed guests at the duke\'s table who never eat and never give their names.', grief:'{w} says the duke drinks to his dead son every night, and then to the king\'s health, and smashes the glass.', debt:'{w} says the duke\'s silver is painted lead. Everyone at court pretends not to notice.' }}
+    },
+    reveal:{ cult:'The Black Sun bought the duke, coin by coin, until he could not afford to be loyal. He is a puppet who thinks he holds the strings.', grief:'The king sent the duke\'s son to die in a war that was already lost. The coup is a father\'s revenge, dressed up as politics.', debt:'The duke is drowning in debt to the Consortium. If he is not king, his house falls. He is not ambitious. He is terrified.' },
+    fx:{ cult:{wit:2, seed:'clue'}, grief:{cha:2}, debt:{wit:1, gold:30} }
+  },
+  summon:{ title:'Who Summoned the Hero', q:'Someone in this world called {hero} here. Who, and why?', truths:['king','cult','student'], crisis:'otherworlder', flag:'otherSummon',
+    keys:{
+      library:{ src:()=>({t:'place', p:'academy'}), hint:'Summoning circles leave records. The Academy keeps them.',
+        text:{ king:'A royal license for a Hero summoning, stamped by the throne of {realm}: *for the purpose of war*.', cult:'A summoning circle drawn in black ink, with a black sun at its heart, copied from the {realm} incident.', student:'An exam paper. *Practical summoning, first year.* The grade is an F. The name on it is from {realm}.' }},
+      archives:{ src:()=>({t:'place', p:'capital'}), hint:'Diplomatic letters from {realm} sit unread in {capital}.',
+        text:{ king:'A letter from the old king of {realm}, begging for help: *I summoned him to win my war. Now he wins everything.*', cult:'A letter from {realm} warning of robed strangers at the summoning, "who wept with joy."', student:'A letter from {realm}: *the summoning was an accident by a student. We are very, very sorry.*' }},
+      kenji:{ src:W=>({t:'npc', id:W.cast.kenji}), hint:'{kenji} was summoned too. He might know how it works.',
+        text:{ king:'"Kings summon heroes for wars," {kenji} says. "That\'s literally why I\'m here. He\'s the same. He\'s just better at it."', cult:'"When I was summoned I heard chanting," {kenji} says. "Not a king\'s voice. Lots of voices."', student:'"Summonings are basically impossible to do on purpose," {kenji} says. "Mine was an accident too. He just got a worse one."' }},
+      witness:{ src:(W,P)=>({t:'npc', id:P('mage','academy')}), hint:'An Academy mage studied the {realm} summoning circle.',
+        text:{ king:'{w} says the circle was paid for in royal gold, enough to empty a treasury.', cult:'{w} says the circle was drawn with ash from a black candle. Only one group uses those.', student:'{w} says the circle was badly drawn. "Like a nervous fifteen-year-old did it at midnight. Which, I think, is what happened."' }}
+    },
+    reveal:{ king:'The old king of {realm} summoned {hero} to win a war. He handed a lonely boy a god\'s voice and pointed him at an enemy. Everything since is that king\'s fault as much as the boy\'s.', cult:'The Black Sun summoned {hero} and whispered to him for years that this world was a game. He believes them. Nobody ever told him otherwise.', student:'A frightened student in {realm} drew the circle wrong. {hero} was never meant to come at all. He has been trying to make himself matter ever since.' },
+    fx:{ king:{wit:2}, cult:{wit:1, seed:'clue'}, student:{cha:2} }
+  },
+  hero:{ title:'The Forgotten Hero', q:'Everyone in {home} knows the story of {T.hero}. Is it true?', truths:['impostor','murdered','alive'],
+    keys:{
+      landmark:{ src:()=>({t:'place', p:'home'}), hint:'Something about the old monument in {home} doesn\'t add up.',
+        text:{ impostor:'The name on the monument has been chiselled over an older one. You can just make it out.', murdered:'The monument\'s date of death is a year before the war ended. Heroes don\'t usually die before they win.', alive:'Fresh flowers on the monument every morning. Someone leaves them before dawn.' }},
+      old:{ src:(W,P,E)=>({t:'npc', id:E.old}), hint:'{o} is the oldest person in {home}, and goes quiet whenever the war comes up.',
+        text:{ impostor:'{o} rolls up {o.his} sleeve. The scar is exactly where the story says the hero was wounded.', murdered:'{o} remembers the night the hero died. "Soldiers came. The king\'s soldiers. Not the enemy\'s."', alive:'{o} laughs until {o.he} coughs. "Dead? Who told you that?"' }},
+      archives:{ src:()=>({t:'place', p:'capital'}), hint:'The war records in {capital} list who received the hero\'s medal.',
+        text:{ impostor:'The medal was awarded to a name that is not {T.hero}. A clerk changed it later, in different ink.', murdered:'An order to "relieve the hero of command, permanently," signed by the old king\'s seal.', alive:'A pension, still paid every year, to an address in {home}.' }},
+      bard:{ src:(W,P)=>({t:'npc', id:P('bard','capital')}), hint:'{w} knows every verse of the old war ballad, even the banned ones.',
+        text:{ impostor:'{w} sings the lost verse: the hero\'s name rhymes with nothing it should. The original rhymed with {o}.', murdered:'{w} sings the last verse, the one that was banned: *they crowned the king and buried the hero*.', alive:'{w} grins. "The last verse? Never finished. The hero wouldn\'t let us."' }}
+    },
+    reveal:{ impostor:'{T.hero} was a rich man\'s son who took the credit. The real hero of the war was {o}, who came home to {home} and never told anyone.', murdered:'{T.hero} won the war and was killed for it, because the people loved {T.hero} more than the king. The monument was built by the man who ordered it.', alive:'{T.hero} never died. {T.hero} is {o}, living quietly in {home} under another name, and has been leaving flowers on {o.his} own grave for sixty years.' },
+    fx:{ impostor:{fame:2, npcOld:3}, murdered:{wit:2}, alive:{cha:1, luck:1, npcOld:4} }
+  },
+  founder:{ title:'The Founding of {home}', q:'{T.founder} founded {home}. But how, really?', truths:['bandit','lovers','pact'],
+    keys:{
+      shrine:{ src:()=>({t:'place', p:'home'}), hint:'The shrine\'s founding stone has a second inscription on the back.',
+        text:{ bandit:'*Taken by right of the sword.* Someone has tried to sand it off.', lovers:'Two names, not one. The second has been scratched out, but lovingly, carefully.', pact:'*Given by the one in the wood, for a price, paid yearly.*' }},
+      old:{ src:(W,P,E)=>({t:'npc', id:E.old}), hint:'{o} remembers stories {o.his} grandmother told.',
+        text:{ bandit:'"My gran said the founder rode in with twenty swords," {o} says. "And the people who were here first rode out."', lovers:'"My gran said the founder came here running from a family who wanted {T.founder} married to someone else," {o} says.', pact:'"My gran said never to go into {wood} on Founders\' Night," {o} says. "Because that\'s when the rent is collected."' }},
+      wood:{ src:()=>({t:'place', p:'wood'}), hint:'There is an old marker stone deep in {wood}.',
+        text:{ bandit:'The marker is a boundary stone from before {home} existed, with another village\'s name on it.', lovers:'Two initials carved inside a heart, so old the tree has grown around them.', pact:'A stone table with offerings on it: fresh bread, a ribbon, a coin. Someone still pays.' }},
+      family:{ src:(W,P,E)=>({t:'npc', id:E.fam}), hint:'The {f.sur} family have kept something in their attic for generations.',
+        text:{ bandit:'An old deed. The {f.sur} family were here before {T.founder}, and owned the land {home} stands on.', lovers:'A love letter from {T.founder}, three hundred years old, never sent.', pact:'A ledger of "payments to the wood," one line per year, unbroken for three hundred years.' }}
+    },
+    reveal:{ bandit:'{T.founder} did not found {home}. {T.founder} took it, with twenty swords, from the family who were already here. The {f.sur}s have known for three hundred years and never been able to prove it.', lovers:'{T.founder} founded {home} to hide a love nobody would allow. The village exists because two people refused to give each other up.', pact:'{T.founder} made a bargain with the spirit of {wood}: a safe valley, in exchange for a gift every year. The village has paid it, quietly, ever since. Nobody remembers what happens if it stops.' },
+    fx:{ bandit:{wit:2, npcFam:3}, lovers:{cha:2}, pact:{mag:2, luck:1} }
+  }
+};
+
+/* ---------- Genesis hook: called from genesis() ---------- */
+function genEnigmas(W, rng){
+  const pick = a=>a[Math.floor(rng()*a.length)];
+  const people = W.people;
+  const mark = p=>{ if(p){ p.enigma=1; p.keep=1; } return p; };
+  const P = (role, home)=>{ let p = people.find(x=>x.role===role && x.home===home && !x.arch && x.alive && !x.enigma); if(!p) p = people.find(x=>x.home===home && !x.arch && x.alive && x.born<-20 && !x.enigma); mark(p); return p ? p.id : null; };
+  const elder = people.filter(p=>p.home==='home' && p.alive && !p.arch && p.role==='elder').sort((a,b)=>a.born-b.born)[0];
+  const T = W.village.trouble;
+  const famPick = W.fams[T && T.fa] || W.fams.f0;
+  const famPerson = people.find(p=>p.fam===famPick.id && p.alive && p.born<-18 && p.role!=='elder');
+  let third = pick(['hero','founder']);
+  if(third==='hero' && !elder) third = 'founder';
+  if(elder){ elder.born = Math.min(elder.born, -((W.lore.warAgo||60) + 18 + Math.floor(rng()*5))); }
+  const kinds = ['reborn', {demon:'war', usurper:'hand', otherworlder:'summon'}[W.crisis.k], third];
+  [W.cast.mom, W.cast.nimue, W.cast.heir, W.cast.kenji].forEach(id=>{ const p=people.find(x=>x.id===id); if(p) p.keep=1; });
+  W.enigmas = kinds.map(k=>{
+    const D = ENIGMA[k];
+    const E = {k, truth:pick(D.truths), need:3, solved:false, old: elder ? mark(elder).id : null, fam: famPerson ? famPerson.id : null, famId: famPick.id};
+    if(k==='founder' && famPerson) mark(famPerson);
+    E.keys = Object.keys(D.keys).map(id=>({id, src:D.keys[id].src(W, P, E), found:false}))
+      .filter(kk=>kk.src && (kk.src.t!=='npc' || kk.src.id));
+    E.need = Math.min(3, E.keys.length);
+    return E;
+  });
+}
+
+/* ---------- reading enigmas ---------- */
+function enigmas(){ return (S.world && S.world.enigmas) || []; }
+function enigmaFmt(E, t){
+  const W = S.world, o = E.old && S.npcs[E.old], w = null;
+  return fmt(String(t).replace(/\{o\}/g, o ? o.name : 'the oldest villager').replace(/\{o\.(his|he|him)\}/g,(m,x)=>o?PRON[o.g][x]:'their')
+    .replace(/\{f\.sur\}/g, (W.fams[E.famId]||{}).sur || 'old'));
+}
+function keyText(E, kk){
+  const D = ENIGMA[E.k].keys[kk.id];
+  let t = D.text[E.truth];
+  if(kk.src.t==='npc'){ const n = S.npcs[kk.src.id]; t = t.replace(/\{w\}/g, n ? n.name : 'someone'); }
+  return enigmaFmt(E, t);
+}
+function keyHint(E, kk){
+  let t = ENIGMA[E.k].keys[kk.id].hint;
+  if(kk.src.t==='npc'){ const n = S.npcs[kk.src.id]; t = t.replace(/\{w\}/g, n ? n.name : 'someone'); }
+  return enigmaFmt(E, t);
+}
+function enigmaTitle(E){ return enigmaFmt(E, ENIGMA[E.k].title); }
+function enigmaQ(E){ return enigmaFmt(E, ENIGMA[E.k].q); }
+function foundKeys(E){ return E.keys.filter(k=>k.found).length; }
+/* can you reach this key at your age? */
+function keyReachable(kk){
+  const st = stageOf(S.age);
+  if(kk.found) return false;
+  if(kk.src.t==='npc'){ const n = S.npcs[kk.src.id]; if(!n || n.alive===false) return false; return n.home==='home' ? S.age>=8 : st!=='child'; }
+  const p = kk.src.p;
+  if(p==='home') return S.age>=8;
+  if(p==='wood' || p==='ruin') return S.age>=10;
+  if(p==='academy') return st!=='child';
+  if(p==='capital') return st!=='child';
+  return st==='adult';
+}
+function openLeads(){ const out=[]; enigmas().forEach((E,ei)=>{ if(E.solved) return; E.keys.forEach((kk,ki)=>{ if(keyReachable(kk)) out.push({ei, ki}); }); }); return out; }
+function takeKey(ei, ki){
+  const E = enigmas()[ei]; if(!E) return [];
+  const kk = E.keys[ki]; if(!kk || kk.found) return [];
+  kk.found = true; kk.age = S.age;
+  chronicle(`Found a Key to "${enigmaTitle(E)}" (${foundKeys(E)}/${E.need}).`);
+  return [[`🗝 Key: ${enigmaTitle(E)} (${foundKeys(E)}/${E.need})`, 'seed']];
+}
+
+/* ---------- 1. A LEAD: follow one Key ---------- */
+function tryBonus(s,v){ const E=enigmas()[v.ei], kk=E&&E.keys[v.ki]; return kk && kk.tries ? [['You\'ve been here before', 3*kk.tries]] : []; }
+const PLACE_SCENE = {home:'shrine', wood:'forest', ruin:'ruins', academy:'library', capital:'library', north:'north'};
+function pickLead(){ const L = openLeads(); if(!L.length) return null; const sorted = L.sort((a,b)=>foundKeys(enigmas()[b.ei]) - foundKeys(enigmas()[a.ei])); return R()<.8 ? sorted[0] : sorted[Math.floor(R()*sorted.length)]; }
+ARCS.push({
+  id:'e_key', stage:['child','academy','adult'], minAge:8, repeat:true, cooldown:1, world:true, kind:'mystery',
+  weight:s=>1.3 + .4*enigmas().filter(E=>!E.solved && foundKeys(E)>0).length,
+  title:s=>{ const L=S.dir&&S.dir.lead; const E=L&&enigmas()[L.ei]; return E ? `A Key to ${enigmaTitle(E)}` : 'A Lead'; },
+  scene:'library',
+  blurb:s=>{ const L=S.dir&&S.dir.lead; const E=L&&enigmas()[L.ei]; return E ? `${enigmaQ(E)} ${keyHint(E, E.keys[L.ki])}` : 'Something doesn\'t add up.'; },
+  cond:s=>openLeads().length>0,
+  cast:{ w:{ pick:(s,used)=>{ dirState().lead = pickLead(); const L=S.dir.lead; if(!L) return null; const kk=enigmas()[L.ei].keys[L.ki]; return kk.src.t==='npc' ? S.npcs[kk.src.id] : null; }, optional:true } },
+  init:(s,v)=>{ const L=S.dir.lead; v.ei=L.ei; v.ki=L.ki; const kk=enigmas()[L.ei].keys[L.ki]; v.npc = kk.src.t==='npc'; v.place = kk.src.p; },
+  start:'a',
+  beats:{
+    a:{ scene:(s,v)=>v.npc ? ({home:'village', academy:'academy', capital:'capital'}[S.npcs[enigmas()[v.ei].keys[v.ki].src.id].home]||'village') : (PLACE_SCENE[v.place]||'library'), text:(s,v)=>{ const E=enigmas()[v.ei], kk=E.keys[v.ki];
+        const where = v.npc ? `You find {w} and work the conversation, slowly, toward the thing you actually want to know.` : ({home:`You go back to it after dark, when nobody in {home} is watching.`, wood:`You go deep into {wood}, past where the paths end.`, ruin:`You go down into {ruin} with a lantern and a bad feeling.`, academy:`You talk your way into the Academy's restricted stacks.`, capital:`You spend a week in the dusty royal archives of {capital}.`})[v.place] || 'You go looking.';
+        return `${enigmaQ(E)}\n\n${keyHint(E,kk)} ${where}`; },
+      choices:[
+        {label:(s,v)=>v.npc ? 'Ask {w} straight out.' : 'Search methodically.', check:{stat:'wit', dc:11, extra:tryBonus},
+          win:{t:(s,v)=>{ const E=enigmas()[v.ei]; return keyText(E, E.keys[v.ki]); }, fx:(s,v)=>({key:[v.ei,v.ki], npc: v.npc?{w:1}:{}}), go:'END'},
+          lose:{t:'Nothing. Or nothing yet. You know you are close, and that is almost worse.', fx:(s,v)=>({wit:1, keyMiss:[v.ei,v.ki]}), go:'END'}},
+        {label:(s,v)=>v.npc ? 'Win {w}\'s trust first.' : 'Talk to the people who live nearby.', check:{stat:'cha', dc:11, npc:'w', extra:tryBonus},
+          win:{t:(s,v)=>{ const E=enigmas()[v.ei]; return keyText(E, E.keys[v.ki]); }, fx:(s,v)=>({key:[v.ei,v.ki], npc: v.npc?{w:2}:{}}), go:'END'},
+          lose:{t:'Nobody wants to talk about it. Not yet. But you see in their faces that there is something to talk about.', fx:(s,v)=>({keyMiss:[v.ei,v.ki]}), go:'END'}},
+        {label:'Appraisal: just look at it properly.', show:s=>s.cheat==='appraise', t:(s,v)=>{ const E=enigmas()[v.ei]; return 'Your Appraisal skill shows you the hidden truth of things. This, it turns out, is one of them.\n\n'+keyText(E, E.keys[v.ki]); }, fx:(s,v)=>({key:[v.ei,v.ki], wit:1}), go:'END'},
+        {label:'Trust your luck.', check:{stat:'luck', dc:12, extra:tryBonus},
+          win:{t:(s,v)=>{ const E=enigmas()[v.ei]; return 'You trip over it. Literally.\n\n'+keyText(E, E.keys[v.ki]); }, fx:(s,v)=>({key:[v.ei,v.ki], luck:1}), go:'END'},
+          lose:{t:'Your luck is busy elsewhere today.', fx:(s,v)=>({keyMiss:[v.ei,v.ki]}), go:'END'}}
+      ]}
+  }
+});
+
+/* ---------- 2. THE TRUTH: when enough Keys are in hand ---------- */
+function ripeEnigma(){ return enigmas().findIndex(E=>!E.solved && foundKeys(E)>=E.need); }
+ARCS.push({
+  id:'e_reveal', stage:['child','academy','adult'], minAge:9, repeat:true, cooldown:1, world:true, kind:'mystery',
+  title:s=>{ const i=ripeEnigma(); return i>=0 ? `The Truth: ${enigmaTitle(enigmas()[i])}` : 'The Truth'; },
+  scene:'night',
+  blurb:s=>{ const i=ripeEnigma(); return i>=0 ? `You have enough Keys. ${enigmaQ(enigmas()[i])} Tonight, the pieces fit.` : ''; },
+  cond:s=>ripeEnigma()>=0, urgent:s=>ripeEnigma()>=0,
+  cast:{},
+  init:(s,v)=>{ const i = ripeEnigma(); v.ei = i>=0 ? i : 0; },
+  start:'a',
+  beats:{
+    a:{ scene:'night', text:(s,v)=>{ const E=enigmas()[v.ei]; const keys=E.keys.filter(k=>k.found).map(k=>'🗝 '+keyText(E,k)).join('\n\n');
+        return `You lay the Keys out side by side:\n\n${keys}\n\nAnd then, all at once, you see it.\n\n${enigmaFmt(E, ENIGMA[E.k].reveal[E.truth])}`; },
+      choices:[
+        {label:'Tell everyone.', t:'Some truths are owed to everyone. You tell it plainly, to anyone who will listen, and it spreads faster than you expected.', fx:(s,v)=>Object.assign({solve:[v.ei,'told'], fame:3}), go:'END'},
+        {label:'Keep it close. Use it when it matters.', t:'You write it down, fold it small and keep it next to your heart. A truth held back is a key you can still turn.', fx:(s,v)=>({solve:[v.ei,'kept'], wit:1}), go:'END'},
+        {label:'Tell only the people it belongs to.', t:'Some truths belong to particular people. You find them, and you tell them gently, and you let them decide what to do with it.', fx:(s,v)=>({solve:[v.ei,'shared'], cha:1}), go:'END'}
+      ]}
+  }
+});
+
+/* ---------- 3. chasing leads in the quiet months ---------- */
+DOWNTIME.push({ id:'leads', ctx:true, cond:s=>openLeads().length>0 && S.age>=9,
+  label:s=>{ const L=openLeads()[0]; return `Chase a lead: ${enigmaTitle(enigmas()[L.ei])}`; }, desc:'Maybe find a Key · +1 WIT',
+  fx:{leadTry:1, wit:1}, t:'You spent the quiet months following an old question.' });
+
+/* ---------- 4. Prophecy ---------- */
+const PROPHECY = {
+  sign:['when frost forms on {landmark} at midsummer','when the river runs backward at {home}','when two moons rise over {capital}','when the bells of {capital} ring by themselves','when a white stag walks through {home}'],
+  child:['a child of two worlds','one born twice','a child with a borrowed soul'],
+  verb:{demon:['wake','bind','befriend'], usurper:['crown','uncrown','forgive'], otherworlder:['silence','answer','free']},
+  foe:{demon:'the sleeper in the north', usurper:'the stolen crown', otherworlder:'the voice that commands'}
+};
+function genProphecy(W, rng){
+  const pick=a=>a[Math.floor(rng()*a.length)];
+  const lm = W.village.landmarks[0] ? W.village.landmarks[0].name : 'the old oak';
+  const k = W.crisis.k;
+  const sign = pick(PROPHECY.sign).replace('{landmark}', lm).replace('{home}', W.places.home.name).replace('{capital}', W.places.capital.name);
+  W.prophecy = {t:`${capFirst(sign)}, ${pick(PROPHECY.child)} shall ${pick(PROPHECY.verb[k])} ${PROPHECY.foe[k]}.`, sign: capFirst(sign.replace(/^when /,'')), signAge: 14 + Math.floor(rng()*6), heard:false, signed:false};
+}
+
+/* ---------- effects ---------- */
+FX_EXT.key = v=>{ const chips = takeKey(v[0], v[1]); const E = enigmas()[v[0]];
+  // one truth leads to the next: sometimes a Key points straight at another
+  if(E && !E.solved && foundKeys(E)<E.need && R()<.45){ const nx = E.keys.findIndex(kk=>keyReachable(kk)); if(nx>=0){ chips.push(['It points to another clue…','seed']); chips.push(...takeKey(v[0], nx)); } }
+  return chips; };
+FX_EXT.keyMiss = v=>{ const E=enigmas()[v[0]], kk=E&&E.keys[v[1]]; if(kk){ kk.tries=(kk.tries||0)+1; } return [['Closer next time','seed']]; };
+FX_EXT.leadTry = ()=>{ const L = openLeads(); if(!L.length || R()>.7) return [['The trail went cold','down']]; const l = L[Math.floor(R()*L.length)]; return takeKey(l.ei, l.ki); };
+FX_EXT.solve = (v, ctx)=>{
+  const [ei, how] = v; const E = enigmas()[ei]; if(!E || E.solved) return [];
+  const D = ENIGMA[E.k];
+  E.solved = true; E.how = how; E.age = S.age;
+  const chips = [[`✦ Solved: ${enigmaTitle(E)}`, 'seed']];
+  const fx = Object.assign({}, D.fx[E.truth]||{});
+  const oldV = fx.npcOld, famV = fx.npcFam; delete fx.npcOld; delete fx.npcFam;
+  chips.push(...applyFx(fx));
+  const bump = (id, n)=>{ const p = id && S.npcs[id]; if(p && p.alive!==false){ p.met = true; p.metAge = p.metAge||S.age; p.att = clamp((p.att||0)+n, -5, 5); chips.push([`${p.name} trust +${n}`, 'heart']); } };
+  if(oldV) bump(E.old, oldV); if(famV) bump(E.fam, famV);
+  if(D.flag && !S.flags[D.flag]){ S.flags[D.flag] = true; if(FLAG_NAMES[D.flag]) chips.push([fmt(FLAG_NAMES[D.flag]), 'seed']); }
+  if(how==='told') S.world.log.push({age:S.age, t:`The truth about ${enigmaTitle(E).replace(/^The /,'the ')} came out, and everyone is talking about it.`});
+  chronicle(`Solved "${enigmaTitle(E)}": ${enigmaFmt(E, D.reveal[E.truth]).split('. ')[0].replace(/\.$/,'')}.`);
+  return chips;
+};
+Object.assign(FLAG_NAMES, {dukeTruth:'Learned what drives the duke', otherSummon:'Learned who summoned the Hero'});
+
+/* ---------- prophecy in the news ---------- */
+function prophecyNews(){
+  const P = S.world && S.world.prophecy; if(!P) return [];
+  if(!P.heard && S.age>=12){ P.heard = S.age; return [`A wandering seer has been reciting an old prophecy in the market: "${P.t}" People laugh. Then they stop laughing.`]; }
+  if(P.heard && !P.signed && S.age>=P.signAge){ P.signed = S.age; S.world.log.push({age:S.age, t:`The sign came: ${P.sign.replace(/\.$/,'')}.`}); return [`Everyone is talking about it: ${P.sign.charAt(0).toLowerCase()+P.sign.slice(1)}, just as the prophecy said. Something has begun.`]; }
+  return [];
+}
+
+/* ---------- epilogue ---------- */
+const ENIGMA_EPI = {
+  reborn:{ mistake:'Lumi still sends a fruit basket every year on your birthday. The card always says SORRY in very large letters.', chosen:'At the very end, Lumi tells you she would choose you again. Every time.', prayer:'Every year, on the night before your birthday, you leave flowers at the little shrine in {home}.' },
+  war:{ famine:'The history books are rewritten. The chapter on the war now begins with a famine.', betrayal:'The First Hero\'s treaty hangs in the Academy library now, under glass, for everyone to read.', seal:'Scholars begin, slowly, to unpick the seal that was killing the north.' },
+  hand:{ cult:'The Black Sun never again buys a lord of {kingdom}. You made sure of it.', grief:'A memorial to the duke\'s son stands in {capital} now. The king paid for it.', debt:'The Golden Ledger quietly forgives a great many debts, after you have a word with them.' },
+  summon:{ king:'The summoning circles of {realm} are broken up and buried, by royal decree.', cult:'The Black Sun\'s summoning rite is burned, every copy you can find.', student:'Somewhere in {realm}, a student who drew a circle wrong finally stops having nightmares.' },
+  hero:{ impostor:'The name on the monument in {home} is changed. {o} pretends to hate the fuss.', murdered:'The monument in {home} gets a new line: the truth about how {T.hero} died.', alive:'{o} finally lets the village throw a party for the hero who never died.' },
+  founder:{ bandit:'The {f.sur} family get their land back, three hundred years late.', lovers:'{home} starts a new festival, for lovers who were told no.', pact:'{home} keeps paying the rent to {wood}. Now everyone knows why.' }
+};
+function enigmaEpilogue(kind){
+  const out = [];
+  enigmas().forEach(E=>{ if(E.solved && ENIGMA_EPI[E.k]) out.push(enigmaFmt(E, ENIGMA_EPI[E.k][E.truth])); });
+  const open = enigmas().filter(E=>!E.solved);
+  if(open.length && kind!=='death') out.push(`Some questions were never answered. "${enigmaTitle(open[0])}" stays a mystery in this world.`);
+  const P = S.world && S.world.prophecy;
+  if(P && P.heard && kind!=='death') out.push(kind==='stayed' ? 'The old prophecy came true for someone else. You were busy.' : 'People still argue about what the old prophecy meant. Most of them have decided it was about you.');
+  return out;
 }
 
 ;
@@ -5952,7 +6263,7 @@ function buildFlow(){
   }
   else if(y.phase==='beat' || y.phase==='done'){
     const a=y.arc, arc=ARC[a.id], b=arc.beats[a.beat];
-    f.scene = b.scene || arc.scene || stageScene(); f.seed = S.id+a.id+a.beat;
+    f.scene = (typeof b.scene==='function' ? b.scene(S, ctxVars(), castObj()) : b.scene) || arc.scene || stageScene(); f.seed = S.id+a.id+a.beat;
     const text = y.phase==='beat' ? fmt(b.text) : '';
     f.chars = presentChars([a.prev?a.prev.text:'', text], a.cast, a.id);
     f.top = `<div class="tag-title">${esc(fmt(arc.title))}</div><div class="pips">${'◆'.repeat(Math.min(a.path.length,6))}<i>${'◇'.repeat(Math.max(0,4-a.path.length))}</i></div>`;
@@ -6292,7 +6603,7 @@ function overlay(html, cls){
 }
 function openSheet(tab){
   if(tab) UI.tab = tab;
-  const tabs = [['status','Status'],['bonds','People'],['world','World'],['story','Story'],['settings','⚙']];
+  const tabs = [['status','Status'],['bonds','People'],['world','World'],['story','Codex'],['settings','⚙']];
   let content='';
   if(UI.tab==='status'){
     const maxS = Math.max(20, ...Object.values(S.st));
@@ -6341,7 +6652,16 @@ function openSheet(tab){
     const threads = S.seeds.filter(x=>!x.npc || (S.npcs[x.npc]&&S.npcs[x.npc].alive!==false)).map(x=>`<div class="thread">${esc(seedLabel(x))}</div>`).join('');
     const flags = Object.keys(S.flags).filter(f=>FLAG_NAMES[f]).map(f=>`<span class="chip seed">${fmt(FLAG_NAMES[f])}</span>`).join('');
     const log = S.log.slice().reverse().map(l=>`<div><b>${l.age||'—'}</b><span>${esc(l.t)}</span></div>`).join('');
-    content = `${threads?`<div class="eyebrow">Open threads</div><div class="threads">${threads}</div>`:''}${flags?`<div class="eyebrow">Along the way</div><div class="chips">${flags}</div>`:''}<div class="eyebrow">Chronicle</div><div class="timeline">${log}</div>`;
+    const P = S.world && S.world.prophecy;
+    const proph = P && P.heard ? `<div class="eyebrow">The prophecy</div><div class="kv1 ${P.signed?'warn':''}"><b>“${esc(P.t)}”</b><span>${P.signed?`The sign came at ${P.signed}. It has begun.`:`Heard at ${P.heard}. The sign has not come yet.`}</span></div>` : '';
+    const ital = t=>esc(t).replace(/\*(.+?)\*/g,'<em>$1</em>');
+    const ens = (typeof enigmas==='function' ? enigmas() : []).map(E=>{
+      const n = foundKeys(E), shown = E.solved || n>0 || S.age>=8;
+      if(!shown) return '';
+      const keys = E.keys.map(kk=>kk.found ? `<div class="key on"><b>🗝</b><span>${ital(keyText(E,kk))}</span></div>` : `<div class="key"><b>?</b><span>${esc(keyHint(E,kk))}</span></div>`).join('');
+      return `<div class="enigma ${E.solved?'solved':''}"><div class="en-h"><b>${esc(enigmaTitle(E))}</b><span class="mono">${E.solved?'SOLVED':`${n}/${E.need} KEYS`}</span></div>
+        <div class="small">${esc(E.solved ? enigmaFmt(E, ENIGMA[E.k].reveal[E.truth]) : enigmaQ(E))}</div>${E.solved?'':keys}</div>`; }).join('');
+    content = `${proph}${ens?`<div class="eyebrow">Enigmas</div>${ens}`:''}${threads?`<div class="eyebrow">Open threads</div><div class="threads">${threads}</div>`:''}${flags?`<div class="eyebrow">Along the way</div><div class="chips">${flags}</div>`:''}<div class="eyebrow">Chronicle</div><div class="timeline">${log}</div>`;
   }
   if(UI.tab==='settings'){
     content = `<div class="eyebrow">Text speed</div>
