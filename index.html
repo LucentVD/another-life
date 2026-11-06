@@ -597,7 +597,7 @@ const LANDMARKS = [
   {k:'well', n:'the Wishing Well', why:'said to have saved the village in the {disaster}'},
   {k:'statue', n:'the statue of {hero}', why:'raised for {hero}, who {deed2}'},
   {k:'mill', n:'the burned mill', why:'never rebuilt after the {disaster}'},
-  {k:'cairn', n:'the soldiers\' cairn', why:'marking the {home} dead of the {war}'}
+  {k:'cairn', n:'the soldiers\' cairn', why:'raised over the {home} dead of the {war}'}
 ];
 const FESTIVALS = [
   {n:'the Lantern Festival', s:'Autumn', c:'paper lanterns are floated down the water for the dead'},
@@ -615,7 +615,7 @@ const TROUBLES = [
   {k:'haunt', t:'Lights have been seen in {ruin} again.'},
   {k:'sickness', t:'A coughing sickness keeps coming back every winter.'},
   {k:'taxes', t:'The new tax collector, {taxman}, takes more every season.'},
-  {k:'missing', t:'Nobody has ever found out what happened to the {fa} boy who vanished ten years ago.'}
+  {k:'missing', t:'Nobody has ever found out what happened to {boy}, who walked into {wood} ten years ago.'}
 ];
 const SAINT_DEEDS = ['walked into the plague house and walked out again','talked a dragon out of burning the harvest','fed the village through the long winter','drove the river spirit back into the water'];
 const HERO_DEEDS = ['held the ford alone during the {war}','killed the wyrm of the {wood}','carried the king\'s banner home from the {war}','refused a crown and went back to farming'];
@@ -707,7 +707,8 @@ function genesis(key, opts={}){
   /* the trouble, with real families in it */
   const famIds = Object.keys(W.fams), fa = W.fams[pick(famIds)], fb = W.fams[pick(famIds.filter(x=>x!==fa.id))];
   const tr = pick(TROUBLES);
-  W.village.trouble = {k:tr.k, t:sub(tr.t).replace('{fa}',fa.sur).replace('{fb}',fb.sur).replace('{ruin}',W.places.ruin.name).replace('{taxman}',N.given(kc,'m')+' '+N.family(kc)), fa:fa.id, fb:fb.id};
+  const taxman = {name:N.given(kc,'m'), sur:N.family(kc)}, boy = {name:N.given(fa.cult,'m'), sur:fa.sur};
+  W.village.trouble = {k:tr.k, t:sub(tr.t).replace('{fa}',fa.sur).replace('{fb}',fb.sur).replace('{ruin}',W.places.ruin.name).replace('{taxman}',taxman.name+' '+taxman.sur).replace('{boy}',boy.name+' '+boy.sur), fa:fa.id, fb:fb.id, taxman, boy};
   if(tr.k==='feud'){ const a=W.people.find(p=>p.fam===fa.id && p.alive), b=W.people.find(p=>p.fam===fb.id && p.alive); if(a&&b) tie(a,b,'rival'); W.history.push({ago:rint(8,40), t:`The ${fa.sur} and ${fb.sur} families fell out over ${pick(['a stolen cow','a broken engagement','a boundary stone','a card game','an insult at the '+W.village.festival.name.replace(/^the /,'')])}.`}); W.history.sort((a,b)=>b.ago-a.ago); }
   // friendships and crushes inside the village
   const alive = W.people.filter(p=>p.alive);
@@ -767,6 +768,11 @@ function worldToken(k, sub){
     if(k==='fam') return W.fams.fp.sur;
     if(k==='festival') return W.village.festival.name;
   }
+  if(k==='T' && sub){ const T=W.village.trouble||{}, L=W.lore||{};
+    if(sub==='fa'||sub==='fb') return W.fams[T[sub]] ? W.fams[T[sub]].sur : 'neighbour';
+    if(sub==='founder') return `${L.founder} ${L.founderFam}`; if(sub==='war') return L.war; if(sub==='disaster') return (L.disaster||'').replace(/^the /,'');
+    if(sub==='taxman') return T.taxman ? `${T.taxman.name} ${T.taxman.sur}` : 'the tax collector';
+    if(sub==='boy') return T.boy ? `${T.boy.name} ${T.boy.sur}` : 'the boy'; return null; }
   if(k==='vil' && sub){ const p = villager(sub); return p ? p.name : 'old '+(TRADES[sub]||sub); }
   if(W.cast[k]){ const n = S.npcs[W.cast[k]]; if(!n) return null; return sub ? personSub(n, sub) : n.name; }
   return null;
@@ -850,7 +856,10 @@ function fillMind(p){
     .replace(/\{home\}/g,W.places.home.name).replace(/\{wood\}/g,W.places.wood.name).replace(/\{capital\}/g,W.places.capital.name).replace(/\{ruin\}/g,W.places.ruin.name)
     .replace(/\{festival\}/g,W.village.festival.name.replace(/^the /,'')).replace(/\{rival\}/g, rival ? rival.sur : 'neighbouring');
   const list = p.home==='home' || p.home==='away' ? WANTS[band] : (p.role==='student' || a<17) ? CITY_WANTS.student : band==='old' ? WANTS.old : CITY_WANTS.adult;
-  p.want = fill(pick(list)); p.fear = fill(pick(FEARS)); p.secret = fill(pick(SECRETS));
+  p.want = fill(pick(list));
+  const w = p.want;
+  p.wantK = /leave|see the world|see the capital|go home/.test(w) ? 'leave' : /marry|love/.test(w) ? 'love' : /debt|rich|worry|patron/.test(w) ? 'money'
+    : /honour|wrong|rival|feud|ruined|beat/.test(w) ? 'honour' : /master|knight|Academy|graduate|mage|best|discover|Council|name|elder|top/.test(w) ? 'skill' : 'peace'; p.fear = fill(pick(FEARS)); p.secret = fill(pick(SECRETS));
 }
 function worldTick(years){
   const W = W_(); if(!W) return;
@@ -868,13 +877,14 @@ function worldTick(years){
         else say(`${p.name} ${p.sur} is grown now, and works as ${an(TRADES[p.role])}.`, [p]); }
       // death
       const dp = a>80 ? .25 : a>65 ? .07 : a>45 ? .012 : .003;
-      if(R()<dp){ p.alive=false; p.died=yearAge; say(a<16 ? `${p.name} ${p.sur} died of a fever, aged ${a}. ${W.places[p.home]?W.places[p.home].name:'The town'} mourned.` : `${p.name} ${p.sur}${!['child','student'].includes(p.role)?', the '+(TRADES[p.role]||p.role)+',':''} died ${a>65?'peacefully, at '+a:'suddenly, at '+a}.`, [p], p.met); continue; }
+      if(R()<dp){ p.alive=false; p.died=yearAge; say(a<16 ? `${p.name} ${p.sur} died of a fever, aged ${a}. ${W.places[p.home]?W.places[p.home].name:'The town'} mourned.` : `${p.name} ${p.sur}${!['child','student'].includes(p.role)?', the '+(TRADES[p.role]||p.role)+',':''} died ${a>65?'peacefully, at '+a:'suddenly, at '+a}.`, [p], p.met); if(p.met && (p.att||0)>=0) (W.pending=W.pending||[]).push({k:'funeral', a:p.id, age:S.age}); continue; }
       // marriage
       if(a>=18 && a<=40 && !tiesOf(p,'spouse').some(x=>x.alive!==false) && R()<.09){
         const crush = (p.ties||[]).find(t=>t.k==='crush'); let q = crush ? S.npcs[crush.id] : null;
         if(!q || q.alive===false || tiesOf(q,'spouse').some(x=>x.alive!==false)) { const pool = ppl().filter(o=>!o.arch && o.g!==p.g && o.home===p.home && Math.abs(o.born-p.born)<10 && (yearAge-o.born)>=18 && !tiesOf(o,'spouse').some(x=>x.alive!==false)); q = pool[Math.floor(R()*pool.length)]; }
         if(q){ p.ties.push({id:q.id,k:'spouse'}); q.ties.push({id:p.id,k:'spouse'}); const at = W.places[p.home] ? W.places[p.home].name : 'the capital';
           say(`${p.name} ${p.sur} married ${q.name} ${q.sur} in ${at}.${(p.ties.find(t=>t.k==='crush'&&t.id===q.id))?' Everyone saw it coming.':''}`, [p,q], p.met||q.met); }
+        if(q && (p.met||q.met)) (W.pending=W.pending||[]).push({k:'wedding', a:p.id, b:q.id, age:S.age});
       }
       // children
       if(p.g==='f' && a>=20 && a<=40 && tiesOf(p,'spouse').some(x=>x.alive!==false) && R()<.07){
@@ -893,7 +903,7 @@ function worldTick(years){
       }
     }
     // the village trouble flares now and then
-    if(W.village.trouble && R()<.3 && y===years-1) W.news.push({t:W.village.trouble.t, who:[], big:false, age:S.age});
+    if(W.village.trouble && !W.village.trouble.done && R()<.3 && y===years-1) W.news.push({t:W.village.trouble.t, who:[], big:false, age:S.age});
   }
 }
 
@@ -960,6 +970,8 @@ function castFor(arc, used=new Set()){
     let n = null;
     if(c.seed){ n = seedNpc(c.seed, c.where); }
     if(!n && c.find){ const l = people(x=>c.find(x,S)); if(l.length) n = pick(l); }
+    if(!n && c.pick){ n = c.pick(S, used); }
+    if(!n && c.pick && c.optional) continue;
     if(!n && c.npc){ n = S.npcs[c.npc]; }
     if(!n) n = castFromWorld(c, used);
     if(!n) n = makeNpc(c);
@@ -1040,6 +1052,8 @@ function applyFx(fx, ctx){
     else if(k==='unflag'){ [].concat(v).forEach(f=>{ delete S.flags[f]; }); }
     else if(k==='path'){ S.path=v; chips.push([`Path: ${PATH_NAME[v]}`,'seed']); }
     else if(k==='finale'){ S.finale=v; }
+    else if(k==='resolve'){ const T=S.world&&S.world.village.trouble; if(T && !T.done){ T.done=true; T.outcome=fmt(v, ctx); chips.push([`${wPlace('home')} is at peace`,'seed']); S.world.log.push({age:S.age, t:T.outcome}); } }
+    else if(k==='wish'){ [].concat(v).forEach(r=>{ const n=npcOf(r); if(n && !n.wantDone){ n.wantDone=true; chips.push([`${n.name}'s wish came true`,'heart']); } }); }
     else if(k==='dream'){ S.dream=v; chips.push([`Dream: ${DREAMS[v].name}`,'seed']); }
     else if(k==='set'){ const vars=ctxVars(ctx); if(vars) Object.assign(vars, v); }
     else if(k==='seed'){
@@ -1173,23 +1187,55 @@ function startYear(downNote){
   S.year = {age:S.age, season: SEASONS[Math.floor(R()*4)], phase:'open', leads, arc:null, chips:[], down:downNote||null, news:yearNews(), opts:null};
   HOOKS.save();
 }
+/* =========================================================
+   THE STORY DIRECTOR
+   Picks this year's three stories. It weighs:
+   - threads: old seeds gain tension every year and pull their payoff forward
+   - the world: weddings, funerals and village trouble ask to be told
+   - variety: the same kind of story twice in a row is less likely
+   - you: it leans toward the kinds of choices you actually make
+   - surprise: now and then it ignores all of that
+   ========================================================= */
+const THREAD_HEAT = {grudge:2, promise:2, owed:1, spared:1, secret:1, rival:1, friend:0, clue:0, business:0};
+function dirState(){ if(!S.dir) S.dir = {kinds:[], last:{}, style:{str:0,mag:0,wit:0,cha:0,luck:0}}; return S.dir; }
+function threadTension(sd){ return (S.age - sd.age) + (THREAD_HEAT[sd.k]||0); }
+function arcKind(a){ return a.kind || a.dream || (a.echo ? 'echo' : 'misc'); }
+const STYLE_KIND = {str:'hero', mag:'mage', wit:'rich', cha:'love', luck:'free'};
 function arcWeight(a){
+  const D = dirState();
   let w = a.weight ? a.weight(S) : 1;
-  if(a.echo) w *= 3;
+  if(a.echo){
+    const ks = Object.values(a.cast||{}).map(c=>c.seed).filter(Boolean);
+    const heat = Math.max(0, ...S.seeds.filter(sd=>ks.includes(sd.k)).map(threadTension));
+    w *= 2 + Math.min(4, heat/2);
+  }
   if(a.dream && a.dream===S.dream) w *= 1.6;
+  const k = arcKind(a);
+  if(D.kinds[0]===k) w *= .4; else if(D.kinds[1]===k) w *= .75;
+  const top = Object.entries(D.style).sort((x,y)=>y[1]-x[1])[0];
+  if(top && top[1]>=3 && STYLE_KIND[top[0]]===a.dream) w *= 1.35;
+  if(a.world) w *= 1.4;
   return w;
 }
 function eligible(stage){
-  return ARCS.filter(a=>!a.main && a.stage===stage && (a.repeat || !S.seen[a.id]) && (!a.cond || a.cond(S)) && (!a.minAge || S.age>=a.minAge) && (!a.maxAge || S.age<=a.maxAge));
+  const D = dirState();
+  return ARCS.filter(a=>!a.main && (a.stage===stage || (Array.isArray(a.stage) && a.stage.includes(stage))) && (a.repeat || !S.seen[a.id])
+    && (!a.cooldown || D.last[a.id]==null || S.age - D.last[a.id] >= a.cooldown)
+    && (!a.cond || a.cond(S)) && (!a.minAge || S.age>=a.minAge) && (!a.maxAge || S.age<=a.maxAge));
 }
 function pickLeads(){
   const st = stageOf(S.age);
   let pool = eligible(st).filter(a=>!a.filler);
   const out = [];
-  // guarantee a follow-up story when one is waiting
+  const take = a=>{ out.push(a); pool = pool.filter(x=>x!==a); };
+  // 1. something that cannot wait: a wedding, a funeral, a thread at boiling point
+  const urgent = pool.filter(a=>a.urgent && a.urgent(S));
+  if(urgent.length) take(weighted(urgent));
+  // 2. the hottest follow-up
   const echoes = pool.filter(a=>a.echo);
-  if(echoes.length){ const e = weighted(echoes); out.push(e); pool = pool.filter(a=>a!==e); }
-  while(out.length<3 && pool.length){ const a = weighted(pool); out.push(a); pool = pool.filter(x=>x!==a); }
+  if(echoes.length && out.length<2) take(weighted(echoes));
+  // 3. the rest by weight, with an occasional wildcard
+  while(out.length<3 && pool.length){ const a = R()<.15 ? pool[Math.floor(R()*pool.length)] : weighted(pool); take(a); }
   if(out.length<2){ eligible(st).filter(a=>a.filler && !out.includes(a)).slice(0, 3-out.length).forEach(a=>out.push(a)); }
   return out;
 }
@@ -1203,6 +1249,7 @@ function chooseLead(i){
   const arc = ARC[L.id];
   for(const r in L.cast){ const n=S.npcs[L.cast[r]]; if(n && !n.met){ n.met=true; n.metAge=S.age; n.w=1; } }
   S.seen[arc.id] = true;
+  const D = dirState(); D.last[arc.id] = S.age; D.kinds.unshift(arcKind(arc)); D.kinds.length = Math.min(D.kinds.length, 3);
   const vars = {};
   S.year.arc = {id:arc.id, cast:L.cast, vars, beat:null, prev:null, path:[]};
   if(arc.init) arc.init(S, vars, castObj());
@@ -1240,7 +1287,7 @@ function choose(i){
   let br, roll=null;
   if(c.check){
     if(c.auto && c.auto(S, ctxVars(), castObj())){ br = c.win; roll={auto:true, ok:true}; }
-    else { roll = rollCheck(c.check); br = roll.ok ? c.win : c.lose; }
+    else { roll = rollCheck(c.check); br = roll.ok ? c.win : c.lose; const st = c.check.stat==='combat' ? (S.st.str>=S.st.mag?'str':'mag') : c.check.stat; const D=dirState(); if(D.style[st]!=null) D.style[st]++; }
   } else br = c;
   const label = fmt(c.label);
   const text = fmt(br.t);
@@ -4283,6 +4330,395 @@ ARCS.push(
 
 ;
 /* =========================================================
+   ENIGMA-KEY — world patterns
+   Stories built from the generated world instead of written for one cast:
+   the village's own trouble, its festival, the weddings and funerals of
+   people you know, their wishes, and old threads coming due.
+   ========================================================= */
+
+/* ---------- casting helpers ---------- */
+function wTrouble(){ return S.world && S.world.village && S.world.village.trouble; }
+function fsur(k){ const T=wTrouble(); return T && S.world.fams[T[k]] ? S.world.fams[T[k]].sur : 'neighbour'; }
+function worldPool(pred, used){ return Object.values(S.npcs).filter(p=>p.w && !p.arch && p.alive!==false && !(used&&used.has(p.id)) && pred(p)); }
+function pickOne(list){ return list.length ? list[Math.floor(R()*list.length)] : null; }
+function famAdult(fid, used){ return worldPool(p=>p.fam===fid && personAge(p)>=18, used).sort((a,b)=>(b.met?1:0)-(a.met?1:0) || a.born-b.born)[0] || null; }
+function homeAdult(pred, used){ return pickOne(worldPool(p=>p.home==='home' && personAge(p)>=18 && (!pred || pred(p)), used)); }
+function namedNpc(o, spec){ let n = Object.values(S.npcs).find(p=>p.name===o.name && p.sur===o.sur); if(!n){ n = makeNpc(Object.assign({}, spec, {name:o.name, sur:o.sur})); n.w = 1; n.home = spec.home||n.home; } return n; }
+function onlyIf(k, list){ return list.map(c=>Object.assign({}, c, {show:(s,v,x)=>v.k===k && (!c.show || c.show(s,v,x))})); }
+
+/* =========================================================
+   1. THE VILLAGE TROUBLE — one story per kind of trouble,
+      cast with the families actually involved
+   ========================================================= */
+const TR = {
+  feud:{ title:'Bad Blood', scene:'village',
+    blurb:s=>`The ${fsur('fa')} and ${fsur('fb')} families haven't spoken in years. At this year's festival, someone finally throws a punch.`,
+    hook:s=>`It happens at {festival}. {a} of the ${fsur('fa')} family says something about the ${fsur('fb')} pies. {b} of the ${fsur('fb')} family says something about {a.his} mother. Then there is cider in the air, a table on its side, and two families shouting across the green.\n\nBy morning, both houses have sticks leaning by their doors. Nobody remembers how the feud started. Everybody is sure it was the other side.`,
+    ap:[
+      {label:'Ask the oldest people in {home} how it began.', check:{stat:'wit', dc:10}, win:{t:'Three old-timers give you three versions. The fourth, from the shrine\'s birth-and-death ledger, is the true one.'}, lose:{t:'Everyone tells you a different story, loudly. You go home more confused than you left.', fx:{set:{hard:1}}}},
+      {label:'Get {a} and {b} to sit at the same table.', check:{stat:'cha', dc:12, npc:'b'}, win:{t:'They sit. They glare. They do not leave, which in {home} counts as a peace treaty.', fx:{npc:{a:1, b:1}}}, lose:{t:'{b} storms out before the tea is poured. {a} calls you a meddler.', fx:{npc:{a:-1}, set:{hard:1}}}},
+      {label:'Spy on both houses at night.', check:{stat:'luck', dc:10}, win:{t:'Through one window you hear {b} say, very quietly, "I wish I knew what we were even fighting about."'}, lose:{t:'A dog finds you first. Now each family thinks the other sent a spy.', fx:{hp:-2, set:{hard:1}}}}
+    ],
+    truth:(s,v)=>`The answer is in the ledger, in faded ink. Sixty years ago, a ${fsur('fa')} girl and a ${fsur('fb')} boy were promised to each other. The wedding never happened. Nobody wrote down why, except one line in the margin: *"Called off by both, kindly."*\n\nTwo families have hated each other for sixty years over a breakup that the couple themselves were fine with.`,
+    ends:[
+      {label:'Read the ledger to both families, together.', check:{stat:'cha', dc:s=>13}, win:{t:'Silence. Then {b} starts laughing, and can\'t stop, and {a} joins in. The sticks go back to the woodpile that night.', fx:{npc:{a:2, b:2}, fame:1, resolve:'The {T.fa}–{T.fb} feud ended when you read them the old ledger.'}, log:'Ended the feud between two families of {home}.'},
+        lose:{t:'Half of them laugh. The other half say the ledger is forged. But the sticks stay by the doors, unused.', fx:{npc:{a:1, b:1}}, log:'Tried to end the feud in {home}. Half-worked.'}},
+      {label:'Stand with the {T.fa} family.', t:'You stand next to {a}. The {T.fa} family will never forget it. Neither will the {T.fb} family.', fx:{npc:{a:3, b:-3}, seed:{k:'grudge', npc:'b'}}, log:'Took the side of the {T.fa} family in the old feud.'},
+      {label:'Stand with the {T.fb} family.', t:'You stand next to {b}. {a} looks at you like you\'ve stolen something.', fx:{npc:{b:3, a:-3}, seed:{k:'grudge', npc:'a'}}, log:'Took the side of the {T.fb} family in the old feud.'}
+    ]},
+
+  wolves:{ title:'Something in {wood}', scene:'forest',
+    blurb:s=>`Something is taking whole pens of sheep from {home}, and the gates are never broken. The hunter says wolves. Wolves don't open gates.`,
+    hook:s=>`Seven sheep gone in one night. The pen gate is closed. The fence is whole. There is a single tuft of grey fur on a nail.\n\n{a} the hunter crouches by the fence for a long time. "Wolves," {a.he} says finally. Then, quieter: "But wolves don't do this. Something is pushing them."`,
+    ap:[
+      {label:'Track them into {wood} with {a}.', check:{stat:'str', dc:11}, win:{t:'You keep up with {a} all day, through bramble and creek. {a.He} nods at you once, which from a hunter is a speech.', fx:{npc:{a:1}}}, lose:{t:'You fall behind, then fall in a creek. {a} has to come back for you.', fx:{hp:-3, set:{hard:1}}}},
+      {label:'Watch the pens all night.', check:{stat:'luck', dc:10}, win:{t:'At the darkest hour, wolves slip under the fence where the ground is soft. They are thin and terrified, and they keep looking back at the trees.'}, lose:{t:'You fall asleep. You wake to two more sheep gone and a wolf staring at you from three feet away. It leaves. You don\'t sleep again for a week.', fx:{set:{hard:1}}}},
+      {label:'Read every old story about the forest.', check:{stat:'wit', dc:10}, win:{t:'One story says the wolves fled the deep wood once before, "when the Old Thing woke in its den." The date fits.'}, lose:{t:'The stories are mostly about saints. You learn a great deal about saints.', fx:{set:{hard:1}}}}
+    ],
+    truth:`Deep in {wood}, past where the paths end, you find the den. Wolf bones. Snapped saplings. Claw marks higher than your head.\n\nAn owlbear has woken in the old den: half owl, half bear, all appetite. It has driven the wolves out of their hunting grounds, straight toward {home}'s sheep.`,
+    ends:[
+      {label:'Hunt the owlbear with {a}.', check:{stat:'combat', dc:13}, win:{t:'It is the worst ten minutes of your life. Then it is over, and {a} is laughing and bleeding and slapping your back. The wolves go home to the deep wood.', fx:{str:1, fame:2, npc:{a:2}, resolve:'You and {a} killed the owlbear that drove the wolves from {wood}.'}, log:'Hunted an owlbear with {a} and saved {home}\'s flocks.'},
+        lose:{t:'The owlbear throws you into a tree. {a} drags you out. The beast leaves its den for deeper woods, wounded and annoyed. The wolves creep back home anyway.', fx:{hp:-10, npc:{a:1}, resolve:'The owlbear fled deeper into {wood}, and the wolves went home.'}, log:'Fought an owlbear in {wood}. Lost, but it left.'}},
+      {label:'Lure it away with bait and noise.', check:{stat:'wit', dc:12}, win:{t:'A trail of honey, a lot of pot-banging, and one very confused owlbear wandering north. {a} calls it the most ridiculous hunt of {a.his} life.', fx:{wit:1, npc:{a:1}, resolve:'You lured the owlbear out of {wood} with honey and pots.'}, log:'Lured an owlbear away from {home} with honey.'},
+        lose:{t:'It follows the honey, then follows you. You run home faster than you have ever run. It loses interest at the village wall, thank the gods.', fx:{hp:-5, resolve:'The owlbear chased you to the wall, then left for good.'}, log:'Was chased home by an owlbear. It never came back.'}},
+      {label:'Monster Tamer: talk to it.', show:s=>s.cheat==='tamer', t:'The owlbear is not evil. It is old, and hungry, and its den is full of thorns. You pull out the thorns. It purrs like a landslide and wanders off to fish.', fx:{luck:1, cha:1, resolve:'You made friends with the owlbear of {wood}. It fishes now.'}, log:'Befriended an owlbear in {wood}.'}
+    ]},
+
+  debt:{ title:'The Lord\'s Ledger', scene:'shrine',
+    blurb:s=>`The lord's steward has nailed a notice to the shrine door: forty years of unpaid rent. Pay by midsummer, or {home} loses its fields.`,
+    hook:s=>`{b}, steward to the lord, reads the notice aloud in the square and nails it to the shrine door. Forty years of unpaid rent on the common fields. Pay by midsummer, or the lord takes them.\n\n{a} reads it three times. Then {a.he} sits down in the road, because there is nowhere else to sit.`,
+    ap:[
+      {label:'Search the shrine chest for the old agreement.', check:{stat:'wit', dc:11}, win:{t:'Under a pile of hymn sheets and mouse droppings: a sealed charter with {T.founder}\'s signature on it.'}, lose:{t:'You find it eventually, but not before the priest catches you and makes you dust everything as penance.', fx:{set:{hard:1}}}},
+      {label:'Ask {b} to show you the lord\'s own ledger.', check:{stat:'cha', dc:12, npc:'b'}, win:{t:'{b} is amused enough by a child asking that {b.he} shows you. The ledger starts forty years ago, exactly. Nothing before. That\'s strange.', fx:{set:{saw:1}}}, lose:{t:'{b} laughs and pats your head. Your face burns for a day.', fx:{set:{hard:1}}}},
+      {label:'Help organize a collection.', check:{stat:'cha', dc:10}, win:{t:'Every family gives something. It isn\'t nearly enough, but the old folks start talking while they count, and someone mentions "the charter."'}, lose:{t:'People give what they can. It is very little. But someone mumbles about "the charter," and you remember it.', fx:{set:{hard:1}}}}
+    ],
+    truth:`The charter is real. {T.founder} bought the common fields outright when {home} was founded, signed and sealed by the lord of the time.\n\nThere is no debt. There never was. Either the lord forgot, or someone is counting on everyone else forgetting.`,
+    ends:[
+      {label:'Show the charter to {b} in front of everyone.', check:{stat:'cha', dc:s=>12}, win:{t:'You read it out in the square. {b} goes red, then white, then very polite. The notice comes down that afternoon.', fx:{fame:2, npc:{a:3, b:-3}, seed:{k:'grudge', npc:'b'}, resolve:'You proved with {T.founder}\'s charter that {home} owed the lord nothing.'}, log:'Saved {home}\'s fields with an old charter.'},
+        lose:{t:'{b} takes the charter "to be checked by the lord\'s clerks." You never see it again. But the notice comes down, and nobody mentions the debt again.', fx:{npc:{a:2}, seed:{k:'grudge', npc:'b'}, resolve:'The debt notice came down after you found the charter, though the charter itself vanished.'}, log:'Found the charter that saved {home}\'s fields. Then it was taken.'}},
+      {label:'Make a copy first. Then show it.', check:{stat:'wit', dc:11}, win:{t:'You copy it by candlelight, word for word. When {b} tries to "borrow" the original, the whole village holds up your copy. The notice comes down.', fx:{wit:1, fame:1, npc:{a:3}, resolve:'Your copy of the old charter freed {home} from a debt that never existed.'}, log:'Copied an old charter and saved {home}\'s fields.'},
+        lose:{t:'Your copy has a blot right over the seal. It still works. Mostly. The notice comes down after a long argument.', fx:{npc:{a:2}, resolve:'A smudged copy of an old charter got the debt dropped.'}, log:'Saved {home}\'s fields with a smudged copy of a charter.'}},
+      {label:'Keep the charter secret, as leverage.', t:'You hide it under your bed. When the time is right, {b} is going to owe you something big.', fx:{wit:1, seed:{k:'secret', npc:'b', label:'You hold the charter that frees {home}'}}, log:'Hid the charter that proves {home} owes nothing.'}
+    ]},
+
+  drought:{ title:'The Dry Spring', scene:'fields',
+    blurb:s=>`The spring that feeds {home} has dropped to a trickle. The priest blames sin. The children blame the frog in the well.`,
+    hook:s=>`The spring has dropped to a trickle. {a} stands at the edge of {a.his} cracked field with an empty bucket, as if staring will help.\n\nThe priest says it is sin. {a} says it is the gods. The children say it is the big frog in the well, which is at least a theory you can test.`,
+    ap:[
+      {label:'Walk the stream upstream.', check:{stat:'str', dc:10}, win:{t:'Two miles of rocks and mud. Then you hear it: a stream that sounds much too full for this drought.'}, lose:{t:'You turn your ankle on the third mile and limp the rest. But you hear water, lots of it, just ahead.', fx:{hp:-3, set:{hard:1}}}},
+      {label:'Interview the frog.', check:{stat:'luck', dc:9}, win:{t:'The frog says nothing, because it is a frog. But it hops upstream, firmly, three times. You follow the frog.'}, lose:{t:'The frog bites you. You follow the stream anyway, out of spite.', fx:{set:{hard:1}}}},
+      {label:'Study where the water used to run.', check:{stat:'wit', dc:11}, win:{t:'The water line on the stones is sharp and recent. The water didn\'t dry up. It was turned off.'}, lose:{t:'Something about the stones bothers you. You walk upstream to find out what.', fx:{set:{hard:1}}}}
+    ],
+    truth:`Two miles upstream, someone has dammed the stream with neat new stones and fresh mortar. Behind the dam is a brand-new ornamental pond, with swans, belonging to a brand-new country house.\n\n{b}, who bought the land last spring, is having tea on the lawn and watching the swans.`,
+    ends:[
+      {label:'Knock a hole in the dam at night.', check:{stat:'str', dc:12}, win:{t:'One loose stone, then three, then a roar. By morning the stream is back. The swans are very confused.', fx:{str:1, npc:{b:-2}, resolve:'The stream came back to {home} after someone, ahem, broke the new dam.'}, log:'Broke a rich newcomer\'s dam and gave {home} its water back.'},
+        lose:{t:'The dam holds. The dogs don\'t. You run home soaked, but the noise brings half the village, and the whole story comes out.', fx:{hp:-4, resolve:'Half the village marched upstream after you got caught at the dam. The water came back.'}, log:'Got caught at the dam. The village did the rest.'}},
+      {label:'Talk {b} into sharing.', check:{stat:'cha', dc:12, npc:'b'}, win:{t:'{b} honestly had no idea. A sluice gate goes in the next week. {b} even sends a cake.', fx:{cha:1, npc:{b:2, a:1}, resolve:'You talked the owner of the new estate into sharing the stream with {home}.'}, log:'Talked a rich newcomer into sharing {home}\'s water.'},
+        lose:{t:'{b} sniffs that the pond is "for the swans." But when the whole village turns up the next day, {b} suddenly finds the sluice gate after all.', fx:{npc:{b:-1}, resolve:'The new estate opened a sluice gate after {home} turned up in force.'}, log:'Faced down a rich newcomer over {home}\'s water.'}},
+      {label:'Find a new spring with magic.', check:{stat:'mag', dc:13}, win:{t:'You close your eyes and feel for water like a cold thread under the ground. You dig where the thread is thickest. Water. The village names the new spring after you.', fx:{mag:2, fame:2, resolve:'A new spring now feeds {home}. Everyone calls it after you.'}, log:'Found a new spring for {home} with magic.'},
+        lose:{t:'You find a spring. It is about the size of a teacup. It still counts, and the village is very kind about it, and someone goes upstream to argue about the dam.', fx:{mag:1, resolve:'A teacup-sized spring and a loud argument upstream got {home} its water back.'}, log:'Found a very small spring for {home}.'}}
+    ]},
+
+  haunt:{ title:'Lights in the Ruins', scene:'ruins',
+    blurb:s=>`Blue lights move through the ruins after dark again. Half of {home} wants to burn sage. The other half wants to sell tickets.`,
+    hook:s=>`The lights are back: blue, slow, drifting between the broken pillars of {ruin} after midnight.\n\nHalf of {home} wants to burn sage at the crossroads. The other half wants to sell tickets. {a} just wants someone to go and look, as long as it isn't {a.him}.`,
+    ap:[
+      {label:'Go at midnight. Bring {a}.', check:{stat:'luck', dc:10}, win:{t:'{a} holds your hand so hard it hurts, but {a.he} comes all the way. The lights are close now.', fx:{npc:{a:1}}}, lose:{t:'{a} bolts at the first owl. You go on alone, very brave and very cold.', fx:{set:{hard:1}}}},
+      {label:'Find out who saw the lights first.', check:{stat:'wit', dc:10}, win:{t:'The first sighting was the same week a stranger rented the empty cottage by the ruins. Interesting.'}, lose:{t:'Everyone saw them first. Everyone\'s cousin saw them before that.', fx:{set:{hard:1}}}},
+      {label:'Feel for magic in the air.', check:{stat:'mag', dc:11}, win:{t:'There is magic here: old, sad and very gentle. And something else, newer. Lantern oil.'}, lose:{t:'You feel a lot of things. Mostly cold.', fx:{set:{hard:1}}}}
+    ],
+    truth:(s,v)=>({smugglers:`Behind the broken altar: crates of untaxed wine, and blue-glass lanterns on poles. {b} and two friends have been running smuggled goods through {ruin} for a year, and the "ghost lights" keep everyone away.`,
+      ghost:`It is a ghost. A real one: a small, faint woman in very old clothes, carrying a lantern that gives no heat. She was one of the builders, she says. She has been waiting for someone to ask her name for nine hundred years.`,
+      scholar:`It is {b}: an elf with ink to the elbows, taking rubbings of the carvings by blue mage-light. {b.He} has been studying {ruin} at night because "the carvings only show their second layer by moonlight, obviously."`})[v.cause],
+    ends:[
+      {label:'Tell the whole village what you found.', t:(s,v)=>({smugglers:'The village guard has a very busy morning. {b} glares at you from the cart on the way to the capital.', ghost:'Nobody believes you, until twelve people go and look. The ghost is delighted. She has visitors every night now.', scholar:'{b} is annoyed, then flattered, then gives a lecture in the shrine that half the village attends and the other half pretends to.'})[v.cause],
+        fx:(s,v)=>Object.assign({fame:1, resolve:{smugglers:'You exposed the smugglers using the ghost lights in {ruin}.', ghost:'You introduced {home} to the ghost of {ruin}. She has a lot of visitors now.', scholar:'You unmasked the "ghost" of {ruin}: an elf scholar, who now gives lectures.'}[v.cause]}, v.cause==='smugglers'?{seed:{k:'grudge', npc:'b'}, npc:{b:-3}}:{npc:{b:1}}), log:'Solved the mystery of the lights in {ruin}.'},
+      {label:'Keep the secret, and make a friend.', t:(s,v)=>({smugglers:'You promise not to tell. {b} gives you a bottle of something purple and a wink. "I owe you, kid."', ghost:'You come back every week. The ghost teaches you a song in a language nobody else alive can speak.', scholar:'{b} lets you help with the rubbings. You learn to read three runes and one very rude elvish word.'})[v.cause],
+        fx:(s,v)=>({smugglers:{seed:{k:'owed', npc:'b'}, npc:{b:3}, luck:1}, ghost:{mag:1, wit:1, seed:{k:'secret', label:'You know the name of the ghost of {ruin}'}}, scholar:{wit:2, npc:{b:3}, seed:{k:'friend', npc:'b'}}})[v.cause], log:'Kept the secret of the lights in {ruin}.'},
+      {label:'Scare them off for good.', check:{stat:'cha', dc:12}, win:{t:(s,v)=>v.cause==='ghost'?'You can\'t scare a ghost. But you can ask her nicely to keep the lights down. She agrees, a little hurt.':'You put a sheet over your head and moan from the top of the wall. It works far better than it should.', fx:{luck:1, resolve:'The lights in {ruin} went out for good after you, ahem, dealt with them.'}},
+        lose:{t:'Nobody is scared of you. But the lights move deeper into the ruins, and {home} stops seeing them.', fx:{resolve:'The lights moved deeper into {ruin}, where nobody could see them.'}}}
+    ]},
+
+  sickness:{ title:'The Winter Cough', scene:'village',
+    blurb:s=>`The cough is back, like every winter, and this year it is in the healer's own house.`,
+    hook:s=>`The cough comes back every winter, and every winter it takes someone. This year it is in {a}'s house. {a} is the healer, and {a.he} hasn't slept in four days.\n\n"I can treat it," {a} says, grey-faced. "I can't stop it. It comes from somewhere."`,
+    ap:[
+      {label:'Help {a} with the sick.', check:{stat:'wit', dc:10}, win:{t:'You boil water, fetch herbs and write down who is sick. On the third night you notice something: every sick house is on the same side of the village.', fx:{npc:{a:1}}}, lose:{t:'You do your best. You also catch the cough. But you notice the sick houses are all on one side of {home}.', fx:{hp:-4, set:{hard:1}}}},
+      {label:'Search {wood} for feverwort.', check:{stat:'luck', dc:11}, win:{t:'You find a whole patch under the snow. On the way back you stop for water at the east well, and the water smells wrong.'}, lose:{t:'You find two leaves and a lot of snow. On the way home you drink from the east well. It tastes like old pennies.', fx:{set:{hard:1}}}},
+      {label:'Nurse: you\'ve seen this before.', show:s=>s.job==='nurse', t:'Cough, fever, every winter, one cluster of houses. You don\'t need to guess. You ask {a} where those houses get their water.', fx:{wit:1}}
+    ],
+    truth:`Every sick house draws from the old east well. Something has died down there, years ago, and every winter when the ground freezes the bad water seeps up again.\n\nThe east well is the oldest one in {home}. People get married next to it. Nobody is going to like this.`,
+    ends:[
+      {label:'Seal the well and dig a new one.', check:{stat:'str', dc:11}, win:{t:'It takes a month of digging. Half the village helps by the end. Nobody coughs the next winter.', fx:{str:1, npc:{a:3}, resolve:'You found the poisoned well and helped {home} dig a new one. The winter cough never came back.'}, log:'Found the source of {home}\'s winter cough and sealed the old well.'},
+        lose:{t:'Your back gives out on day three. The village finishes the work. Nobody coughs the next winter.', fx:{hp:-5, npc:{a:2}, resolve:'The poisoned east well was sealed, and the winter cough never came back.'}, log:'Helped seal the poisoned well in {home}.'}},
+      {label:'Convince the village. They love that well.', check:{stat:'cha', dc:12}, win:{t:'You show them the map of sick houses. The elders argue for an hour, then agree. The new well gets a bench, so people can still get married next to something.', fx:{cha:1, npc:{a:3}, fame:1, resolve:'You convinced {home} to give up its beloved east well. The cough never came back.'}, log:'Convinced {home} to seal its poisoned well.'},
+        lose:{t:'They refuse. {a} seals it anyway, in the night, with your help. Some people stay angry for years. Nobody coughs.', fx:{npc:{a:3}, resolve:'You and {a} sealed the east well in secret. The cough never came back.'}, log:'Secretly sealed {home}\'s poisoned well with {a}.'}},
+      {label:'Climb down and see what\'s down there.', check:{stat:'combat', dc:12}, win:{t:'At the bottom: the bones of a very old, very dead serpent, and a rusted chest. You haul both up. The well is clean within a month, and the chest has coins in it.', fx:{gold:25, str:1, fame:1, resolve:'You climbed down the east well, pulled out what was poisoning it, and found treasure.'}, log:'Cleared a dead serpent out of {home}\'s well, and found a chest.'},
+        lose:{t:'The rope breaks. You spend a cold night at the bottom with some bones. They pull you out at dawn, and the bones too.', fx:{hp:-8, resolve:'The east well was cleared after you spent a night at the bottom of it.'}, log:'Spent a night at the bottom of a poisoned well.'}}
+    ]},
+
+  taxes:{ title:'The Tax Collector', scene:'village',
+    blurb:s=>`{T.taxman} rides in every season and rides out heavier. This season, he wants a tax on chimneys.`,
+    hook:s=>`{b} the tax collector rides in on the first day of every season and rides out heavier. This season, he has a new idea: a tax on chimneys.\n\n{home} has a great many chimneys. {a} has two, and stands in the square doing sums on {a.his} fingers, and the sums are not good.`,
+    ap:[
+      {label:'Check his numbers.', check:{stat:'wit', dc:11}, win:{t:'His sums don\'t add up. Literally: the totals in his receipt book are bigger than the parts.'}, lose:{t:'The numbers swim. But you notice he writes receipts in two different books.', fx:{set:{hard:1}}}},
+      {label:'Follow him to the tavern.', check:{stat:'luck', dc:10}, win:{t:'Three ales in, {b} brags to the barmaid about "the crown\'s share and my share." Loudly.'}, lose:{t:'You get thrown out of the tavern for being a child. But through the window you see him counting two separate purses.', fx:{set:{hard:1}}}},
+      {label:'Ask him what the chimney tax is for.', check:{stat:'cha', dc:12, npc:'b'}, win:{t:'He tells you it is "for the crown," then that it is "for the roads," then that it is "none of your business." Three answers is two too many.'}, lose:{t:'He tells you to run along. You run along to find out more.', fx:{set:{hard:1}}}}
+    ],
+    truth:`{b} collects twice: once for the crown, once for himself. The second ledger is in his saddlebag, and it goes back years. The chimney tax has never existed anywhere except in {b}'s imagination.`,
+    ends:[
+      {label:'Steal the ledger and send it to {capital}.', check:{stat:'luck', dc:12}, win:{t:'The ledger rides to the capital in a turnip cart. A month later, two crown officers ride in, and {b} rides out in chains.', fx:{luck:1, fame:1, npc:{a:3, b:-4}, seed:{k:'grudge', npc:'b'}, resolve:'You sent {T.taxman}\'s secret ledger to the capital, and he was arrested.'}, log:'Brought down a crooked tax collector.'},
+        lose:{t:'His horse kicks you, and he catches you. But he is too scared to report it, and the chimney tax quietly disappears.', fx:{hp:-5, npc:{b:-3}, seed:{k:'grudge', npc:'b'}, resolve:'{T.taxman} dropped the chimney tax after you were caught with his ledger.'}, log:'Was caught stealing a crooked tax collector\'s ledger.'}},
+      {label:'Read it aloud in the square.', check:{stat:'cha', dc:12}, win:{t:'You read every line. By the end, the whole village is holding a pitchfork, and {b} has decided to work somewhere else.', fx:{cha:1, fame:2, npc:{a:2, b:-4}, resolve:'You read {T.taxman}\'s crooked ledger aloud, and he left {home} for good.'}, log:'Shamed a crooked tax collector out of {home}.'},
+        lose:{t:'Your voice cracks halfway through. People laugh, but they also listen. {b} lowers the taxes "as a gesture."', fx:{npc:{b:-2}, resolve:'{T.taxman} lowered {home}\'s taxes after you read his ledger aloud.'}, log:'Read a tax collector\'s ledger aloud. It half-worked.'}},
+      {label:'Blackmail him quietly.', t:'"Lower the taxes, or the ledger goes to the capital." He does. You keep the ledger. You both know you can use it again.', fx:{wit:1, gold:10, seed:{k:'secret', npc:'b'}, resolve:'Taxes in {home} dropped suddenly. Only you know why.'}, log:'Blackmailed a crooked tax collector.'}
+    ]},
+
+  missing:{ title:'The Boy in the Woods', scene:'forest',
+    blurb:s=>`Ten years ago, {T.boy} walked into {wood} and never came back. Today you find something of his on the forest path.`,
+    hook:s=>`On the forest path you find a carved wooden fox, small and very fine. When you show it around, {a} goes white and sits down.\n\n"My boy carved those," {a.he} says. "{T.boy}. Ten years ago he walked into {wood} and never walked out. Nobody else in the world carves foxes like that. Nobody."`,
+    ap:[
+      {label:'Search where you found the fox.', check:{stat:'luck', dc:10}, win:{t:'A second fox, further in. Then a third. Someone has been leaving a trail, or losing one.'}, lose:{t:'Nothing for hours. Then, just as you give up, a third fox in a hollow tree.', fx:{set:{hard:1}}}},
+      {label:'Ask {a} about the boy.', check:{stat:'cha', dc:10, npc:'a'}, win:{t:'{a} talks for an hour. The boy was clever and angry, and the night he left there had been a terrible fight about money. {a} has never told anyone that.', fx:{npc:{a:2}}}, lose:{t:'{a} can\'t talk about it. {a.He} gives you one of the boy\'s old foxes and closes the door.', fx:{set:{hard:1}}}},
+      {label:'Follow the tracks nobody else noticed.', check:{stat:'wit', dc:11}, win:{t:'Boot prints, grown-up sized, going in and out of the wood. Someone comes here. Often.'}, lose:{t:'You lose the tracks at the stream. But on the far bank you see smoke.', fx:{set:{hard:1}}}}
+    ],
+    truth:`In a hollow, an old camp. Recently used. Initials carved into the tree. And under a stone, wrapped in oilcloth, a letter that was never sent:\n\n*"Mother, Father. I am alive. I am ashamed. I owe money to bad people and I could not bring it home to you. I am in {capital}. I come back sometimes, just to see the house. I'm sorry."*`,
+    ends:[
+      {label:'Give the letter to {a}.', t:'{a} reads it four times. Then {a.he} hugs you so hard you can\'t breathe. "He\'s alive," {a.he} keeps saying. "He\'s alive."', fx:{npc:{a:4}, cha:1, seed:{k:'promise', npc:'a', label:'You promised {a} to find {T.boy} in {capital}'}, resolve:'You found proof that {T.boy}, who vanished years ago, is alive in {capital}.'}, log:'Found out that {T.boy}, who vanished ten years ago, is alive.'},
+      {label:'Leave a note of your own in the camp.', t:'"Your family still sets a place for you at dinner." You fold it into the oilcloth. A month later, the note is gone, and there is a new fox on {a}\'s doorstep.', fx:{luck:1, npc:{a:2}, resolve:'{T.boy} has started leaving carved foxes on his family\'s doorstep again.'}, log:'Left a note for a missing boy. He answered with a fox.'},
+      {label:'Keep it. Some people don\'t want to be found.', t:'You put the letter back where you found it. It is not your secret. But you remember the name.', fx:{wit:1, seed:{k:'secret', label:'You know {T.boy} is alive in {capital}'}}, log:'Kept a missing boy\'s secret.'}
+    ]}
+};
+/* the whole trouble story, assembled from the table above */
+(function(){
+  const kinds = Object.keys(TR);
+  const ap = [], ends = [];
+  kinds.forEach(k=>{
+    ap.push(...onlyIf(k, TR[k].ap.map(a=>Object.assign({}, a, a.check ? {win:Object.assign({go:'truth'}, a.win), lose:Object.assign({go:'truth'}, a.lose)} : {go:'truth'}))));
+    ends.push(...onlyIf(k, TR[k].ends.map(e=>{
+      const o = Object.assign({}, e);
+      if(o.check && typeof o.check.dc==='function'){ const base=o.check.dc; o.check = Object.assign({}, o.check, {dc:(s,v)=>base(s)+(v.hard?2:0)}); }
+      if(typeof o.fx==='function'){ const f=o.fx; o.fx = (s,v,c)=>f(s,v,c); }
+      return o;
+    })));
+  });
+  ARCS.push({
+    id:'p_trouble', stage:'child', minAge:7, world:true, kind:'village',
+    title:s=>TR[wTrouble().k].title, scene:'village',
+    blurb:(s,v,c)=>TR[wTrouble().k].blurb(s),
+    cond:s=>{ const T=wTrouble(); return T && !T.done && TR[T.k]; },
+    urgent:s=>S.age>=9,
+    cast:{
+      a:{pick:(s,used)=>{ const T=wTrouble(); const k=T.k;
+          if(k==='feud'||k==='missing') return famAdult(T.fa, used);
+          if(k==='wolves') return homeAdult(p=>p.trade==='hunter', used) || homeAdult(null, used);
+          if(k==='sickness') return homeAdult(p=>p.trade==='healer'||p.trade==='herbalist', used) || homeAdult(null, used);
+          return homeAdult(p=>['farmer','miller','elder','innkeeper','shepherd','fisher'].includes(p.trade), used) || homeAdult(null, used); }, role:'farmer'},
+      b:{pick:(s,used)=>{ const T=wTrouble(); const k=T.k;
+          if(k==='feud') return famAdult(T.fb, used);
+          if(k==='taxes') return namedNpc(T.taxman, {role:'noble', g:'m', home:'town'});
+          if(k==='debt') return makeNpc({role:'noble', trait:pick(['proud','greedy','cunning'])});
+          if(k==='drought') return makeNpc({role:'noble', trait:pick(['proud','cheerful','timid'])});
+          if(k==='haunt'){ T.cause = ['smugglers','ghost','scholar'][Math.floor(R()*3)]; if(T.cause==='ghost') return null; const n=makeNpc({role: T.cause==='scholar'?'scholar':'thief'}); if(T.cause==='scholar') n.cult='elf'; return n; }
+          return null; }, role:'adventurer', optional:true}
+    },
+    init:(s,v)=>{ v.k = wTrouble().k; v.cause = wTrouble().cause || 'ghost'; },
+    start:'a',
+    beats:{
+      a:{ scene:'village', text:(s,v,c)=>TR[v.k].hook(s,v,c), choices:ap },
+      truth:{ scene:'night', text:(s,v,c)=>typeof TR[v.k].truth==='function' ? TR[v.k].truth(s,v,c) : TR[v.k].truth, choices:ends }
+    }
+  });
+})();
+
+/* =========================================================
+   2. THE FESTIVAL — the village's own holiday, once in childhood
+      and once on a visit home from the Academy
+   ========================================================= */
+function festivalArc(id, stage){
+  return {
+    id, stage, minAge: stage==='child'?6:13, world:true, kind:'village',
+    title:s=>capFirst(S.world.village.festival.name),
+    scene:'village',
+    blurb:s=>`Every ${S.world.village.festival.season.toLowerCase()}, ${S.world.village.festival.custom}. This year, {f} has been acting strange all week.`,
+    cast:{
+      f:{pick:(s,used)=>pickOne(worldPool(p=>p.home==='home' && Math.abs(personAge(p)-S.age)<=2 && p.alive!==false, used)) || homeAdult(null, used), role:'child'},
+      e:{pick:(s,used)=>homeAdult(p=>p.trade==='elder'||personAge(p)>=55, used) || homeAdult(null, used), role:'farmer'}
+    },
+    start:'a',
+    beats:{
+      a:{ scene:'village', text:s=>`{festival}. ${capFirst(S.world.village.festival.custom)}, the way it has been done since ${S.world.lore.founder} ${S.world.lore.founderFam} founded {home}. ${stage==='academy'?'You came home from the Academy for it, and the whole village looks smaller than you remember.':'You have been waiting for it since last year.'}\n\nThere is music by the ${S.world.village.landmarks[0].name.replace(/^the /,'')}, food on every table, and {f} keeps glancing at you, then away, then back.`,
+        choices:[
+          {label:'Enter the big contest.', check:{stat:'luck', dc:stage==='child'?10:13},
+            win:{t:'You win. You actually win. {e} hands you the prize with great ceremony: a ribbon and a very large cabbage.', fx:{fame:1, luck:1, npc:{e:1}}, log:'Won the contest at {festival}.', go:'night'},
+            lose:{t:'You come fourth out of five. {e} gives you a "spirited effort" ribbon, which is worse than nothing.', fx:{cha:1}, go:'night'}},
+          {label:'Find out what\'s wrong with {f}.', t:'{f} drags you behind the shrine. "I have to tell someone or I\'ll explode."', go:'secret'},
+          {label:'Ask {e} about the old days.', t:s=>`{e} tells you about the year the {T.war} came to {home}, and the year of the {T.disaster}. ${capFirst(S.world.village.landmarks[0].name)}, {e.he} says, was ${S.world.village.landmarks[0].why}. You never knew any of that.`, fx:{wit:1, npc:{e:2}}, log:'Learned the old history of {home} from {e}.', go:'night'}
+        ]},
+      secret:{ scene:'shrine', text:(s,v,c)=>{ c.f && fillMind(c.f); return `{f} takes a deep breath. "You can't tell anyone. Promise." You promise.\n\n"I want ${c.f && c.f.want ? c.f.want.replace(/^to /,'to ') : 'to leave this place'}. And I've never told anyone, because they'd laugh." {f.He} looks at you. "Are you going to laugh?"`; },
+        choices:[
+          {label:'"No. I think you should."', t:'{f} lets out a breath {f.he} has been holding for years. Then {f.he} grins and drags you back to the dancing.', fx:{npc:{f:3}, seed:{k:'friend', npc:'f'}}, log:'{f} told you {f.his} secret dream at {festival}.', go:'night'},
+          {label:'"Then let\'s make a plan."', check:{stat:'wit', dc:11}, win:{t:'You sketch a plan on the back of a festival flyer. It is ridiculous. {f} keeps it for years.', fx:{npc:{f:3}, wit:1, seed:{k:'promise', npc:'f', label:'You promised to help {f} with {f.his} dream'}}, go:'night'},
+            lose:{t:'Your plan has a lot of steps and none of them work. {f} laughs anyway, which is the point.', fx:{npc:{f:2}}, go:'night'}},
+          {label:'Laugh. Just a little.', t:'You don\'t mean it. {f} doesn\'t believe that. {f.He} walks back to the dancing alone.', fx:{npc:{f:-3}}, go:'night'}
+        ]},
+      night:{ scene:'night', text:`The festival ends the way it always does: tired children, a fiddler who won't stop, and stars over {home}. Somebody's dog has eaten a pie.\n\nIt is a good night. You will remember it for a long time.`,
+        choices:[
+          {label:'Walk home the long way with {f}.', t:'You talk about nothing for an hour. It is the best part of the festival.', fx:{npc:{f:1}, cha:1}, go:'END'},
+          {label:'Help clean up.', t:'{e} notices. Old people always notice. You get a whole pie to take home.', fx:{npc:{e:1}, hp:3}, go:'END'}
+        ]}
+    }
+  };
+}
+ARCS.push(festivalArc('p_festival_c','child'), festivalArc('p_festival_a','academy'));
+
+/* =========================================================
+   3. LIFE GOES ON — weddings and funerals of people you know
+   ========================================================= */
+function takePending(k){ const W=S.world; if(!W||!W.pending) return null; W.pending = W.pending.filter(e=>S.age-e.age<=2); return W.pending.find(e=>e.k===k && S.npcs[e.a] && (k==='funeral' || S.npcs[e.b])) || null; }
+function closeTo(e){ return e && [e.a,e.b].some(id=>S.npcs[id] && (S.npcs[id].att||0)>=2); }
+function dropPending(k){ const W=S.world; if(!W||!W.pending) return; const i=W.pending.findIndex(e=>e.k===k); if(i>=0) W.pending.splice(i,1); }
+ARCS.push({
+  id:'p_wedding', stage:['child','academy','adult'], repeat:true, cooldown:2, world:true, kind:'bond',
+  title:'A Wedding', scene:'shrine',
+  blurb:'{a} and {b} are getting married, and you are invited. So, it seems, is half the kingdom.',
+  cond:s=>!!takePending('wedding'), urgent:s=>closeTo(takePending('wedding')),
+  cast:{ a:{pick:s=>{ const e=takePending('wedding'); return e?S.npcs[e.a]:null; }}, b:{pick:s=>{ const e=takePending('wedding'); return e?S.npcs[e.b]:null; }} },
+  onEnd:()=>dropPending('wedding'),
+  start:'a',
+  beats:{
+    a:{ scene:'shrine', text:`The shrine is full of flowers and people you half-remember. {a} looks terrified. {b} looks like the happiest person who has ever lived.\n\nThe priest drones. A baby cries. Somebody's uncle is already drunk. It is a perfect wedding.`,
+      choices:[
+        {label:'Give a toast.', check:{stat:'cha', dc:12}, win:{t:'You tell a story about {a} that makes the whole hall laugh, and then one that makes {a} cry. {a} hugs you afterward and doesn\'t let go.', fx:{cha:1, npc:{a:2, b:2}, fame:1}, log:'Gave the toast at {a} and {b}\'s wedding.', go:'END'},
+          lose:{t:'You forget the middle of your toast and the end of it. People clap anyway, kindly. {a} says it was perfect, which is a lie and a gift.', fx:{npc:{a:1}}, go:'END'}},
+        {label:'Bring a real gift.', req:s=>s.gold>=20, reqText:'Needs 20 gold', t:'Your gift is far too generous. {b} opens it, gasps, and makes everyone look.', fx:{gold:-20, npc:{a:2, b:3}}, log:'Gave {a} and {b} a wedding gift they talked about for years.', go:'END'},
+        {label:'Dance until the fiddler quits.', check:{stat:'str', dc:11}, win:{t:'The fiddler quits at two in the morning. You do not. {b} calls you a legend.', fx:{str:1, npc:{b:2}}, go:'END'},
+          lose:{t:'You twist an ankle at midnight and spend the rest of the night with the grandmothers, who know all the gossip.', fx:{hp:-2, wit:1}, go:'END'}}
+      ]}
+  }
+});
+ARCS.push({
+  id:'p_funeral', stage:['child','academy','adult'], repeat:true, cooldown:2, world:true, kind:'bond',
+  title:'Saying Goodbye', scene:'shrine',
+  blurb:'{a} has died. The whole of {home} comes out in the rain.',
+  cond:s=>!!takePending('funeral'), urgent:s=>closeTo(takePending('funeral')) || (S.npcs[takePending('funeral').a]||{}).metAge!=null,
+  cast:{ a:{pick:s=>{ const e=takePending('funeral'); return e?S.npcs[e.a]:null; }}, k:{pick:(s,used)=>{ const e=takePending('funeral'); const d=e&&S.npcs[e.a]; return d ? (tiesOf(d,'child').concat(tiesOf(d,'spouse'),tiesOf(d,'sibling')).find(x=>x.alive!==false && !used.has(x.id)) || null) : null; }, role:'farmer'} },
+  init:(s,v,c)=>{ if(c.a) fillMind(c.a); },
+  onEnd:()=>dropPending('funeral'),
+  start:'a',
+  beats:{
+    a:{ scene:'shrine', text:(s,v,c)=>`It rains, of course. {a} is buried in the shrine yard with {a.his} name carved into new stone. ${c.a && c.a.metAge!=null ? `You met {a.him} when you were ${c.a.metAge}.` : ''}\n\n{k} stands at the front, very straight, not crying, which is worse than crying.`,
+      choices:[
+        {label:'Say a few words about {a}.', check:{stat:'cha', dc:11}, win:{t:'You tell the story of the first time you met {a}. People who were crying start laughing, then crying again. {k} squeezes your hand afterward.', fx:{cha:1, npc:{k:3}}, log:'Spoke at {a}\'s funeral.', go:'END'},
+          lose:{t:'You start, and your voice goes. {k} finishes your sentence for you. It is the first time {k.he} smiles all day.', fx:{npc:{k:2}}, go:'END'}},
+        {label:'Stay with {k} afterward.', t:(s,v,c)=>`You sit with {k} long after everyone else has gone. Eventually {k.he} tells you something about {a} nobody knew: {a.he} ${c.a && c.a.secret ? c.a.secret : 'had been afraid of the dark all {a.his} life'}.`, fx:{npc:{k:3}, wit:1, seed:{k:'friend', npc:'k'}}, log:'Kept {k} company after {a}\'s funeral.', go:'END'},
+        {label:'Leave flowers and go quietly.', t:'You leave wildflowers on the new stone. Some goodbyes don\'t need anyone to see them.', fx:{luck:1}, go:'END'}
+      ]}
+  }
+});
+
+/* =========================================================
+   4. A FRIEND'S WISH — someone who trusts you asks for help with
+      the thing they want most
+   ========================================================= */
+const WISH = {
+  leave:{ hook:'"I\'m leaving," {p} says. "I\'ve said it for years. This time I mean it. But I\'m scared, and I can\'t tell my family. Will you help me go?"',
+    a:{label:'Help {p} plan the journey.', check:{stat:'wit', dc:13}, win:'You plan it down to the last copper: a merchant caravan, a room in {capital}, a job waiting. {p} leaves with tears in {p.his} eyes and your map in {p.his} pocket.', lose:'The plan falls apart at the first inn. But {p} goes anyway, on foot, laughing at you from the road.'},
+    b:{label:'Tell {p}\'s family, gently.', check:{stat:'cha', dc:13}, win:'There is shouting, then crying, then a packed lunch. {p} leaves with the family\'s blessing, which is worth more than any map.', lose:'There is shouting. {p} leaves anyway, and doesn\'t speak to you for a while.'} },
+  love:{ hook:'"There\'s someone," {p} says, staring at {p.his} shoes. "I\'ve never said a word to them. I\'m going to die alone. Help."',
+    a:{label:'Arrange an "accidental" meeting.', check:{stat:'wit', dc:13}, win:'A spilled basket, a shared umbrella, a very convenient rainstorm. They talk for three hours. {p} sends you a cake.', lose:'The meeting is so obviously staged that they both laugh. It works anyway, somehow.'},
+    b:{label:'Coach {p} on what to say.', check:{stat:'cha', dc:13}, win:'You practise for a week. {p} says it perfectly. You are invited to the wedding before the year is out.', lose:'{p} forgets everything you practised and just says "I like you." It turns out that was enough.'} },
+  money:{ hook:'"I owe money," {p} says quietly. "To people who don\'t forget. I\'ve been paying, but the number never goes down. I don\'t know what to do."',
+    a:{label:'Go over the debt line by line.', check:{stat:'wit', dc:13}, win:'The interest is illegal three different ways. You write a letter. The debt shrinks by half, then disappears.', lose:'The debt is real and fair, unfortunately. But you build a plan, and the number starts going down at last.'},
+    b:{label:'Pay some of it yourself.', req:s=>s.gold>=60, reqText:'Needs 60 gold', win:'You pay sixty gold of someone else\'s debt. {p} cannot speak. {p.He} will remember this for the rest of {p.his} life.', gold:-60} },
+  skill:{ hook:'"I want it so badly," {p} says, "and I\'m not good enough. Everyone else seems to know how. Will you train with me?"',
+    a:{label:'Train together every morning.', check:{stat:'str', dc:13}, win:'Months of early mornings, sore arms and arguments. At the end of it, {p} is the best in {p.his} class, and so are you.', lose:'You both improve. Not enough. But {p} keeps going after you stop, and gets there in the end.'},
+    b:{label:'Find {p} a real teacher.', check:{stat:'cha', dc:13}, win:'You talk your way into a master\'s workshop and talk {p} into an apprenticeship. {p} never stops thanking you.', lose:'The master says no. Then says yes, a year later, after {p} has been back fourteen times.'} },
+  honour:{ hook:'"They say my family is nothing," {p} says. "That we\'re cowards, or thieves, or worse. I want to prove them wrong. I don\'t know how."',
+    a:{label:'Dig up the truth about the old story.', check:{stat:'wit', dc:13}, win:'The old story was a lie, told by someone who wanted {p}\'s family\'s land. You prove it. {p}\'s family walks taller for the rest of their lives.', lose:'The old story was half true. But {p} learns which half, and decides to be better than it.'},
+    b:{label:'Help {p} do something brave, in public.', check:{stat:'combat', dc:14}, win:'When the bridge collapses at the market, {p} and you are the first ones into the river. Nobody ever calls {p}\'s family cowards again.', lose:'You both end up in the river. You save one goat between you. People still talk about the goat.'} },
+  peace:{ hook:'"I just want a quiet life," {p} says. "Somehow it\'s the hardest thing in the world to get."',
+    a:{label:'Help {p} fix up a little house.', check:{stat:'str', dc:12}, win:'A month of hammering, painting and arguing about curtains. {p} sits on the new porch the day it\'s done and doesn\'t say anything for a long time. It\'s the good kind of silence.', lose:'The roof still leaks. {p} puts a bucket under it and calls it "character."'},
+    b:{label:'Talk {p} out of {p.his} worries.', check:{stat:'cha', dc:12}, win:'You talk all night. By morning, {p} has decided which worries are real and which aren\'t. Most aren\'t.', lose:'{p} is still worried. But {p.he} has someone to worry with now.'} }
+};
+ARCS.push({
+  id:'p_wish', stage:['academy','adult'], repeat:true, cooldown:3, world:true, kind:'bond',
+  title:'{p}\'s Wish', scene:'tavern',
+  blurb:(s,v,c)=>{ const p=c.p; if(p) fillMind(p); return `{p} has never asked you for anything. Now {p.he} wants your help with the one thing {p.he} wants most: ${p&&p.want?p.want.replace(/^to /,'to '):'something big'}.`; },
+  cond:s=>worldPool(p=>p.met && (p.att||0)>=2 && !p.wantDone && personAge(p)>=13).length>0,
+  cast:{ p:{pick:(s,used)=>{ const l=worldPool(p=>p.met && (p.att||0)>=2 && !p.wantDone && personAge(p)>=13, used); l.forEach(fillMind); return l.sort((a,b)=>(b.att||0)-(a.att||0))[0]||null; }} },
+  init:(s,v,c)=>{ if(c.p){ fillMind(c.p); v.k = c.p.wantK || 'peace'; } else v.k='peace'; },
+  start:'a',
+  beats:{
+    a:{ scene:'tavern', text:(s,v)=>WISH[v.k].hook,
+      choices:Object.keys(WISH).flatMap(k=>['a','b'].map(x=>{ const W=WISH[k][x]; if(!W) return null;
+        const base = {label:W.label, show:(s,v)=>v.k===k};
+        if(W.req) return Object.assign(base, {req:W.req, reqText:W.reqText, t:W.win, fx:{gold:W.gold, npc:{p:4}, wish:'p'}, log:'Helped {p} get what {p.he} wanted most.', go:'END'});
+        return Object.assign(base, {check:W.check, win:{t:W.win, fx:{npc:{p:3}, wish:'p', [W.check.stat==='combat'?'str':W.check.stat]:1}, log:'Helped {p} get what {p.he} wanted most.', go:'END'}, lose:{t:W.lose, fx:{npc:{p:1}}, go:'END'}});
+      }).filter(Boolean)).concat([{label:'"I can\'t. I\'m sorry."', t:'{p} nods like {p.he} expected it. That is the worst part.', fx:{npc:{p:-2}}, go:'END'}]) }
+  }
+});
+
+/* =========================================================
+   5. THREADS COMING DUE — any friend, promise or secret can come back
+   ========================================================= */
+ARCS.push({
+  id:'t_friend', stage:['academy','adult'], repeat:true, cooldown:3, echo:true, kind:'bond',
+  title:'An Old Friend', scene:'tavern',
+  blurb:'{f} turns up out of nowhere, older, with news, and a favor to ask.',
+  cond:s=>hasSeed('friend', (x,n)=>n && threadTension(x)>=3),
+  cast:{ f:{seed:'friend', where:(x,n)=>n && threadTension(x)>=3} },
+  start:'a',
+  beats:{
+    a:{ scene:'tavern', text:(s,v,c)=>`{f} is waiting for you, grinning, a little thinner than you remember. "Look at you," {f.he} says. "Look at us."\n\nYou talk for hours. ${c.f && tiesOf(c.f,'spouse').length?`{f.He} is married now, to ${tiesOf(c.f,'spouse')[0].name}.`:'{f.He} is still unmarried, and says it like a joke.'} Then {f.he} goes quiet. "I need help. I didn't know who else to ask."`,
+      choices:[
+        {label:'"Anything. What is it?"', check:{stat:'cha', dc:13}, win:{t:'It is a small thing, really: a letter carried, a word put in. You do it that week. {f} never forgets.', fx:{npc:{f:2}, cha:1, useSeed:{k:'friend', npc:'f'}, seed:{k:'owed', npc:'f'}}, log:'Helped your old friend {f} when {f.he} needed it.', go:'END'},
+          lose:{t:'You try. It doesn\'t work out. {f} says it doesn\'t matter, that you came, and means it.', fx:{npc:{f:1}, useSeed:{k:'friend', npc:'f'}}, go:'END'}},
+        {label:'Help with gold.', req:s=>s.gold>=40, reqText:'Needs 40 gold', t:'You press the purse into {f}\'s hand before {f.he} can argue. {f.He} argues anyway, then takes it.', fx:{gold:-40, npc:{f:3}, useSeed:{k:'friend', npc:'f'}, seed:{k:'owed', npc:'f'}}, go:'END'},
+        {label:'"I\'m sorry. I can\'t right now."', t:'{f} nods and finishes {f.his} drink. You part friends. Mostly.', fx:{npc:{f:-1}, useSeed:{k:'friend', npc:'f'}}, go:'END'}
+      ]}
+  }
+});
+ARCS.push({
+  id:'t_promise', stage:['academy','adult'], repeat:true, cooldown:3, echo:true, kind:'bond',
+  title:'A Promise Kept', scene:'capital',
+  blurb:s=>{ const sd=seeds('promise').slice(-1)[0]; return sd && sd.label ? `${sd.label}. Years have passed. It's time.` : 'An old promise comes due.'; },
+  cond:s=>hasSeed('promise', (x,n)=>n && threadTension(x)>=4),
+  cast:{ p:{seed:'promise', where:(x,n)=>n && threadTension(x)>=4} },
+  init:(s,v)=>{ const sd=seeds('promise').slice(-1)[0]; v.label = sd && sd.label || ''; v.boy = wTrouble() && wTrouble().k==='missing' && /find/.test(v.label); },
+  start:'a',
+  beats:{
+    a:{ scene:'capital', text:(s,v)=>v.boy ? `It takes you a month of asking in the worst taverns of {capital}. Then one night a thin man with carving knives on his belt sits down across from you. "You've been looking for me," says {T.boy}.\n\nHe has been in debt for ten years, and ashamed for longer.` : `You made a promise to {p}, a long time ago. You have not forgotten. Neither, it turns out, has {p}.`,
+      choices:[
+        {label:'Bring him home.', show:(s,v)=>v.boy, check:{stat:'cha', dc:14}, win:{t:'He comes home. {p} opens the door, sees him, and simply sits down on the step. Nobody in {home} gets much sleep that night.', fx:{npc:{p:4}, fame:2, useSeed:{k:'promise', npc:'p'}}, log:'Brought {T.boy} home after ten years.', go:'END'},
+          lose:{t:'He won\'t come. Not yet. But he gives you a carved fox for {p}, and a letter. It is a beginning.', fx:{npc:{p:2}, useSeed:{k:'promise', npc:'p'}}, go:'END'}},
+        {label:'Keep your word, whatever it costs.', show:(s,v)=>!v.boy, check:{stat:'wit', dc:13}, win:{t:'It takes everything you have. You do it. {p} cries, then laughs, then tells everyone.', fx:{npc:{p:4}, fame:1, useSeed:{k:'promise', npc:'p'}}, log:'Kept a promise to {p}.', go:'END'},
+          lose:{t:'You fall short, but {p} saw you try. It counts for more than you expected.', fx:{npc:{p:1}, useSeed:{k:'promise', npc:'p'}}, go:'END'}},
+        {label:'Break it.', t:'You can\'t. Or you won\'t. Either way, {p} will remember.', fx:{npc:{p:-4}, useSeed:{k:'promise', npc:'p'}, seed:{k:'grudge', npc:'p'}}, go:'END'}
+      ]}
+  }
+});
+ARCS.push({
+  id:'t_secret', stage:['academy','adult'], repeat:true, cooldown:4, echo:true, kind:'mystery',
+  title:'What You Know', scene:'night',
+  blurb:'Someone has learned that you know their secret. They want to talk. Alone.',
+  cond:s=>hasSeed('secret', (x,n)=>n && threadTension(x)>=3),
+  cast:{ s:{seed:'secret', where:(x,n)=>n && threadTension(x)>=3} },
+  start:'a',
+  beats:{
+    a:{ scene:'night', text:`{s} catches you in an empty street after dark. {s.He} isn't armed. {s.He} doesn't need to be: {s.he} looks frightened enough to do something stupid.\n\n"You know," {s.he} says. "I know you know. What do you want?"`,
+      choices:[
+        {label:'"Nothing. Your secret is safe."', t:'{s} stares at you for a long time. Then {s.he} nods, and walks away, and from that day on {s.he} is your fiercest ally.', fx:{npc:{s:4}, useSeed:{k:'secret', npc:'s'}, seed:{k:'owed', npc:'s'}}, log:'Promised {s} you would keep {s.his} secret.', go:'END'},
+        {label:'"A favor, someday."', check:{stat:'cha', dc:13, npc:'s'}, win:{t:'{s} agrees. You have a powerful friend now, if not a happy one.', fx:{gold:30, npc:{s:-1}, useSeed:{k:'secret', npc:'s'}, seed:{k:'owed', npc:'s'}}, go:'END'},
+          lose:{t:'{s} laughs bitterly. "Then you\'re no better than the rest of them." The next day, your name is mud in certain circles.', fx:{npc:{s:-3}, useSeed:{k:'secret', npc:'s'}, seed:{k:'grudge', npc:'s'}}, go:'END'}},
+        {label:'"Tell it yourself. It\'ll free you."', check:{stat:'wit', dc:14}, win:{t:'It takes {s} a month to work up the courage. When {s.he} does, the sky doesn\'t fall. {s.He} sends you a letter that just says "thank you" forty times.', fx:{npc:{s:3}, wit:1, useSeed:{k:'secret', npc:'s'}}, log:'Helped {s} stop hiding.', go:'END'},
+          lose:{t:'{s} isn\'t ready. {s.He} leaves, and the secret stays between you, heavier than before.', fx:{npc:{s:-1}}, go:'END'}}
+      ]}
+  }
+});
+
+;
+/* =========================================================
    PIXEL ART — buffers, anime portraits, dithered scenes
    ========================================================= */
 const PXC = {};
@@ -5281,6 +5717,7 @@ function leadCard(L,i){
   const tags = [];
   if(arc.main) tags.push(['Main story','main']);
   if(arc.echo) tags.push(['Follow-up','echo']);
+  if(arc.world) tags.push([stageOf(S.age)==='child'||arc.kind==='village' ? `${wPlace('home')}` : 'Your world','dream']);
   for(const r in L.cast){ const n=S.npcs[L.cast[r]]; if(n && n.met && n.metAge!=null && n.metAge<S.age) tags.push([`${n.name} returns`,'echo']); }
   if(arc.dream && arc.dream===S.dream) tags.push(['Your dream','dream']);
   const blurb = fmt(arc.blurb, ctx);
@@ -5477,7 +5914,7 @@ function openSheet(tab){
       <div class="small">${esc(capFirst(P.home.desc))}. Your family, the ${esc(W.fams.fp.sur)}s, ${dad&&dad.alive!==false?`are ${esc(TRADES[W.fams.fp.trade]||W.fams.fp.trade)}s`:'keep the house'}: Papa ${esc(dad?dad.name:'')} and Mama ${esc(mom?mom.name:'')}.</div>
       ${V.landmarks.map(l=>`<div class="kv1"><b>${esc(capFirst(l.name))}</b><span>${esc(capFirst(l.why))}.</span></div>`).join('')}
       <div class="kv1"><b>${esc(capFirst(V.festival.name))}</b><span>Every ${esc(V.festival.season.toLowerCase())}, ${esc(V.festival.custom)}.</span></div>
-      <div class="kv1 warn"><b>Trouble</b><span>${esc(V.trouble.t)}</span></div>
+      ${V.trouble.done ? `<div class="kv1"><b>Peace</b><span>${esc(V.trouble.outcome||"The old trouble is over.")}</span></div>` : `<div class="kv1 warn"><b>Trouble</b><span>${esc(V.trouble.t)}</span></div>`}
       <div class="eyebrow">The wider world</div>
       ${place('town','The market town on the road to the capital.')}${place('wood','Wild country near home. Children are told not to go in.')}${place('port','A port town on the coast.')}${place('peak','A mountain nobody climbs for fun.')}${place('ruin','Older than any kingdom.')}${place('elfhome','Home of the elves.')}${place('clanhold','Hold of the beastkin clans.')}${place('north','The frozen north, where the Demon Lord sleeps.')}
       <div class="eyebrow">History</div>
