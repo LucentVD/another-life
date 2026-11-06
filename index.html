@@ -1010,7 +1010,7 @@ function crisisWord(){ const W=W_(); const k=W&&W.crisis?W.crisis.k:'demon'; ret
 function worldNews(max){
   const W = W_(); if(!W || !W.news) return [];
   const score = n => (n.big?3:0) + n.who.reduce((a,id)=>{ const p=S.npcs[id]; return a + (p ? (p.met?2:0) + (Math.abs(p.att||0)>=3?2:0) : 0); },0);
-  return W.news.slice().sort((a,b)=>score(b)-score(a)).slice(0,max).map(n=>n.t);
+  return W.news.slice().sort((a,b)=>score(b)-score(a)).slice(0,max).map(n=>n.t + (typeof newsCallback==='function' ? newsCallback(n) : ''));
 }
 
 /* old saves from before the Enigma-Key wake up in the Classic world */
@@ -1086,7 +1086,8 @@ const PRON = {m:{he:'he',him:'him',his:'his',hers:'his'}, f:{he:'she',him:'her',
 function fmt(t, ctx){
   if(typeof t === 'function') t = t(S, ctxVars(ctx), castObj(ctx));
   if(t==null) return '';
-  return String(t).replace(/\{(\w+)(?:\.(\w+))?\}/g, (m,k,sub)=>{
+  t = String(t); if(t.indexOf('{~')>=0) t = vary(t);
+  return t.replace(/\{(\w+)(?:\.(\w+))?\}/g, (m,k,sub)=>{
     if(!sub){
       if(k==='name') return esc(S.name);
       if(k==='jobA') return JOBS[S.job].a;
@@ -1144,7 +1145,7 @@ function applyFx(fx, ctx){
     else if(k==='rel'){ for(const c in v){ if(!v[c]) continue; S.rel[c]=clamp(rel(c)+v[c],0,10); chips.push([`${COMP[c].name} ${v[c]>0?'♥+'+v[c]:'♥'+v[c]}`, v[c]>0?'heart':'down']); } }
     else if(k==='relAll'){ let any=false; for(const c in COMP){ if(met(c)){ S.rel[c]=clamp(S.rel[c]+v,0,10); any=true; } } if(any) chips.push([`Friends ♥+${v}`,'heart']); }
     else if(k==='relTop'){ const c=topComp(); if(c){ S.rel[c]=clamp(S.rel[c]+v,0,10); chips.push([`${COMP[c].name} ♥+${v}`,'heart']); } }
-    else if(k==='npc'){ for(const r in v){ const n=npcOf(r); if(!n||!v[r]) continue; n.att=clamp(n.att+v[r],-5,5); chips.push([`${n.name} ${v[r]>0?'trust +'+v[r]:'trust '+v[r]}`, v[r]>0?'heart':'down']); } }
+    else if(k==='npc'){ for(const r in v){ const n=npcOf(r); if(!n||!v[r]) continue; n.att=clamp(n.att+v[r],-5,5); chips.push([`${n.name} ${v[r]>0?'trust +'+v[r]:'trust '+v[r]}`, v[r]>0?'heart':'down']); if(typeof remember==='function') chips.push(...remember(n, v[r])); } }
     else if(k==='npcSet'){ for(const r in v){ const n=npcOf(r); if(n) Object.assign(n, v[r]); } }
     else if(k==='note'){ for(const r in v){ const n=npcOf(r); if(n) n.notes.push({age:S.age, t:fmt(v[r], ctx)}); } }
     else if(k==='kill'){ [].concat(v).forEach(r=>{ const n=npcOf(r); if(n){ n.alive=false; chips.push([`${n.name} is gone`,'down']); } }); }
@@ -1373,7 +1374,8 @@ function enterBeat(id){
 function curBeat(){ const a=S.year.arc; return ARC[a.id].beats[a.beat]; }
 function choices(){
   const b = curBeat();
-  return (b.choices||[]).filter(c=>!c.show || c.show(S, ctxVars(), castObj()));
+  const base = (b.choices||[]).filter(c=>!c.show || c.show(S, ctxVars(), castObj()));
+  return typeof contextChoices==='function' ? base.concat(contextChoices(b, base)) : base;
 }
 function choiceState(c){
   const blocked = c.req && !c.req(S, ctxVars(), castObj());
@@ -1450,8 +1452,8 @@ function yearNews(){
   const st = stageOf(S.age);
   if(crisisIs('demon') && S.omen>=3 && st!=='child') out.push('Frost came early in the north again. Travelers whisper about horned shapes in the snow.');
   else if(crisisIs('demon') && S.omen>=1 && st==='adult') out.push('The northern border has been quiet. Too quiet, the soldiers say.');
-  const owed = seeds('owed'); if(owed.length && R()<.5){ const n=S.npcs[owed[owed.length-1].npc]; if(n) out.push(`A letter arrives from ${n.name}: "If you ever need anything, I haven't forgotten."`); }
-  const grudge = seeds('grudge'); if(grudge.length && R()<.5){ const n=S.npcs[grudge[grudge.length-1].npc]; if(n) out.push(`You hear ${n.name}'s name in the market. Nobody says it kindly, and neither, apparently, does ${n.name} say yours.`); }
+  const owed = seeds('owed'); if(owed.length && R()<.5){ const n=S.npcs[owed[owed.length-1].npc]; if(n) out.push(`{~A letter arrives from ${n.name}: "If you ever need anything, I haven't forgotten."|${n.name} sends a basket of something homemade and a note: "Still owe you. Always will."|You hear ${n.name} has been telling people you're the best person they know. Embarrassing.}`); }
+  const grudge = seeds('grudge'); if(grudge.length && R()<.5){ const n=S.npcs[grudge[grudge.length-1].npc]; if(n) out.push(`{~You hear ${n.name}'s name in the market. Nobody says it kindly, and neither, apparently, does ${n.name} say yours.|Someone scratched your name off a tavern wall. You have a fair idea who: ${n.name}.|${n.name} crossed the street to avoid you. Then crossed back, to make sure you noticed.}`); }
   if(S.income>0) out.push(`Your business keeps paying: ${S.income} gold a year.`);
   if(clues()>=2 && !S.flags.cultStopped) out.push('Black sun symbols have started appearing on walls around the capital.');
   const t = topComp(); if(t && st!=='child' && R()<.4) out.push({lina:'{lina} sends a sack of apples and a letter mostly about how she is better than you at archery.', sera:'{sera} sends a letter. It is two lines long and somehow both are insults. You read it four times.', rook:'{rook} shows up unannounced, eats everything in your kitchen, and leaves. It is a sign of affection.', nimue:'{nimue} falls asleep on your doorstep. Again.'}[t]);
@@ -5438,6 +5440,212 @@ function enigmaEpilogue(kind){
 
 ;
 /* =========================================================
+   ENIGMA-KEY — Voice
+   1. Text grammars: {~one way|another way|a third way}
+   2. Character voices: every world person speaks in their own way
+   3. Memory and callbacks: people remember what you did
+   4. Choices from context: call on a friend, use a secret you know
+   ========================================================= */
+
+/* ---------- 1. text grammars ---------- */
+function vHash(str){ let h = 2166136261; for(let i=0;i<str.length;i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h>>>0; }
+function varySeed(){ const y = S && S.year, a = y && y.arc; return (S ? S.id + ':' + S.age : '') + (a ? ':' + a.id + ':' + a.beat : ''); }
+// picks one option from every {~a|b|c}; options may contain {tokens} and nested {~…}
+function vary(t, seed){
+  if(t.indexOf('{~')<0) return t;
+  seed = seed==null ? varySeed() : seed;
+  let out = '', i = 0, n = 0;
+  while(i < t.length){
+    const j = t.indexOf('{~', i);
+    if(j<0){ out += t.slice(i); break; }
+    out += t.slice(i, j);
+    let depth = 0, k = j, parts = [], start = j+2;
+    for(; k<t.length; k++){
+      const c = t[k];
+      if(c==='{') depth++;
+      else if(c==='}'){ depth--; if(depth===0) break; }
+      else if(c==='|' && depth===1){ parts.push(t.slice(start, k)); start = k+1; }
+    }
+    parts.push(t.slice(start, k));
+    const pick = parts[vHash(seed + '#' + (n++) + '#' + t.length) % parts.length];
+    out += vary(pick, seed + '/' + n);
+    i = k+1;
+  }
+  return out;
+}
+
+/* ---------- 2. character voices ---------- */
+const VOICES = {
+  kid:     {name:'bubbly',     open:['Hey!','Ooh!','Guess what!','Wow.'], close:['Honest!','I mean it!']},
+  elder:   {name:'old-timer',  open:['Eh.','Bah.','Listen here.'], close:['Mark me.','Hm.'], swap:[[/\bkid\b/g,'whelp']]},
+  formal:  {name:'formal',     open:['Hm.','Indeed.','I see.'], close:['Truly.'],
+            swap:[[/\bdon't\b/g,'do not'],[/\bDon't\b/g,'Do not'],[/\bcan't\b/g,'cannot'],[/\bCan't\b/g,'Cannot'],[/\bwon't\b/g,'will not'],[/\bit's\b/g,'it is'],[/\bIt's\b/g,'It is'],[/\bI'm\b/g,'I am'],[/\bI've\b/g,'I have'],[/\byeah\b/g,'yes'],[/\bYeah\b/g,'Yes'],[/\bkid\b/g,'young one'],[/\bthanks\b/g,'thank you'],[/\bThanks\b/g,'Thank you'],[/\bgonna\b/g,'going to']]},
+  scholar: {name:'bookish',    open:['Fascinating.','Hmm.','Well, technically…'], close:['Fascinating, really.'], swap:[[/\bmaybe\b/g,'possibly'],[/\bMaybe\b/g,'Possibly']]},
+  sly:     {name:'sly',        open:['Heh.','Well, well.','Psst.'], close:['Heh.']},
+  nervous: {name:'nervous',    stutter:true, open:['Um.','Oh gods.','I— sorry.'], close:['Sorry.','Um.']},
+  cheerful:{name:'cheerful',   open:['Ha!','Oh!','Well now!'], close:['Ha!']},
+  blunt:   {name:'blunt',      open:['Look.','Hmph.','Right.'], close:['That\'s all.'], swap:[[/\bgoing to\b/g,'gonna'],[/\bvery /g,'']]},
+  rustic:  {name:'plain-spoken', open:['Aye.','Well.','Huh.'], close:['Aye.'], swap:[[/\bgoing to\b/g,'gonna'],[/\bthem\b/g,'\'em'],[/\byes\b/g,'aye'],[/\bYes\b/g,'Aye']]},
+  gentle:  {name:'gentle',     open:['Oh.','Ah.','Oh, love.']},
+  plain:   {name:'plain'}
+};
+const RUSTIC = new Set(['farmer','miner','fisher','shepherd','woodcutter','hunter','smith','brewer','miller','carpenter','bandit','guard']);
+function voiceOf(n){
+  if(!n || n.arch) return null;
+  if(n.voice) return n.voice;
+  const t = n.tmp || {}, age = n.born!=null ? personAge(n) : 30;
+  let v = 'plain';
+  const TV = {cheerful:'cheerful', brave:'cheerful', timid:'nervous', cunning:'sly', greedy:'sly', kind:'gentle', suspicious:'blunt', hotheaded:'blunt', gloomy:'blunt', proud:'formal'};
+  if(age<13) v = 'kid';
+  else if(age>=66) v = 'elder';
+  else if(TV[n.trait]) v = TV[n.trait];
+  else if(['noble','knight'].includes(n.role) || n.cult==='elf') v = 'formal';
+  else if(['scholar','mage','priest','healer','student','herbalist'].includes(n.role)) v = 'scholar';
+  else if(RUSTIC.has(n.role)) v = 'rustic';
+  else if((t.warm||0)>=1) v = 'gentle';
+  else if((t.warm||0)<=-1) v = 'blunt';
+  return v;
+}
+function voiceLine(n, q, seed, first, alone){
+  const V = VOICES[voiceOf(n)]; if(!V || !q) return q;
+  const r = k=>vHash(seed + k + n.id);
+  let s = q;
+  (V.swap||[]).forEach(([a,b])=>{ s = s.replace(a,b); });
+  if(V.stutter && r('st')%3===0) s = s.replace(/^([A-Za-z])([a-z]{2,})/, (m,a,b)=>`${a}-${a.toLowerCase()}${b}`);
+  if(first && alone!==false && V.open && r('op')%2===0 && /^[A-Z]/.test(s) && !/^(Ha|Oh|Hey|Um|Hm|Eh|Bah|Look|Right|Well|Aye|Heh|There)\b/.test(s)) s = V.open[r('o')%V.open.length] + ' ' + s;
+  if(alone!==false && V.close && r('cl')%4===0 && /[.!]$/.test(s) && s.length>24) s = s + ' ' + V.close[r('c')%V.close.length];
+  return s;
+}
+// voice every quote in a passage, attributed to the cast member named nearest before it
+function voiceText(text, cast){
+  if(!text || !cast || text.indexOf('"')<0) return text;
+  const ppl = Object.values(cast).map(id=>S.npcs[id]).filter(n=>n && n.w && !n.arch && !COMP[n.arch]);
+  if(!ppl.length) return text;
+  const seen = new Set();
+  return text.split('\n\n').map(par=>{
+    let last = null;
+    const names = ppl.map(n=>({n, re:new RegExp('\\b'+n.name.replace(/[^\w]/g,'')+'\\b','g')}));
+    let out = '', i = 0;
+    const qre = /"([^"]+)"/g; let m;
+    while((m = qre.exec(par))){
+      const before = par.slice(0, m.index);
+      let best = null, bi = -1;
+      names.forEach(o=>{ o.re.lastIndex = 0; let mm; while((mm = o.re.exec(before))){ if(mm.index>bi){ bi = mm.index; best = o.n; } } });
+      // a quote with a name only after it ("…," says Tova) still belongs to Tova
+      if(!best){ const after = par.slice(m.index + m[0].length, m.index + m[0].length + 40); names.forEach(o=>{ o.re.lastIndex = 0; if(o.re.test(after)) best = best || o.n; }); }
+      best = best || last;
+      out += par.slice(i, m.index);
+      if(!/[.!?,…—-]$/.test(m[1].trim()) || m[1].length<6) best = null;
+      if(best){ const first = !seen.has(best.id); seen.add(best.id); const alone = (m.index===0 || /[.:!?"…]\s$/.test(par.slice(0, m.index))) && (m.index+m[0].length>=par.length || /^\s*($|[A-Z(])/.test(par.slice(m.index+m[0].length)) || /^,? ?(says|asks|whispers|shouts|calls|adds|mutters)/.test(par.slice(m.index+m[0].length).trim()) || /^[a-z]/.test(par.slice(m.index+m[0].length).trim()));
+        out += '"' + voiceLine(best, m[1], text.length + ':' + m.index, first, alone) + '"'; last = best; }
+      else out += m[0];
+      i = m.index + m[0].length;
+    }
+    return out + par.slice(i);
+  }).join('\n\n');
+}
+
+/* ---------- 3. memory and callbacks ---------- */
+function remember(n, d){
+  if(!n || !d || !S.year || !S.year.arc || n.arch) return [];
+  const a = S.year.arc, arc = ARC[a.id];
+  n.mem = n.mem || [];
+  let m = n.mem.find(x=>x.age===S.age && x.a===a.id);
+  if(!m){ m = {age:S.age, a:a.id, d:0, t:fmt(arc.title), memo: arc.memo ? fmt(arc.memo) : null}; n.mem.push(m); }
+  m.d += d;
+  if(n.mem.length>6){ n.mem.sort((x,y)=>Math.abs(y.d)-Math.abs(x.d) || y.age-x.age); n.mem.length = 6; }
+  // trusted enough, people tell you things
+  if(n.att>=4 && n.w && !n.secretKnown){ fillMind(n); if(n.secret){ n.secretKnown = S.age; return [[`🔑 ${n.name} told you a secret`,'seed']]; } }
+  return [];
+}
+const NUMW = ['zero','one','two','three','four','five','six','seven','eight','nine','ten','eleven','twelve','thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen','twenty'];
+function whenPhrase(age){
+  const ago = S.age - age;
+  if(ago<=1) return 'last year';
+  if(age<12) return `when you were ${NUMW[age]||age}`;
+  if(age<16) return 'back when you were at the Academy';
+  return `${NUMW[ago]||ago} years ago`;
+}
+function strongestMemory(n){ const l = (n.mem||[]).filter(m=>m.age<S.age && Math.abs(m.d)>=1); return l.sort((a,b)=>Math.abs(b.d)-Math.abs(a.d) || b.age-a.age)[0] || null; }
+function callbackFor(n, seed){
+  const m = strongestMemory(n); if(!m) return null;
+  const P = PRON[n.g], when = whenPhrase(m.age), what = m.memo;
+  const good = m.d>0;
+  const line = good
+    ? vary(what ? `{~I haven't forgotten ${what}, you know. That was ${when}.|You were there for ${what}, ${when}. I still think about it.|Every time I see you I think of ${what}. ${capFirst(when)}!}` : `{~I haven't forgotten what you did for me ${when}.|You helped me ${when}. Don't think I've forgotten.|There you are! I still owe you for what you did ${when}.}`, seed)
+    : vary(what ? `{~I remember ${what}. ${capFirst(when)}. I remember exactly what you did.|Oh. You. I haven't forgotten ${what}.}` : `{~I haven't forgotten what you did ${when}.|Oh. It's you. I remember ${when}, you know.}`, seed);
+  const pre = good
+    ? vary(`${n.name} {~spots you and brightens|waves you over before you can say a word|grins the moment ${P.he} sees you}.`, seed+'p')
+    : vary(`${n.name} {~sees you, and ${P.his} face closes like a door|goes very still when you walk in|looks at you for a long moment}.`, seed+'p');
+  return `${pre} "${voiceLine(n, line, seed, !good)}"`;
+}
+// the first scene of a story: someone who remembers you says so
+function arcCallback(a){
+  if(!a || !a.cast) return null;
+  for(const r in a.cast){ const n = S.npcs[a.cast[r]]; if(!n || n.arch || n.alive===false) continue; const t = callbackFor(n, a.id+':'+S.age+':'+n.id); if(t) return t; }
+  return null;
+}
+// yearly news about someone you know mentions your history together
+function newsCallback(item){
+  const n = (item.who||[]).map(id=>S.npcs[id]).find(p=>p && p.met && !p.arch && strongestMemory(p) && Math.abs(strongestMemory(p).d)>=2);
+  if(!n) return '';
+  const m = strongestMemory(n), P = PRON[n.g], seed = 'news:'+S.age+':'+n.id;
+  return ' ' + (m.d>0 ? vary(`{~${n.name} still talks about what you did for ${P.him} ${whenPhrase(m.age)}.|${n.name} hasn't forgotten what you did ${whenPhrase(m.age)}.}`, seed) : vary(`{~${n.name} still hasn't forgiven you for what happened ${whenPhrase(m.age)}.|Some things ${n.name} doesn't forget.}`, seed));
+}
+
+/* ---------- 4. choices from context ---------- */
+function contextChoices(b, base){
+  const a = S.year && S.year.arc; if(!a) return [];
+  const arc = ARC[a.id]; if(arc.main || arc.final) return [];
+  const v = a.vars || {}; if(v._ctx) return [];
+  const c0 = base.find(c=>c.check && c.win && c.lose && !c.auto && !c.req); if(!c0) return [];
+  const castIds = new Set(Object.values(a.cast||{}));
+  const out = [];
+  const wrapT = (pre, t)=>(s,vv,c)=>pre + (typeof t==='function' ? t(s,vv,c) : (t||''));
+  const wrapFx = (f, add)=>(s,vv,c)=>{ const base = typeof f==='function' ? (f(s,vv,c)||{}) : Object.assign({}, f||{}); const o = Object.assign({}, base);
+    for(const k in add){ o[k] = (typeof add[k]==='object' && typeof o[k]==='object') ? Object.assign({}, o[k], add[k]) : add[k]; } return o; };
+  // a friend who would come if you asked
+  const ally = people(n=>n.att>=4 && !castIds.has(n.id) && n.helped!==S.age && (n.born==null || personAge(n)>=8)).sort((x,y)=>y.att-x.att)[0];
+  if(ally){
+    const P = PRON[ally.g];
+    out.push({ label:`Call on ${ally.name} for help.`, ctxTag:'friend',
+      check:Object.assign({}, c0.check, {extra:(s,vv,c)=>(c0.check.extra ? c0.check.extra(s,vv,c)||[] : []).concat([[`${ally.name} helps`, 3]])}),
+      win:Object.assign({}, c0.win, {t:wrapT(vary(`{~${ally.name} comes the moment you ask.|You send word to ${ally.name}, and ${P.he} is there by morning.|${ally.name} doesn't even ask why.} `, a.id+ally.id)+'\n\n', c0.win.t), fx:wrapFx(c0.win.fx, {npc:{[ally.id]:1}, set:{_ctx:1}, allyUsed:ally.id})}),
+      lose:Object.assign({}, c0.lose, {t:wrapT(`Even with ${ally.name} at your side, it doesn't go your way.\n\n`, c0.lose.t), fx:wrapFx(c0.lose.fx, {set:{_ctx:1}, allyUsed:ally.id})}) });
+  }
+  // someone here whose secret you know
+  const sec = [...castIds].map(id=>S.npcs[id]).find(n=>n && n.secretKnown && n.secret && n.alive!==false);
+  if(sec){
+    const P = PRON[sec.g];
+    out.push({ label:`Remind ${sec.name} of what you know.`, ctxTag:'secret',
+      t:wrapT(`You lean in and say, very quietly, that you know ${sec.name} ${sec.secret}. ${capFirst(P.he)} goes pale. After that, things go your way.\n\n`, c0.win.t),
+      fx:wrapFx(c0.win.fx, {npc:{[sec.id]:-2}, set:{_ctx:1}}), go:c0.win.go, log:c0.win.log||c0.log });
+  }
+  return out;
+}
+FX_EXT.allyUsed = id=>{ const n = S.npcs[id]; if(n) n.helped = S.age; return []; };
+
+/* ---------- memos: how people remember the world stories ---------- */
+(function(){
+  const memo = {p_trouble:(s,v)=>({feud:'the feud', wolves:'the owlbear business', debt:'the lord\'s ledger', drought:'the dry year', haunt:'the lights in {ruin}', sickness:'the sickness', taxes:'the tax collector', missing:'the missing boy'})[v.k] || 'the trouble',
+    p_festival_c:'{festival}', p_festival_a:'{festival}', p_wedding:'the wedding', p_funeral:'the funeral', t_promise:'your promise'};
+  ARCS.forEach(a=>{ if(memo[a.id] && !a.memo) a.memo = memo[a.id]; });
+})();
+
+/* ---------- more ways to say the everyday things ---------- */
+(function(){
+  const V = {
+    train:'{~You trained until your muscles stopped complaining.|You ran the hills every morning until you could do it without stopping.|You carried, climbed and sparred until your body stopped arguing with you.}',
+    magic:'{~You filled a notebook with spell diagrams.|You set three curtains on fire and learned one new spell. Fair trade.|You practised until the candle flames bent toward you.}',
+    books:'{~You read until the candles ran out.|You read everything you could find, including a very dull book about turnips.|You read so much that you started dreaming in footnotes.}',
+    friends:'{~You spent the quiet months with the people you love.|Long dinners, bad jokes, late nights. A good season.|You spent the season laughing with friends, and it was worth more than any training.}',
+    rest:'{~You rested, wandered, and let the world surprise you.|You slept late, walked far, and found a waterfall nobody had told you about.|You did nothing in particular, beautifully.}'
+  };
+  DOWNTIME.forEach(d=>{ if(V[d.id]) d.t = V[d.id]; });
+})();
+
+;
+/* =========================================================
    PIXEL ART — buffers, anime portraits, dithered scenes
    ========================================================= */
 const PXC = {};
@@ -6264,10 +6472,13 @@ function buildFlow(){
   else if(y.phase==='beat' || y.phase==='done'){
     const a=y.arc, arc=ARC[a.id], b=arc.beats[a.beat];
     f.scene = (typeof b.scene==='function' ? b.scene(S, ctxVars(), castObj()) : b.scene) || arc.scene || stageScene(); f.seed = S.id+a.id+a.beat;
-    const text = y.phase==='beat' ? fmt(b.text) : '';
-    f.chars = presentChars([a.prev?a.prev.text:'', text], a.cast, a.id);
+    const text = y.phase==='beat' ? voiceText(fmt(b.text), a.cast) : '';
+    const cb = y.phase==='beat' && !a.prev && a.path.length===1 ? arcCallback(a) : null;
+    const prevV = a.prev ? Object.assign({}, a.prev, {text: voiceText(a.prev.text, a.cast)}) : null;
+    f.chars = presentChars([cb||'', prevV?prevV.text:'', text], a.cast, a.id);
     f.top = `<div class="tag-title">${esc(fmt(arc.title))}</div><div class="pips">${'◆'.repeat(Math.min(a.path.length,6))}<i>${'◇'.repeat(Math.max(0,4-a.path.length))}</i></div>`;
-    f.pages = resultPages(a.prev, f.chars);
+    f.pages = resultPages(prevV, f.chars);
+    if(cb) f.pages.push({text:cb, kind:'narr'});
     if(y.phase==='beat'){
       if(a.enterChips && a.enterChips.length) f.pages.push({text:'', kind:'narr', chips:a.enterChips});
       paginate(text).forEach(t=>f.pages.push({text:t, kind:'narr'}));
@@ -6411,15 +6622,16 @@ function drawChoices(){
   $('#logBtn').onclick = ()=>openLog();
 }
 function choiceRow(c,i){
-  const st = choiceState(c), special=!!c.show;
+  const st = choiceState(c), special=!!c.show || !!c.ctxTag;
   let tag='';
   if(st.check){
     if(st.check.auto) tag = `<span class="pill sure">SURE</span>`;
     else { const [cls,word]=st.check.diff; const ic = st.check.stat==='combat'?'⚔':STATS[st.check.stat].ic; tag = `<span class="pill ${cls}">${ic} ${word.toUpperCase()}${S.cheat==='appraise'?' '+Math.round(st.check.p*100)+'%':''}</span>`; }
   }
+  if(c.ctxTag==='secret') tag = `<span class="pill sure">SURE</span>`;
   if(st.blocked) tag = `<span class="pill">${esc(c.reqText||'LOCKED')}</span>`;
   return `<button class="choice ${special?'special':''}" data-choice="${i}" ${st.blocked?'disabled':''}>
-    <span class="cursor">▶</span><span class="lbl">${special?'<i class="spark">✧</i>':''}${esc(fmt(c.label))}</span>${tag}
+    <span class="cursor">▶</span><span class="lbl">${special?`<i class="spark">${c.ctxTag==='friend'?'♥':c.ctxTag==='secret'?'🔑':'✧'}</i>`:''}${esc(fmt(c.label))}</span>${tag}
   </button>`;
 }
 
@@ -6622,7 +6834,10 @@ function openSheet(tab){
       const fam = familyOf(n), age = n.born!=null ? personAge(n) : null;
       const sub = `${esc(TRAITS[n.trait]?TRAITS[n.trait].adj:n.trait)} ${esc(TRADES[n.role]||NPC_ROLES[n.role]||n.role)}${age!=null && n.alive!==false?` · ${age}`:''}${n.alive===false?' · <i>gone</i>':''}`;
       const more = n.want && n.att>=2 && n.alive!==false ? `<span class="want">Wants ${esc(n.want)}.</span>` : fam && !fam.player ? `<span class="want">Of the ${esc(fam.sur)} family</span>` : '';
-      return `<div class="person">${headImg(npcArt(n))}<div class="p-main"><b>${esc(n.name)} ${esc(n.sur)}</b><span>${sub}</span>${more}</div><span class="mood ${cls}">${mood}</span></div>`; }).join('');
+      const vo = voiceOf(n), mm = strongestMemory(n);
+      const memL = mm ? `<span class="want">${mm.d>0?'Remembers':'Holds against you'}: ${esc(mm.memo||mm.t)} (age ${mm.age})</span>` : '';
+      const secL = n.secretKnown && n.secret && n.alive!==false ? `<span class="want secret">🔑 Secretly ${esc(n.secret)}.</span>` : '';
+      return `<div class="person">${headImg(npcArt(n))}<div class="p-main"><b>${esc(n.name)} ${esc(n.sur)}</b><span>${sub}${vo&&vo!=='plain'?` · ${esc(VOICES[vo].name)} voice`:''}</span>${more}${memL}${secL}</div><span class="mood ${cls}">${mood}</span></div>`; }).join('');
     content = `<div class="eyebrow">Companions</div>${comps||'<div class="muted small">Nobody close yet.</div>'}<div class="eyebrow">People you've met</div>${ppl||'<div class="muted small">Nobody yet.</div>'}`;
   }
   if(UI.tab==='world'){
