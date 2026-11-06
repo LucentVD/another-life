@@ -353,6 +353,12 @@ canvas.fx{position:absolute;inset:2px;width:calc(100% - 4px);height:calc(100% - 
 .turn-c{font-size:13px;opacity:.85;margin:2px 0}
 .turn-r{font-size:13px;margin:2px 0 0 6px}
 button.hall-item{width:100%;text-align:left;color:inherit;font:inherit;cursor:pointer}
+.guide{border-bottom:1px dashed var(--line);padding:6px 0}
+.guide summary{cursor:pointer;list-style:none;padding:4px 0}
+.guide summary::-webkit-details-marker{display:none}
+.guide summary::after{content:' ▸';opacity:.6}
+.guide[open] summary::after{content:' ▾'}
+.guide p{margin:4px 0 6px;font-size:13.5px;line-height:1.5;opacity:.9}
 </style>
 </head>
 <body>
@@ -592,7 +598,7 @@ const CITY_WANTS = {
   adult:['to make a name in {capital}','a seat on the Royal Council','to be the best {trade} in the city','to find a patron','to go home someday','to pay off a debt to the wrong people','to marry above {his} station','to discover something nobody has seen','to be left alone with {his} books','to see {his} rival ruined']
 };
 const FEARS = ['the {wood} at night','being forgotten','poverty','becoming like {his} {parent}','the lord\'s tax collector','being alone','fire','deep water','the old ruins','losing {his} family','magic','failure'];
-const SECRETS = ['cannot actually read','is in love with someone from the {rival} family','stole from the temple box as a child','owes money to a fence in {capital}','writes poetry nobody has ever seen','once saw something in the {ruin} and never told anyone','is not {his} father\'s real child','is quietly saving to run away','keeps a forbidden spellbook under the floor','still blames {him}self for an old fire'];
+const SECRETS = ['cannot actually read','is in love with someone from the {rival} family','stole from the temple box as a child','owes money to a fence in {capital}','writes poetry nobody has ever seen','once saw something in {ruin} and never told anyone','is not {his} father\'s real child','is quietly saving to run away','keeps a forbidden spellbook under the floor','still blames {him}self for an old fire'];
 
 /* ---------- landmarks, festivals, troubles, history ---------- */
 const TERRAINS = {
@@ -1032,7 +1038,21 @@ function ensureWorld(){
     W.people.forEach(p=>{ if(!S.npcs[p.id]) S.npcs[p.id]=p; }); delete W.people;
     S.world = W;
   }
+  migrateWorld();
   applyWorld();
+}
+/* saves from earlier versions of the Enigma-Key gain the newer systems */
+function migrateWorld(){
+  const W = S.world; if(!W) return;
+  const rng = ekRng(W.key + ':migrate');
+  if(!W.enigmas && typeof genEnigmas==='function'){
+    const tmp = Object.assign({}, W, {people:Object.values(S.npcs), lore:Object.assign({warAgo:60}, W.lore||{})});
+    try{ genEnigmas(tmp, rng); W.enigmas = tmp.enigmas; }catch(e){ W.enigmas = []; }
+  }
+  if(!W.prophecy && typeof genProphecy==='function'){ try{ genProphecy(W, rng); }catch(e){} }
+  if(!S.rumours) S.rumours = [];
+  if(!S.turns) S.turns = [];
+  Object.values(S.npcs).forEach(n=>{ if(!n.mem) n.mem = []; });
 }
 
 ;
@@ -1435,6 +1455,8 @@ function finishArc(){
   // passive year effects
   const extra = [];
   if(S.income>0){ extra.push(...applyFx({gold:S.income})); }
+  if(typeof passiveKeys==='function') extra.push(...passiveKeys());
+  if(typeof vowAfterArc==='function') extra.push(...vowAfterArc(arc.id));
   S.year.chips.push(...extra);
   S.year.opts = downtimeOptions().map(d=>d.id);
   S.year.phase = 'yearend';
@@ -1529,7 +1551,7 @@ function finish(kind){
   const statSum = Object.values(S.st).reduce((a,b)=>a+b,0);
   const bonus = {slain:40, peace:50, repelled:15, stayed:20, fallen:25, death:0}[kind]||0;
   const score = S.fame*3 + Math.floor(S.gold/25) + statSum + bonus + people(n=>n.att>=4).length*5 + Object.values(S.rel).reduce((a,b)=>a+b,0) + (typeof vowBonus==='function' ? vowBonus(kind) : 0);
-  const rank = score>=260?'S':score>=200?'A':score>=145?'B':score>=90?'C':'D';
+  const rank = score>=255?'S':score>=222?'A':score>=170?'B':score>=115?'C':'D';
   const C0 = {cast:{}, vars:{}};
   title = fmt(title, C0);
   S.ending = {kind, title, body: fmt(body, C0), lines: lines.map(l=>fmt(l, C0)), rank, score};
@@ -2134,7 +2156,7 @@ ARCS.push(
       {label:'Pray honestly, with your whole heart.', check:{stat:'luck', dc:10},
         win:{t:'A breeze. A sound like a pen dropping. In the bowl: one glowing moonpetal and a note. "Sorry sorry sorry! Also, {apology}. Go! — L"', fx:{luck:1, set:{lumi:true}}, log:'Lumi answered a prayer. She left a note.', go:'dawn'},
         lose:{t:'Nothing. Then a scrap of paper drifts down. "Can\'t interfere directly, rules!! North cliffs, left ledge. Also, {apology}. — L"', fx:{luck:1}, go:'cliffs'}},
-      {label:'Complain about your whole afterlife.', t:'A bucket of cold water appears from nowhere and drenches you. Then a note: "RUDE. But fair. {apology}. Cliffs, left ledge, hurry. — L"', fx:{cha:1, hp:-3}, go:'cliffs'}
+      {label:'Complain about your whole afterlife.', t:'A bucket of cold water appears from nowhere and drenches you. Then a note: "RUDE. But fair. Also, {apology}. Cliffs, left ledge, hurry. — L"', fx:{cha:1, hp:-3}, go:'cliffs'}
     ]},
     cliffs:{ scene:'cliffs', text:`The north cliffs are black and wet in the moonlight. Far above, on a narrow ledge, something glows soft blue: moonpetal, a single cluster of it.\n\nBelow, the drop goes down into dark you can't see the bottom of.\n\nYou are a child. Your arms are short. You are not, technically, allowed out after dark. None of that matters right now.`, choices:[
       {label:'Climb.', check:{stat:'str', dc:11},
@@ -5149,7 +5171,7 @@ const CRISIS_END = {
             p==='crown'?`The king names you Champion of {kingdom}. The freed people of {empire} send a statue of you. It is smiling. You find that a bit much.`:
             `The guild invents a new rank just for you. A hundred thousand people remember the day they woke up, and whose face they saw first.`}),
     peace:()=>({title:'Two Strangers from Earth', body:`There is no final blow. There is a young man in a hospital gown's memory, choosing to let a hundred thousand people go. {hero} spends the rest of his life rebuilding what he took. Sometimes you two sit on a roof and argue about which convenience store was best.`}),
-    repelled:()=>({title:'The Cold War of Heroes', body:`You survive, and so does he. {empire} pulls back to its borders, still smiling. You spend the years that follow teaching people how to stuff their ears with wax, and waiting.`}),
+    repelled:()=>({title:'The Cold War of Heroes', body:`You survive, and so does he. {Empire} pulls back to its borders, still smiling. You spend the years that follow teaching people how to stuff their ears with wax, and waiting.`}),
     fallen:()=>({title:'The Otherworlder Who Fell', body:`You fall on the field, the only person his voice couldn't touch. It is enough: your defenders hold, and by sunset {empire}'s army is walking home, no longer sure why it came.`})
   }
 };
@@ -5344,8 +5366,9 @@ ARCS.push({
   scene:'library',
   blurb:s=>{ const L=S.dir&&S.dir.lead; const E=L&&enigmas()[L.ei]; return E ? `${enigmaQ(E)} ${keyHint(E, E.keys[L.ki])}` : 'Something doesn\'t add up.'; },
   cond:s=>openLeads().length>0,
+  urgent:s=>!!(S.amb && S.amb.k==='mystery') && openLeads().length>0,
   cast:{ w:{ pick:(s,used)=>{ dirState().lead = pickLead(); const L=S.dir.lead; if(!L) return null; const kk=enigmas()[L.ei].keys[L.ki]; return kk.src.t==='npc' ? S.npcs[kk.src.id] : null; }, optional:true } },
-  init:(s,v)=>{ const L=S.dir.lead; v.ei=L.ei; v.ki=L.ki; const kk=enigmas()[L.ei].keys[L.ki]; v.npc = kk.src.t==='npc'; v.place = kk.src.p; },
+  init:(s,v)=>{ const L=dirState().lead || (dirState().lead = pickLead()); v.ei=L.ei; v.ki=L.ki; const kk=enigmas()[L.ei].keys[L.ki]; v.npc = kk.src.t==='npc' && !!(S.year.arc.cast && S.year.arc.cast.w); if(kk.src.t==='npc' && !v.npc) v.place = 'capital'; v.place = kk.src.p; },
   start:'a',
   beats:{
     a:{ scene:(s,v)=>v.npc ? ({home:'village', academy:'academy', capital:'capital'}[S.npcs[enigmas()[v.ei].keys[v.ki].src.id].home]||'village') : (PLACE_SCENE[v.place]||'library'), text:(s,v)=>{ const E=enigmas()[v.ei], kk=E.keys[v.ki];
@@ -5411,7 +5434,7 @@ function genProphecy(W, rng){
 /* ---------- effects ---------- */
 FX_EXT.key = v=>{ const chips = takeKey(v[0], v[1]); const E = enigmas()[v[0]];
   // one truth leads to the next: sometimes a Key points straight at another
-  if(E && !E.solved && foundKeys(E)<E.need && R()<.45){ const nx = E.keys.findIndex(kk=>keyReachable(kk)); if(nx>=0){ chips.push(['It points to another clue…','seed']); chips.push(...takeKey(v[0], nx)); } }
+  if(E && !E.solved && foundKeys(E)<E.need && R()<.55){ const nx = E.keys.findIndex(kk=>keyReachable(kk)); if(nx>=0){ chips.push(['It points to another clue…','seed']); chips.push(...takeKey(v[0], nx)); } }
   return chips; };
 FX_EXT.keyMiss = v=>{ const E=enigmas()[v[0]], kk=E&&E.keys[v[1]]; if(kk){ kk.tries=(kk.tries||0)+1; } return [['Closer next time','seed']]; };
 FX_EXT.leadTry = ()=>{ const L = openLeads(); if(!L.length || R()>.7) return [['The trail went cold','down']]; const l = L[Math.floor(R()*L.length)]; return takeKey(l.ei, l.ki); };
@@ -5457,6 +5480,21 @@ function enigmaEpilogue(kind){
   const P = S.world && S.world.prophecy;
   if(P && P.heard && kind!=='death') out.push(kind==='stayed' ? 'The old prophecy came true for someone else. You were busy.' : 'People still argue about what the old prophecy meant. Most of them have decided it was about you.');
   return out;
+}
+
+/* people who hold a Key sometimes let it slip, just from spending time with you */
+function passiveKeys(){
+  const a = S.year && S.year.arc; if(!a || !a.cast || a.id==='e_key') return [];
+  const ids = new Set(Object.values(a.cast));
+  for(let ei=0; ei<enigmas().length; ei++){
+    const E = enigmas()[ei]; if(E.solved) continue;
+    const ki = E.keys.findIndex(k=>!k.found && k.src.t==='npc' && ids.has(k.src.id));
+    if(ki>=0 && R()<.5){ const n = S.npcs[E.keys[ki].src.id]; return [[`${n?n.name:'Someone'} let something slip…`,'seed'], ...takeKey(ei, ki)]; }
+  }
+  // places hold Keys too: a story that takes you there may turn one up
+  const arc = ARC[a.id], scene = arc && arc.scene, place = {forest:'wood', ruins:'ruin', library:'academy', academy:'academy', capital:'capital', shrine:'home', village:'home'}[scene];
+  if(place && R()<.3){ for(let ei=0; ei<enigmas().length; ei++){ const E = enigmas()[ei]; if(E.solved) continue; const ki = E.keys.findIndex(k=>!k.found && k.src.t==='place' && k.src.p===place && keyReachable(k)); if(ki>=0) return [['You noticed something odd…','seed'], ...takeKey(ei, ki)]; } }
+  return [];
 }
 
 ;
@@ -5788,12 +5826,12 @@ function sworn(){ return people(n=>n.sworn && !n.nem); }
 /* ---------- the nemesis strikes ---------- */
 const NEM_LEVEL = ['', 'petty', 'dangerous', 'ruthless'];
 ARCS.push({
-  id:'n_strike', stage:['academy','adult'], repeat:true, cooldown:3, world:true, kind:'nemesis',
+  id:'n_strike', stage:['academy','adult'], repeat:true, cooldown:2, world:true, kind:'nemesis',
   title:'{x} Strikes Again',
   scene:'night',
   blurb:s=>{ const n = nemesis(); return n ? `${n.name} hasn't forgotten. ${n.nem>=2 ? 'This time, ' + (n.nem>=3?'they mean to finish it.':'they have been planning.') : 'And they want you to know it.'}` : ''; },
-  cond:s=>!!nemesis() && S.age>=12,
-  urgent:s=>{ const n = nemesis(); return !!n && n.nem>=2 && S.age-(n.struck||0)>=3; },
+  cond:s=>!!nemesis() && S.age>=12 && (!S.amb || S.amb.k!=='revenge' || true),
+  urgent:s=>{ const n = nemesis(); if(!n) return false; if(S.amb && S.amb.k==='revenge' && S.npcs[S.amb.target]===n) return S.age-(n.struck||0)>=2; return n.nem>=2 && S.age-(n.struck||0)>=3; },
   memo:'what happened between us',
   cast:{ x:{ pick:()=>nemesis() } },
   init:(s,v,c)=>{
@@ -5886,12 +5924,12 @@ function vowDone(kind){
   const t = A.target && S.npcs[A.target];
   return ({
     mystery: ()=>enigmas().filter(E=>E.solved).length>=2,
-    home: ()=>{ const T = wTrouble(); return !!(T && T.done) && (S.world.places.home.prosper||0)>=1; },
+    home: ()=>{ const T = wTrouble(); const pr = S.world.places.home.prosper||0; return (!!(T && T.done) && pr>=1) || pr>=3; },
     peace: ()=>kind ? kind==='peace' : peaceScore()>=3,
     revenge: ()=>!!t && (t.broken || t.peace || t.alive===false),
     friend: ()=>!!t && t.alive!==false && t.att>=3,
     name: ()=>repAt('capital')>=2 || S.fame>=30,
-    fortune: ()=>S.gold>=400 || S.income>=30
+    fortune: ()=>S.gold>=300 || S.income>=25
   }[A.k]||(()=>false))();
 }
 function vowWeight(a){
@@ -5926,6 +5964,10 @@ ARCS.push({
       ]}
   }
 });
+function vowAfterArc(arcId){
+  if(S.amb && S.amb.k==='home' && /^p_/.test(arcId)){ const H = S.world.places.home; H.prosper = (H.prosper||0) + 1; return [[`${H.name} prospers`, 'up']]; }
+  return [];
+}
 FX_EXT.vow = v=>{ const [k, target] = [].concat(v); S.amb = {k, target:target||null, age:S.age}; chronicle(`Vowed ${vowText()}.`); return [[`Vow: ${fmt(VOWS[k].name)}`, 'seed']]; };
 
 /* ---------- hooks into the rest of the engine ---------- */
@@ -7360,7 +7402,9 @@ function openSheet(tab){
       <div class="muted small">Tap the text box or the scene to skip ahead or turn the page.</div>
       <div class="eyebrow">Game</div>
       <button class="btn ghost wide" id="quit">Save and return to title</button>
-      <div class="muted small">${cloudMsg()}</div>`;
+      <div class="muted small">${cloudMsg()}</div>
+      <div class="eyebrow">How this world works</div>
+      ${GUIDE.map(([h,t])=>`<details class="guide"><summary>${h}</summary><p>${t}</p></details>`).join('')}`;
   }
   overlay(`
     <div class="sheet-head"><div class="tabs" role="tablist">${tabs.map(t=>`<button role="tab" class="${UI.tab===t[0]?'on':''}" data-stab="${t[0]}">${t[1]}</button>`).join('')}</div><button class="x" data-close aria-label="Close">✕</button></div>
@@ -7380,6 +7424,17 @@ function openHall(){
   overlay(`<div class="sheet-head"><h3>Past lives</h3><button class="x" data-close aria-label="Close">✕</button></div><div class="sheet-body">${items}</div>`, 'side');
   oroot.querySelectorAll('[data-life]').forEach(b=>b.onclick=()=>openBook(HALL[+b.dataset.life]));
 }
+const GUIDE = [
+  ['🗝 World Keys', 'Every world is built from its World Key. The same Key always makes the same land, people and secrets, so you can share a Key with a friend and compare your lives.'],
+  ['📜 Stories', 'Each year you pick one of three stories. The Director chooses them from what is actually happening: your village’s trouble, the people you know, old promises and grudges coming due, and the kinds of choices you tend to make.'],
+  ['🔍 Enigmas', 'Every world hides three mysteries with a different answer each time. Find Keys by following leads, chasing them in the quiet months, or spending time with the people who know something. Three Keys unlock the truth. The Codex tracks them.'],
+  ['💬 People', 'Everyone has their own voice, wants and secrets. People remember what you did for them or to them, and say so. Trusted friends tell you their secrets. Helping or hurting someone reaches their whole family.'],
+  ['♥ Friends and 🔑 secrets', 'In a tough moment you can call on a devoted friend for help, or use a secret you know about someone in the scene. Friends you stand by more than once may swear to stand by you, and count double in the final battle.'],
+  ['⚔ Nemeses', 'Hurt someone badly enough and they become your nemesis. They will strike at your business, friends or name, and come back harder each time you beat them, until they break or you make peace.'],
+  ['🗣 Rumours', 'Your deeds travel between your village, the Academy and the capital, and change along the way. Enemies spread lies. What people say about you changes your Charm rolls there.'],
+  ['✦ Vows and the prophecy', 'At sixteen you make a vow, and the stories bend toward it. Every world also has a prophecy. Whether you keep your vow, and whether the prophecy was about you, is up to you.'],
+  ['🦋 Rebirth', 'When a life ends you can read the Book of Your Life, see the choices that mattered most, and be reborn into the same world decades later. Your old life becomes its history, and the world remembers.']
+];
 function bookText(h){
   const L = h.leg, out = [`${L.name.toUpperCase()}: ${L.title}`, `A life in ${L.home}, Kingdom of ${L.kingdom} · World Key ${L.key}`, ''];
   L.book.forEach(c=>{ out.push(c.h.toUpperCase()); if(c.open) out.push(c.open); out.push(c.t, ''); });
