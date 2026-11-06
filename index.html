@@ -359,6 +359,13 @@ button.hall-item{width:100%;text-align:left;color:inherit;font:inherit;cursor:po
 .guide summary::after{content:' ▸';opacity:.6}
 .guide[open] summary::after{content:' ▾'}
 .guide p{margin:4px 0 6px;font-size:13.5px;line-height:1.5;opacity:.9}
+button.person.tap{width:100%;text-align:left;background:none;border:0;border-bottom:2px dotted #2c3a80;color:inherit;font:inherit;cursor:pointer;padding-left:0;padding-right:0}
+button.person.tap:active{background:rgba(255,255,255,.04)}
+.p-hero{display:flex;gap:12px;align-items:center;margin:4px 0 10px}
+.p-hero img.head.big{width:84px;height:84px}
+.ties{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 8px}
+.tie{font-size:12px;border:1px solid var(--line);padding:2px 6px;opacity:.85}
+.gold{color:var(--gold, #ffd36b)}
 </style>
 </head>
 <body>
@@ -934,9 +941,9 @@ function worldTick(years){
       const dp = (a>80 ? .25 : a>65 ? .07 : a>45 ? .012 : .003) * (p.keep ? .15 : 1);
       if(R()<dp){ p.alive=false; p.died=yearAge; say(a<16 ? `${p.name} ${p.sur} died of a fever, aged ${a}. ${W.places[p.home]?W.places[p.home].name:'The town'} mourned.` : `${p.name} ${p.sur}${!['child','student'].includes(p.role)?', the '+(TRADES[p.role]||p.role)+',':''} died ${a>65?'peacefully, at '+a:'suddenly, at '+a}.`, [p], p.met); if(p.met && (p.att||0)>=0) (W.pending=W.pending||[]).push({k:'funeral', a:p.id, age:S.age}); continue; }
       // marriage
-      if(a>=18 && a<=40 && !tiesOf(p,'spouse').some(x=>x.alive!==false) && R()<.09){
+      if(a>=18 && a<=40 && !p.pc && !tiesOf(p,'spouse').some(x=>x.alive!==false) && R()<.09){
         const crush = (p.ties||[]).find(t=>t.k==='crush'); let q = crush ? S.npcs[crush.id] : null;
-        if(!q || q.alive===false || tiesOf(q,'spouse').some(x=>x.alive!==false)) { const pool = ppl().filter(o=>!o.arch && o.g!==p.g && o.home===p.home && Math.abs(o.born-p.born)<10 && (yearAge-o.born)>=18 && !tiesOf(o,'spouse').some(x=>x.alive!==false)); q = pool[Math.floor(R()*pool.length)]; }
+        if(!q || q.alive===false || tiesOf(q,'spouse').some(x=>x.alive!==false)) { const pool = ppl().filter(o=>!o.arch && !o.pc && o.g!==p.g && o.home===p.home && Math.abs(o.born-p.born)<10 && (yearAge-o.born)>=18 && !tiesOf(o,'spouse').some(x=>x.alive!==false)); q = pool[Math.floor(R()*pool.length)]; }
         if(q){ p.ties.push({id:q.id,k:'spouse'}); q.ties.push({id:p.id,k:'spouse'}); const at = W.places[p.home] ? W.places[p.home].name : 'the capital';
           say(`${p.name} ${p.sur} married ${q.name} ${q.sur} in ${at}.${(p.ties.find(t=>t.k==='crush'&&t.id===q.id))?' Everyone saw it coming.':''}`, [p,q], p.met||q.met); }
         if(q && (p.met||q.met)) (W.pending=W.pending||[]).push({k:'wedding', a:p.id, b:q.id, age:S.age});
@@ -1439,7 +1446,7 @@ function choose(i){
   delete S._turn;
   S.year.chips.push(...chips);
   if(br.log || c.log){ const lg = fmt(br.log || c.log); chronicle(lg); if(typeof spawnRumour==='function') spawnRumour(lg, chips); }
-  let go = typeof br.go==='function' ? br.go(S, ctxVars(), castObj()) : br.go;
+  const gv = br.go!=null ? br.go : c.go; let go = typeof gv==='function' ? gv(S, ctxVars(), castObj()) : gv;
   if(!go) go = 'END';
   S.year.arc.prev = {label, text, chips, roll: roll ? {roll:roll.roll, ok:roll.ok, bonus:roll.bonus, dc:roll.dc, parts:roll.parts, reroll:roll.reroll, auto:roll.auto} : null};
   if(S.hp<=0 && !arc.final){ S.year.phase='done'; S.year.dead=true; HOOKS.save(); return; }
@@ -1484,6 +1491,7 @@ function chooseDowntime(id){
   S.age = next;
   worldTick(gap);
   if(typeof socialTick==='function') socialTick(gap);
+  if(typeof hearthTick==='function') hearthTick(gap);
   S.hp = clamp(S.hp + Math.round(S.maxhp*0.3*gap), 0, S.maxhp);
   startYear(note);
 }
@@ -4871,6 +4879,234 @@ ARCS.push({
 
 ;
 /* =========================================================
+   ENIGMA-KEY — more world patterns
+   Story shapes with roles instead of names. The Director casts them
+   from whoever in this world fits: your friends, the village's
+   families, the old, the powerful and the strangers passing through.
+   ========================================================= */
+const ageOf = p=>p && p.born!=null ? personAge(p) : 30;
+const knownAdult = (pred, used)=>worldPool(p=>p.met && ageOf(p)>=18 && (!pred || pred(p)), used);
+
+/* ---------- 1. THE DEBT COMES DUE ---------- */
+ARCS.push({
+  id:'q_debt', stage:['academy','adult'], repeat:true, cooldown:5, world:true, kind:'bond', memo:'the debt',
+  title:'The Debt Comes Due', scene:'market',
+  blurb:'{d} owes money to {c}, and {c} has stopped being patient. {d} hasn\'t told anyone. You found out anyway.',
+  cond:s=>knownAdult(p=>(p.att||0)>=2).length>0,
+  cast:{
+    d:{ pick:(s,used)=>knownAdult(p=>(p.att||0)>=2, used).sort((a,b)=>(b.att||0)-(a.att||0))[0] || null },
+    c:{ pick:(s,used)=>pickOne(worldPool(p=>['merchant','noble','innkeeper','thief','brewer','miller'].includes(p.role) && ((p.tmp||{}).warm||0)<=0 && ageOf(p)>=25, used)), role:'merchant', trait:'greedy' }
+  },
+  init:(s,v)=>{ v.sum = 40 + 10*Math.floor(R()*5); },
+  start:'a',
+  beats:{
+    a:{ scene:'market', text:`You find {d} sitting on the back step of the market with {d.his} head in {d.his} hands. It takes a while to get it out of {d.him}.\n\n"I borrowed from {c}," {d} says at last. "When things were bad. {v.sum} gold. It was {v.sum} gold. Now {c.he} says it's twice that, and if I can't pay by the end of the season, {c.he} takes everything."\n\nAcross the square, {c} is watching the two of you. {c.He} raises a hand, pleasantly.`,
+      choices:[
+        {label:'Pay it yourself.', req:(s,v)=>s.gold>=v.sum*2, reqText:'Not enough gold', t:'You count the gold out onto {c}\'s table, coin by coin, while {c.he} watches. {c.He} doesn\'t thank you. {d} can\'t stop.', fx:(s,v)=>({gold:-v.sum*2, npc:{d:4}, seed:{k:'owed', npc:'d'}}), log:'Paid off {d}\'s debt to {c}.', go:'END'},
+        {label:'Read the contract.', check:{stat:'wit', dc:12}, win:{t:'Line nine. The interest {c} has been charging is illegal under the kingdom\'s own law. You read it out to {c}, loudly, in front of the market. The debt goes back to {v.sum} gold, and {c} goes red.', fx:{npc:{d:3, c:-2}, wit:1, set:{fair:1}}}, lose:{t:'The contract is airtight. {c} wrote it that way on purpose.'}, go:'deal'},
+        {label:'Talk to {c}.', check:{stat:'cha', dc:13, npc:'c'}, win:{t:'You talk for an hour. {c} likes being flattered more than {c.he} likes {d}\'s money. The deadline moves to next year.', fx:{npc:{c:1}, set:{fair:1}}}, lose:{t:'{c} listens politely, then says, "No," and goes back to {c.his} accounts.'}, go:'deal'}
+      ]},
+    deal:{ scene:'market', text:(s,v)=>v.fair ? 'You have bought {d} some room to breathe. Now you have to decide what to do with it.' : '{c} isn\'t going to budge. The season is ending.',
+      choices:[
+        {label:'Work alongside {d} until it\'s paid.', check:{stat:'str', dc:11}, win:{t:'A season of double shifts, aching backs and terrible jokes. On the last day, {d} hands {c} the final coin and walks out without looking back.', fx:{str:1, npc:{d:3}, seed:{k:'friend', npc:'d'}}, log:'Worked a whole season to clear {d}\'s debt.', go:'END'},
+          lose:{t:'You get most of the way there. {c} takes {d}\'s cart for the rest. It could have been the house.', fx:{npc:{d:2, c:-1}}, go:'END'}},
+        {label:'Use what you know about {c}.', show:(s,v,c)=>!!(c.c && c.c.secretKnown), t:'You lean in and remind {c}, quietly, of what you know about {c.him}. The debt is forgiven by the end of the day. {c} will never forgive you.', fx:{npc:{d:3, c:-3}, seed:{k:'grudge', npc:'c'}}, log:'Made {c} forgive {d}\'s debt.', go:'END'},
+        {label:'Steal the debt ledger.', check:{stat:'luck', dc:13}, win:{t:'One night, one window, one ledger in the river. Nobody can prove {d} owes anyone anything. {c} suspects you. {c.He} can\'t prove that either.', fx:{luck:1, npc:{d:2, c:-3}, seed:{k:'grudge', npc:'c'}}, log:'Drowned {c}\'s debt ledger in the river.', go:'END'},
+          lose:{t:'{c}\'s dog is awake. So, after the dog, is {c}. You run. Everyone in town knows by morning.', fx:{hp:-3, fame:-1, npc:{c:-3}, seed:{k:'grudge', npc:'c'}}, go:'END'}},
+        {label:'Let {d} handle it.', t:'It isn\'t your fight. {d} says {d.he} understands. {d.He} sells the house in spring.', fx:{npc:{d:-2}}, go:'END'}
+      ]}
+  }
+});
+
+/* ---------- 2. FORBIDDEN LOVE ---------- */
+function loversPair(used){
+  const young = worldPool(p=>ageOf(p)>=16 && ageOf(p)<=28 && p.home==='home' && p.fam && !tiesOf(p,'spouse').some(x=>x.alive!==false) && !p.pc, used);
+  const T = wTrouble();
+  const feud = T && T.k==='feud' && !T.done;
+  for(let i=0;i<40;i++){
+    const a = pickOne(young); if(!a) return null;
+    const b = pickOne(young.filter(o=>o.g!==a.g && o.fam!==a.fam && Math.abs(o.born-a.born)<=5 && (!feud || [T.fa,T.fb].includes(o.fam)) && (!feud || [T.fa,T.fb].includes(a.fam))));
+    if(b) return [a,b];
+  }
+  return null;
+}
+ARCS.push({
+  id:'q_lovers', stage:['academy','adult'], minAge:13, repeat:false, world:true, kind:'love', memo:'the night we ran',
+  title:'Two Houses', scene:'night',
+  blurb:'{a} and {b} are in love. Their families would sooner see them dead. They need someone to carry the letters.',
+  cond:s=>!!loversPair(new Set()),
+  cast:{ a:{ pick:(s,used)=>{ const p = loversPair(used); dirState().lovers = p ? p.map(x=>x.id) : null; return p ? p[0] : null; } }, b:{ pick:()=>S.dir && S.dir.lovers ? S.npcs[S.dir.lovers[1]] : null, role:'farmer' } },
+  repeatCheck:true,
+  init:(s,v,c)=>{ const T = wTrouble(); v.feud = !!(T && T.k==='feud' && !T.done); v.fa = familyOf(c.a) ? familyOf(c.a).sur : 'their'; v.fb = familyOf(c.b) ? familyOf(c.b).sur : 'their'; },
+  start:'a',
+  beats:{
+    a:{ scene:'night', text:(s,v)=>`A pebble at your window, after midnight. It's {a}, breathless, with a letter in {a.his} hand that isn't addressed to you.\n\n"It's for {b}," {a} whispers. "Of the {v.fb} family. ${v.feud?'You know what my family would do. You know what the '+v.fb+'s would do.':'My family has already picked someone else for me.'} You're the only one I trust. Please."`,
+      choices:[
+        {label:'Carry the letters.', check:{stat:'luck', dc:11}, win:{t:'All spring, you are the busiest postman in {home}: notes in bread rolls, notes under stones, one very confused carrier pigeon. Nobody catches you.', fx:{luck:1, npc:{a:2, b:2}}}, lose:{t:'{a}\'s mother finds a letter in your coat. There is screaming. Now everyone knows.', fx:{set:{caught:1}}}, go:'b'},
+        {label:'Tell them to be careful.', t:'"Be careful," you say, and you mean it. {a} hugs you and runs off into the dark, and the letters find their own way after that.', go:'b'},
+        {label:'Refuse. It\'s not your business.', t:'{a} goes very quiet, and leaves. The letters stop. A year later, {a} marries the person {a.his} family chose, and never looks at you the same way again.', fx:{npc:{a:-2}}, go:'END'}
+      ]},
+    b:{ scene:'night', text:(s,v)=>v.caught ? `Both families know now. {a} has been locked in. {b} has been sent to an uncle's farm "for the summer." It is only spring.\n\nYou have one night to do something.` : `By midsummer, the secret isn't much of a secret. {a} and {b} want to marry. Their families will never allow it.\n\nThey look at you as if you might know what to do.`,
+      choices:[
+        {label:'Talk to both families, together.', check:{stat:'cha', dc:14}, win:{t:(s,v)=>`It is the longest, loudest evening in the history of {home}. Then {a}'s grandmother says, "Oh, let them," and that is that.${v.feud?' The feud between the '+v.fa+'s and the '+v.fb+'s dies the same night, of embarrassment.':''}`, fx:(s,v)=>Object.assign({cha:2, fame:1, npc:{a:3, b:3}, lovers:1}, v.feud?{resolve:'The feud ended when two of its children got married.'}:{}), log:'Talked two families into letting {a} and {b} marry.', go:'END'},
+          lose:{t:'Both families shout at you instead of each other, which is something, but not enough. {a} and {b} make their own plans.', go:'run'}},
+        {label:'Help them run away.', t:'If the families won\'t move, the lovers will.', go:'run'}
+      ]},
+    run:{ scene:'night', text:'A borrowed horse, a bundle of clothes, a forged travel paper and a full moon, which is terrible luck for running away. {a} and {b} wait at the edge of {wood} for your signal.',
+      choices:[
+        {label:'Lead them out through {wood}.', check:{stat:'wit', dc:12}, win:{t:'By dawn they are three villages away, laughing, married by a hedge priest who asked no questions. They send you a letter every year after that.', fx:{wit:1, npc:{a:4, b:4}, seed:{k:'owed', npc:'a'}, lovers:2}, log:'Helped {a} and {b} elope.', go:'END'},
+          lose:{t:'You get lost. Badly. You all end up back at the village gate at sunrise, where both families are waiting. Nobody speaks to you for a month. But the families, having seen how far the two of them would go, quietly give in.', fx:{npc:{a:2, b:2}, lovers:1}, go:'END'}},
+        {label:'Hold off the searchers while they go.', check:{stat:'combat', dc:12}, win:{t:'You stand in the road with a stick and a terrible attitude until the searchers give up. Somewhere behind you, two people ride toward a whole new life.', fx:{str:1, fame:1, npc:{a:3, b:3}, lovers:2}, log:'Held the road while {a} and {b} eloped.', go:'END'},
+          lose:{t:'They knock you into a ditch, but by the time they climb out of it themselves, the lovers are gone.', fx:{hp:-4, npc:{a:3, b:3}, lovers:2}, go:'END'}}
+      ]}
+  }
+});
+Object.assign(FLAG_NAMES, {doubleAgent:'A spy who works for you'});
+FX_EXT.lovers = (how, ctx)=>{
+  const a = S.npcs[S.year.arc.cast.a], b = S.npcs[S.year.arc.cast.b]; if(!a || !b) return [];
+  a.ties.push({id:b.id, k:'spouse'}); b.ties.push({id:a.id, k:'spouse'});
+  if(how===2){ a.home = b.home = 'away'; }
+  S.world.log.push({age:S.age, t:`${a.name} ${a.sur} and ${b.name} ${b.sur} were married${how===2?', far from home':''}.`});
+  return [[`${a.name} & ${b.name}, married`, 'heart']];
+};
+
+/* ---------- 3. AN INHERITANCE ---------- */
+function willCase(used){
+  return Object.values(S.npcs).find(d=>d.w && d.alive===false && d.died!=null && S.age-d.died<=3 && !d.willDone && tiesOf(d,'child').filter(k=>k.alive!==false && ageOf(k)>=16 && !(used&&used.has(k.id))).length>=2) || null;
+}
+ARCS.push({
+  id:'q_will', stage:['academy','adult'], repeat:true, cooldown:4, world:true, kind:'mystery', memo:'the inheritance',
+  title:'What the Dead Leave Behind', scene:'village',
+  blurb:'{x} is barely in the ground, and {a} and {b} are already fighting over what {x.he} left.',
+  cond:s=>!!willCase(),
+  cast:{
+    x:{ pick:()=>willCase() },
+    a:{ pick:(s,used)=>{ const d = willCase(); return d ? tiesOf(d,'child').filter(k=>k.alive!==false && ageOf(k)>=16 && !used.has(k.id))[0] : null; } },
+    b:{ pick:(s,used)=>{ const d = willCase(); return d ? tiesOf(d,'child').filter(k=>k.alive!==false && ageOf(k)>=16 && !used.has(k.id))[0] : null; } }
+  },
+  init:(s,v,c)=>{ c.x.willDone = true; const f = familyOf(c.x); v.what = f ? ({smith:'the forge',innkeeper:'the inn',baker:'the bakery',miller:'the mill',farmer:'the farm',merchant:'the shop',brewer:'the brewhouse'}[f.trade]||'the house') : 'the house'; v.truth = ['a','b','both','neither'][Math.floor(R()*4)]; },
+  start:'a',
+  beats:{
+    a:{ scene:'village', text:`{x}'s will was supposed to be in the chest under the bed. The chest is empty.\n\n{a} says {x} promised {a.him} {v.what}. {b} says {x} promised it to {b.him}, years ago, in front of witnesses who are now conveniently dead. The two of them haven't spoken a civil word since the funeral, and half of {home} has picked a side.\n\nBoth of them, separately, ask for your help.`,
+      choices:[
+        {label:'Search for the real will.', check:{stat:'wit', dc:12}, win:{t:'Not in the chest. In the last place anyone would look: sewn into the lining of {x}\'s favourite coat, which {b} had been about to give away.', fx:{wit:1}}, lose:{t:'You search the house top to bottom. Nothing. Whatever {x} wanted, {x.he} took it with {x.him}.', fx:{set:{lost:1}}}, go:'b'},
+        {label:'Get them to talk to each other.', check:{stat:'cha', dc:13}, win:{t:'You lock them in the kitchen with a pot of tea and refuse to let them out. Three hours later, they are crying about their father\'s terrible jokes. Neither of them mentions {v.what}.', fx:{npc:{a:2, b:2}, cha:1, set:{lost:1, soft:1}}}, lose:{t:'The tea is thrown. At you, mostly.', fx:{set:{lost:1}}}, go:'b'},
+        {label:'Side with {a}.', t:'You tell everyone {a} is right. {a} gets {v.what}. {b} gets a grudge.', fx:{npc:{a:3, b:-3}, seed:{k:'grudge', npc:'b'}}, log:'Took {a}\'s side in the fight over {x}\'s will.', go:'END'},
+        {label:'Side with {b}.', t:'You tell everyone {b} is right. {b} gets {v.what}. {a} gets a grudge.', fx:{npc:{b:3, a:-3}, seed:{k:'grudge', npc:'a'}}, log:'Took {b}\'s side in the fight over {x}\'s will.', go:'END'}
+      ]},
+    b:{ scene:'village', text:(s,v)=>v.lost ? (v.soft ? 'There is no will. There are two grieving people who have just remembered that they are family.' : 'There is no will. There are two people who would rather lose everything than let the other one win.') :
+        ({a:'The will is short. {v.what} goes to {a}. And then a line nobody expected: *{b} is to have my coat, my pipe and my apology. I was too proud to say it while I was alive.*',
+          b:'The will is short. {v.what} goes to {b}, "who stayed." And then: *{a}, I was always proud of you for leaving. I just never said so.*',
+          both:'The will is short. {v.what} goes to {a} and {b}, together, "because they will hate that, and it will be good for them."',
+          neither:'The will is short. {v.what} is to be sold, and the money given to the shrine. A last line: *Now you two have nothing to fight about. Go and have dinner.*'})[v.truth],
+      choices:[
+        {label:'Read it out to them both.', t:'You read it out loud, every word. There is a long silence. Then {a} laughs, or sobs, or both, and {b} puts an arm around {a.him}. {x} would have liked that.', fx:{npc:{a:2, b:2}, fame:1}, log:'Settled {x}\'s will, and two siblings made up.', go:'END'},
+        {label:'Suggest they split it.', check:{stat:'cha', dc:11}, win:{t:'Half each. Neither is happy. Both can live with it. That is what fair looks like, most of the time.', fx:{cha:1, npc:{a:1, b:1}}, go:'END'}, lose:{t:'They both hate the idea, which, you point out, is a good sign that it is fair. It doesn\'t help.', fx:{npc:{a:-1, b:-1}}, go:'END'}},
+        {label:'Walk away. It\'s their family.', t:'You leave them to it. In a year, one of them moves away. You never find out which one was right.', go:'END'}
+      ]}
+  }
+});
+
+/* ---------- 4. THE STRANGER ---------- */
+const STRANGER_KINDS = ['spy','witness','runaway'];
+ARCS.push({
+  id:'q_stranger', stage:['child','academy','adult'], minAge:9, repeat:true, cooldown:5, world:true, kind:'mystery', memo:'the night you found me out',
+  title:'The Stranger at the Inn', scene:'tavern',
+  blurb:'Someone new has come to {home}. Pays in old coins. Asks a lot of questions. Answers none.',
+  cast:{ x:{ pick:()=>{ const n = makeNpc({role:pickOne(['adventurer','merchant','bard','scholar'])}); n.home = 'away'; n.stranger = 1; n.w = 0; return n; } } },
+  init:(s,v,c)=>{
+    const lead = openLeads().filter(l=>enigmas()[l.ei].keys[l.ki].src.t==='place')[0];
+    v.k = lead && R()<.6 ? 'witness' : (S.age>=14 && R()<.6 ? 'spy' : pickOne(STRANGER_KINDS));
+    if(v.k==='witness' && !lead) v.k = 'runaway';
+    if(lead){ v.ei = lead.ei; v.ki = lead.ki; }
+    v.side = crisisIs('usurper') ? 'the duke\'s banner' : crisisIs('otherworlder') ? 'the Hero\'s empire' : 'the north';
+  },
+  start:'a',
+  beats:{
+    a:{ scene:'tavern', text:`{x} has taken the corner table at the inn for a week now. {x.He} pays in coins so old the innkeeper had to bite one. {x.He} asks about the roads, the ruins, the old families, and who lives where.\n\nNobody asks {x.him} anything back. Nobody quite dares.`,
+      choices:[
+        {label:'Sit down at {x}\'s table.', check:{stat:'cha', dc:12, npc:'x'}, win:{t:'{x} looks at you for a long time, then pushes a cup across the table. "Fine," {x.he} says. "You can have one question."', fx:{npc:{x:2}, set:{trust:1}}}, lose:{t:'"No," {x} says, and goes back to {x.his} soup.'}, go:'b'},
+        {label:'Watch {x} from a distance.', check:{stat:'wit', dc:12}, win:{t:'You notice what nobody else has: {x} writes everything down, in a code, and never sleeps in the same room twice.', fx:{wit:1, set:{seen:1}}}, lose:{t:'You notice {x} noticing you. That is all you notice.'}, go:'b'},
+        {label:'Search {x}\'s room.', check:{stat:'luck', dc:13}, win:{t:'Under the mattress: a bundle of papers, and a seal you recognize.', fx:{luck:1, set:{seen:1}}}, lose:{t:'{x} is sitting on the bed when you open the door. "Looking for something?"', fx:{npc:{x:-2}}}, go:'b'}
+      ]},
+    b:{ scene:'tavern', text:(s,v)=>({
+        spy:`It comes out in the end, the way these things do. {x} is a spy for ${v.side}, mapping {home}'s roads and counting its young people. ${v.trust?'{x.He} tells you {x.him}self, tiredly. "Someone was always going to work it out. I hoped it would be someone kind."':'You have the proof in your hand.'}`,
+        witness:`{x} is a scholar, of a sort, who has spent twenty years chasing the same question you have: ${enigmaQ(enigmas()[v.ei])} ${v.trust||v.seen?'{x.He} has found something. {x.He} is willing to share it, with the right person.':'{x.He} has found something, and {x.he} does not trust you with it. Yet.'}`,
+        runaway:`{x} isn't a stranger at all, not really. {x.He} was born in {capital} to a family with a great deal of money and a very small heart, and {x.he} ran. ${v.trust?'{x.He} tells you everything, and asks you not to tell anyone {x.he} is here.':'And someone from that family has just ridden into {home}, asking questions of their own.'}`
+      })[v.k],
+      choices:[
+        {label:'Turn the spy in.', show:(s,v)=>v.k==='spy', t:'You take the papers to the village guard. {x} is gone by morning, in chains, on a cart to {capital}. The town looks at you differently after that: half grateful, half afraid.', fx:{fame:2, omen:-1, npc:{x:-4}, seed:{k:'grudge', npc:'x'}}, log:'Unmasked a spy for {v.side} in {home}.', go:'END'},
+        {label:'Turn the spy around.', show:(s,v)=>v.k==='spy', check:{stat:'cha', dc:14, npc:'x'}, win:{t:'"They pay me badly," {x} says, "and they never once asked my name." From now on, the maps {x} sends home are wrong in very useful ways.', fx:{wit:1, npc:{x:3}, seed:{k:'owed', npc:'x'}, flag:'doubleAgent'}, log:'Turned a spy for {v.side} into your own.', go:'END'},
+          lose:{t:'{x} smiles, says "Of course," and is gone before dawn, taking {x.his} maps with {x.him}.', fx:{omen:1}, go:'END'}},
+        {label:'Trade what you know.', show:(s,v)=>v.k==='witness', t:'You tell {x} what you have found. {x} tells you what {x.he} has found. It is a fair trade. It is a very good trade.', fx:(s,v)=>({key:[v.ei, v.ki], npc:{x:2}}), log:'Traded secrets with a travelling scholar.', go:'END'},
+        {label:'Earn {x}\'s trust.', show:(s,v)=>v.k==='witness', check:{stat:'wit', dc:12}, win:{t:'You answer {x}\'s riddles, one by one, until {x.he} laughs and opens {x.his} notebook to you.', fx:(s,v)=>({key:[v.ei, v.ki], wit:1, npc:{x:3}})}, lose:{t:'{x} shakes {x.his} head kindly. "Not yet. Find me again when you know more." {x.He} leaves the next day.', fx:{npc:{x:1}}}, go:'END'},
+        {label:'Hide the runaway.', show:(s,v)=>v.k==='runaway', check:{stat:'luck', dc:11}, win:{t:'The family\'s man searches every house in {home} except the one with you standing in the doorway looking bored. {x} stays. {x} becomes, in time, just another neighbour.', fx:{npc:{x:4}, seed:{k:'friend', npc:'x'}, npcSet:{x:{home:'home'}}}, log:'Hid a runaway from {capital} in {home}.', go:'END'},
+          lose:{t:'They find {x} in the hayloft. {x} is gone the next day, but {x.he} gets a letter to you, months later: *I\'ll get out again. Thank you for trying.*', fx:{npc:{x:2}}, go:'END'}},
+        {label:'Tell the family where {x} is.', show:(s,v)=>v.k==='runaway', t:'The reward is generous. {x}\'s face, as they lead {x.him} away, is not.', fx:{gold:40, npc:{x:-4}, seed:{k:'grudge', npc:'x'}}, go:'END'},
+        {label:'Leave {x} alone.', t:'Some people are passing through. You let {x} pass. {x} nods to you on the way out of town, as if you had done {x.him} a favour. Maybe you had.', go:'END'}
+      ]}
+  }
+});
+
+/* ---------- 5. THE LAST LESSON ---------- */
+const LESSON = {smith:['str','how to hit something exactly as hard as it needs'], hunter:['str','how to stand so still the forest forgets you are there'], healer:['wit','how to set a bone, and how to sit with someone who is dying'],
+  priest:['luck','how to pray properly, which turns out to be mostly listening'], scholar:['wit','how to read a lie in a book'], mage:['mag','the one spell nobody writes down'], farmer:['luck','how to read the sky'],
+  merchant:['cha','how to make people want to say yes'], innkeeper:['cha','how to remember everyone\'s name'], elder:['wit','everything about everyone in the village, and which parts were true'], knight:['str','how to fall without getting hurt'], bard:['cha','the song that makes a whole room go quiet']};
+ARCS.push({
+  id:'q_lesson', stage:['academy','adult'], repeat:true, cooldown:5, world:true, kind:'bond', memo:'my last lesson',
+  title:'The Last Lesson', scene:'village',
+  blurb:'{m} is old and ill and knows it. {m.He} has sent for you. There is one more thing {m.he} wants to teach you.',
+  cond:s=>knownAdult(p=>(p.att||0)>=2 && ageOf(p)>=58).length>0,
+  cast:{ m:{ pick:(s,used)=>knownAdult(p=>(p.att||0)>=2 && ageOf(p)>=58, used).sort((a,b)=>a.born-b.born)[0] || null } },
+  init:(s,v,c)=>{ const L = LESSON[c.m.role] || LESSON.elder; v.st = L[0]; v.what = L[1]; fillMind(c.m);
+    const own = openLeads().find(l=>{ const k = enigmas()[l.ei].keys[l.ki]; return k.src.t==='npc' && k.src.id===c.m.id; }) || openLeads().find(l=>enigmas()[l.ei].keys[l.ki].src.t==='place');
+    if(own){ v.ei = own.ei; v.ki = own.ki; } },
+  start:'a',
+  beats:{
+    a:{ scene:'village', text:`{m} is propped up in bed by the window, thinner than you remember, eyes as sharp as ever.\n\n"Don't make that face," {m} says. "I'm old. It's allowed. Sit down. I've been meaning to teach you something for years, and I've run out of later."\n\nIt's {v.what}.`,
+      choices:[
+        {label:'Listen to every word.', t:'You stay all afternoon, then all evening. {m} teaches the way old people teach: sideways, with stories, and with no patience at all for questions that don\'t matter.', fx:(s,v)=>({[v.st]:2, npc:{m:2}}), go:'b'},
+        {label:'Ask about {m}\'s life instead.', t:'{m} looks surprised, then pleased. Nobody has asked in years. The lesson gets taught anyway, hidden inside the stories.', fx:(s,v)=>({[v.st]:1, cha:1, npc:{m:3}}), go:'b'}
+      ]},
+    b:{ scene:'night', text:(s,v,c)=>`When it is dark, {m} gets quiet. "One more thing. I've never told anyone." {m.He} tells you that {m.he} ${c.m && c.m.secret ? c.m.secret : 'was afraid, all {m.his} life, of exactly this'}.${v.ei!=null ? `\n\nAnd then, almost as an afterthought: "You've been asking questions about the old days. Here." {m.He} presses something into your hand.` : ''}`,
+      choices:[
+        {label:'Hold {m}\'s hand until {m.he} sleeps.', t:'{m} falls asleep holding your hand, and doesn\'t wake. It is the gentlest thing you have ever seen.', fx:(s,v)=>Object.assign({lastLesson:'m', luck:1}, v.ei!=null?{key:[v.ei, v.ki]}:{}), log:'Learned {m}\'s last lesson.', go:'END'},
+        {label:'Promise to remember.', t:'"Good," {m} says. "That\'s all any of us get, in the end. Somebody who remembers." {m.He} dies three days later, in the morning, with the window open.', fx:(s,v)=>Object.assign({lastLesson:'m', wit:1}, v.ei!=null?{key:[v.ei, v.ki]}:{}), log:'Learned {m}\'s last lesson.', go:'END'}
+      ]}
+  }
+});
+FX_EXT.lastLesson = r=>{ const n = S.npcs[S.year.arc.cast[r]]; if(!n) return []; n.secretKnown = n.secretKnown || S.age; n.alive = false; n.died = S.age; (S.world.pending = S.world.pending || []).push({k:'funeral', a:n.id, age:S.age}); S.world.log.push({age:S.age, t:`${n.name} ${n.sur} died, with a friend at ${PRON[n.g].his} side.`}); return [[`${n.name} is gone`, 'down']]; };
+
+/* ---------- 6. THE FESTIVAL GOES WRONG ---------- */
+ARCS.push({
+  id:'q_fest_wrong', stage:'adult', repeat:true, cooldown:4, world:true, kind:'hero', memo:'the night of the fire',
+  title:'Fire at the Festival', scene:'night',
+  blurb:'Lanterns, music, the whole of {home} in the square for {festival}. Then someone screams.',
+  cast:{ h:{ pick:(s,used)=>pickOne(worldPool(p=>p.home==='home' && ageOf(p)>=18, used)), role:'farmer' }, k:{ pick:(s,used)=>pickOne(worldPool(p=>p.home==='home' && ageOf(p)>=5 && ageOf(p)<=12, used)), role:'child' } },
+  init:(s,v)=>{ v.c = pickOne(['fire','bull','cider']); const foe = typeof nemesis==='function' && nemesis(); if(foe && R()<.5) v.foe = foe.name; },
+  start:'a',
+  beats:{
+    a:{ scene:'night', text:(s,v)=>({
+        fire:`A lantern falls. Then the bunting catches, then the hay bales, then the stalls, all in the time it takes to shout. Smoke rolls across the square. Somewhere in it, a child is crying for {h}. It's {k}.`,
+        bull:`Somebody has let the prize bull out of its pen and tied fireworks to its tail. It goes through the dancing like a boulder through a pond. {k} is standing frozen in its path.`,
+        cider:`One by one, people start sitting down. Then lying down. The cider. Something is wrong with the cider. {h} is on the ground, grey-faced. {k} is shaking {h.him} and crying.`
+      })[v.c],
+      choices:[
+        {label:'Go in after {k}.', check:{stat:'combat', dc:12}, win:{t:'You don\'t remember deciding. You just go. You come out the other side with {k} over your shoulder, coughing, singed and alive.', fx:{fame:2, str:1, npc:{h:3, k:3}}, log:'Pulled a child out of danger at {festival}.'}, lose:{t:'You get to {k}, barely, and get hurt doing it. But you get to {k}.', fx:{hp:-8, fame:1, npc:{h:3, k:2}}}, go:'b'},
+        {label:'Organize the crowd.', check:{stat:'cha', dc:12}, win:{t:'Your voice cuts through the panic. In a minute you have a bucket line, a clear path, and three strong people going in for {k}. Nobody dies tonight.', fx:{fame:2, cha:1, npc:{h:2}}, log:'Kept {home} together on the worst night of {festival}.'}, lose:{t:'Nobody listens until it\'s nearly too late. Nearly.', fx:{npc:{h:1}}}, go:'b'},
+        {label:'Mana: deal with it directly.', show:s=>s.st.mag>=10, check:{stat:'mag', dc:13}, win:{t:'You raise your hands and the problem stops: the flames lie down, the bull stops dead, the poison sweats out of {h} in a cloud of foul green steam. People will talk about this for years.', fx:{fame:3, mag:1, npc:{h:3, k:3}}, log:'Saved {festival} with magic.'}, lose:{t:'Your spell half-works, which in this case is still a lot of work saved.', fx:{hp:-3, npc:{h:1}}}, go:'b'}
+      ]},
+    b:{ scene:'village', text:(s,v)=>`Morning. Ash and broken lanterns in the square. Everyone is asking the same question: was it an accident?${v.foe?`\n\nSomebody saw ${v.foe} near the stalls before it started.`:''}`,
+      choices:[
+        {label:'Find out what really happened.', check:{stat:'wit', dc:12}, win:{t:(s,v)=>v.foe ? `It was ${v.foe}. You can prove it. You make sure the whole village hears it from you.` : 'It was an accident: a cracked lantern, a gust of wind, too much hay. Somehow that is worse. You help write new rules for next year, and they are followed for decades.', fx:(s,v)=>v.foe ? {fame:1, wit:1} : {wit:1}, log:'Found out what really happened at {festival}.', go:'END'},
+          lose:{t:'The truth stays in the ashes. People argue about it for years.', go:'END'}},
+        {label:'Help rebuild.', t:'You spend the next month carrying timber and painting stalls. The festival the next year is the best one anyone can remember.', fx:{str:1, npc:{h:1}, relAll:1}, go:'END'}
+      ]}
+  }
+});
+
+;
+/* =========================================================
    ENIGMA-KEY — world crises
    Every world is heading somewhere. The demon war is one road.
    The others: a usurper's coup, and a rival reincarnator with a broken cheat.
@@ -5665,7 +5901,7 @@ function contextChoices(b, base){
     for(const k in add){ o[k] = (typeof add[k]==='object' && typeof o[k]==='object') ? Object.assign({}, o[k], add[k]) : add[k]; } return o; };
   // a friend who would come if you asked
   const ally = people(n=>n.att>=4 && !castIds.has(n.id) && n.helped!==S.age && (n.born==null || personAge(n)>=8)).sort((x,y)=>y.att-x.att)[0];
-  if(ally){
+  if(ally && arc.kind!=='love' && !arc.noAlly){
     const P = PRON[ally.g];
     out.push({ label:`Call on ${ally.name} for help.`, ctxTag:'friend',
       check:Object.assign({}, c0.check, {extra:(s,vv,c)=>(c0.check.extra ? c0.check.extra(s,vv,c)||[] : []).concat([[`${ally.name} helps`, ally.sworn?4:3]])}),
@@ -5716,7 +5952,9 @@ FX_EXT.allyUsed = id=>{ const n = S.npcs[id]; if(n) n.helped = S.age; return [];
 /* ---------- 1. ripples ---------- */
 function rippleFrom(n, d){
   if(!n.w || Math.abs(d)<2) return [];
-  const kin = Object.values(S.npcs).filter(p=>p!==n && p.alive!==false && !p.arch && p.w &&
+  const inScene = new Set(Object.values((S.year && S.year.arc && S.year.arc.cast) || {}));
+  if(n.fam && [...inScene].some(id=>id!==n.id && S.npcs[id] && S.npcs[id].fam===n.fam)) return [];
+  const kin = Object.values(S.npcs).filter(p=>p!==n && !inScene.has(p.id) && p.alive!==false && !p.arch && p.w &&
     ((n.fam && p.fam===n.fam) || (n.ties||[]).some(t=>t.id===p.id)));
   if(!kin.length) return [];
   const s = Math.sign(d);
@@ -6146,6 +6384,157 @@ function legacyNews(){
   if(W.legends && W.legends.length) out.push(`In ${W.places.home.name}, the old people still tell stories. ${W.legends[0]}`);
   return out;
 }
+
+;
+/* =========================================================
+   ENIGMA-KEY — Hearth
+   Fall in love with someone from this world, marry, raise children.
+   Your family joins the world: it shows up in the People tab, the
+   final battle, the epilogue, and in the world you are reborn into.
+   ========================================================= */
+function compRomance(){ return ['lina','sera','rook','nimue'].some(k=>S.flags[k+'Romance']); }
+function partner(){ const p = S.partner && S.npcs[S.partner]; return p && p.alive!==false ? p : null; }
+function kids(){ return (S.kids||[]).map(id=>S.npcs[id]).filter(Boolean); }
+function suitors(used){
+  return people(n=>n.w && !n.arch && !n.stranger && n.alive!==false && (n.att||0)>=2 && personAge(n)>=16 && Math.abs(personAge(n)-S.age)<=8 && !n.nem && !n.kid
+    && !tiesOf(n,'spouse').some(x=>x.alive!==false) && !(used && used.has(n.id)));
+}
+
+/* ---------- courtship ---------- */
+ARCS.push({
+  id:'h_court', stage:'adult', minAge:17, maxAge:24, repeat:true, cooldown:2, world:true, kind:'love', memo:'that walk by the water',
+  title:'Something More', scene:'night',
+  blurb:'{l} has been finding reasons to be wherever you are. Everyone has noticed. Possibly even you.',
+  cond:s=>!S.partner && !compRomance() && suitors().length>0,
+  weight:s=>1.8,
+  urgent:s=>!S.partner && !compRomance() && suitors().some(n=>(n.att||0)>=4 || S.age>=21),
+  cast:{ l:{ pick:(s,used)=>suitors(used).sort((a,b)=>(b.att||0)-(a.att||0))[0] || null } },
+  init:(s,v)=>{ const L = S.world.village.landmarks; v.place = L && L.length ? L[Math.floor(R()*L.length)].name : 'the old bridge'; },
+  start:'a',
+  beats:{
+    a:{ scene:'night', text:`It starts with small things. {l} saves you a seat. {l} remembers what you said three weeks ago about the rain. {l} laughs at a joke that wasn't very good, and then looks away, quickly.\n\nTonight {l} is waiting outside when you finish work. "I was passing," {l.he} says. You both know {l.he} wasn't.`,
+      choices:[
+        {label:'Ask {l} to walk with you.', check:{stat:'cha', dc:10, npc:'l'}, win:{t:'You walk without deciding where. You end up at {v.place}, somehow, as if it had been the plan all along.', fx:{npc:{l:1}}, go:'b'}, lose:{t:'You open your mouth and something about turnip prices comes out. {l} laughs anyway. "Another time," {l.he} says, and seems to mean it.', fx:{npc:{l:1}}, go:'END'}},
+        {label:'Write {l} a letter instead.', check:{stat:'wit', dc:10}, win:{t:'Three drafts. Four. The fifth one is short and true. {l} reads it twice and comes to find you, still holding it.', fx:{npc:{l:1}, wit:1}, go:'b'}, lose:{t:'The letter is very long and mostly about the weather. {l} keeps it anyway, you find out much later.', fx:{npc:{l:1}}, go:'END'}},
+        {label:'Pretend not to notice.', t:'You say goodnight and walk home alone, very fast. {l} watches you go.', fx:{npc:{l:-1}}, go:'END'}
+      ]},
+    b:{ scene:'night', text:`At {v.place} the night is quiet and the stars are out, which feels like cheating.\n\n"I've been trying to say something for a year," {l} says. "I keep losing my nerve. So I'm just going to stand here until you say it first."`,
+      choices:[
+        {label:'Say it.', t:'You say it. {l} lets out a breath {l.he} has been holding for a very long time, and then {l.he} is laughing, and then {l.he} isn\'t laughing at all.', fx:{court:'l', cha:1}, log:'Fell in love with {l}.', go:'END'},
+        {label:'"I think we should stay friends."', t:'{l} nods slowly. "Okay," {l.he} says. "Okay. Then I want to be the best friend you have." {l.He} means it, and {l.he} is.', fx:{npc:{l:2}, seed:{k:'friend', npc:'l'}}, go:'END'}
+      ]}
+  }
+});
+FX_EXT.court = r=>{ const n = S.npcs[S.year.arc.cast[r]]; if(!n) return []; S.partner = n.id; S.courtAge = S.age; n.pc = 1; n.keep = 1; n.att = Math.max(n.att||0, 4); return [[`♥ You and ${n.name}`, 'heart']]; };
+
+/* ---------- the wedding ---------- */
+ARCS.push({
+  id:'h_wedding', stage:'adult', repeat:true, world:true, kind:'love', memo:'our wedding',
+  title:'Your Wedding', scene:'shrine',
+  blurb:'You and {l} have decided. The whole of {home} has an opinion about how it should be done.',
+  cond:s=>!!partner() && !S.married && S.age - (S.courtAge||S.age) >= 1,
+  urgent:s=>!!partner() && !S.married && S.age - (S.courtAge||S.age) >= 1,
+  cast:{ l:{ pick:()=>partner() }, g:{ pick:(s,used)=>(typeof sworn==='function' ? sworn() : []).concat(people(n=>(n.att||0)>=4)).find(n=>!used.has(n.id) && n.id!==S.partner && !n.kid) || null, optional:true } },
+  start:'a',
+  beats:{
+    a:{ scene:'shrine', text:(s,v,c)=>`${c.g ? '{g} has appointed {g.him}self in charge of everything and is shouting at a florist. ' : ''}{l}'s family wants a feast. Your family wants a feast. The priest wants it to stop raining. {l} wants, apparently, to marry you, which still seems like the most surprising thing that has ever happened to you, and you have died once.`,
+      choices:[
+        {label:'A huge wedding. Invite everyone.', req:s=>s.gold>=50, reqText:'Needs 50 gold', t:'Half of {home} comes, and some of the other half sneak in. There is dancing until dawn, a fight about pies, and a speech that makes {l} cry. It is perfect.', fx:{gold:-50, fame:2, relAll:1, marry:1}, log:'Married {l} in front of all of {home}.', go:'END'},
+        {label:'Something small, just the people who matter.', t:'A handful of people, wildflowers, a priest who keeps getting your name wrong. {l}\'s hand in yours the whole time. You would not change one second of it.', fx:{cha:1, marry:1, npc:{l:1}}, log:'Married {l} in a small ceremony at the shrine.', go:'END'},
+        {label:'Run away together and marry at dawn.', t:'You saddle two horses at midnight and leave a note. A hedge-priest marries you on a hilltop at sunrise, with sheep for witnesses. Both families are furious for exactly one week.', fx:{luck:1, marry:1, npc:{l:2}}, log:'Eloped with {l}.', go:'END'}
+      ]}
+  }
+});
+FX_EXT.marry = ()=>{ const p = partner(); if(!p) return []; S.married = S.age; p.spouse = 1; chronicle(`Married ${p.name} ${p.sur}.`); S.world.log.push({age:S.age, t:`${S.name} married ${p.name} ${p.sur}.`}); return [[`💍 Married ${p.name}`, 'heart']]; };
+
+/* ---------- children ---------- */
+function hearthTick(gap){
+  const p = partner(); if(!p || !S.married) return [];
+  S.kids = S.kids || [];
+  const news = [];
+  for(let y=0; y<gap; y++){
+    if(S.kids.length>=3 || R()>.45) continue;
+    const yearAge = S.age - gap + y + 1;
+    const g = R()<.5 ? 'm' : 'f';
+    const N = Namer(R); Object.values(S.npcs).forEach(o=>N.used.add(o.name));
+    const cult = S.world.cult.kingdom;
+    const kid = {id:uid(), name:N.given(cult, g), sur:S.world.fams.fp.sur, g, born:yearAge, cult, role:'child', trade:'child', fam:'fp', home:p.home==='home'?'home':'capital',
+      ties:[{id:p.id, k:'parent'}], mem:[], alive:true, met:true, metAge:yearAge, notes:[], att:4, w:1, kid:1, keep:1, unnamed:1, look:LOOKS[Math.floor(R()*LOOKS.length)]};
+    Object.assign(kid, makeMind(R)); kid.trait = 'cheerful';
+    S.npcs[kid.id] = kid; p.ties.push({id:kid.id, k:'child'}); S.kids.push(kid.id);
+    news.push(`You and ${p.name} had a ${g==='m'?'son':'daughter'}. ${PRON[g].he==='he'?'He':'She'} has ${p.name}'s ${['eyes','laugh','stubbornness','ears'][Math.floor(R()*4)]} and, already, your appetite.`);
+  }
+  S.socNews = (S.socNews||[]).concat(news);
+  return news;
+}
+ARCS.push({
+  id:'h_name', stage:'adult', repeat:true, world:true, kind:'love',
+  title:'A Name', scene:'village',
+  blurb:'There is a new person in your house. Very small. Very loud. Still nameless.',
+  cond:s=>kids().some(k=>k.unnamed), urgent:s=>kids().some(k=>k.unnamed),
+  cast:{ b:{ pick:()=>kids().find(k=>k.unnamed) }, l:{ pick:()=>partner(), optional:true } },
+  init:(s,v,c)=>{
+    const N = Namer(R); Object.values(S.npcs).forEach(o=>N.used.add(o.name));
+    v.n1 = N.given(S.world.cult.kingdom, c.b.g); v.n2 = N.given(S.world.cult.kingdom, c.b.g);
+    const f = people(n=>n.g===c.b.g && (n.att||0)>=4 && !n.kid && n.id!==S.partner).sort((a,b)=>(b.sworn?1:0)-(a.sworn?1:0))[0]; if(f) v.fr = f.name;
+    const mom = wCast('mom'), dad = wCast('dad'); v.par = c.b.g==='f' ? (mom && mom.name) : (dad && dad.name);
+  },
+  start:'a',
+  beats:{
+    a:{ scene:'village', text:(s,v,c)=>`${c.l?'{l} is asleep sitting up, finally. ':''}The baby is not asleep. The baby is looking at you with enormous, serious eyes, as if waiting to hear what you will call {b.him}.\n\nIn your first life, you never even named a houseplant.`,
+      choices:[
+        {label:(s,v)=>`"${v.n1}."`, t:'It fits. You can tell, somehow, that it fits.', fx:(s,v)=>({nameKid:v.n1}), go:'END'},
+        {label:(s,v)=>`"${v.n2}."`, t:'The baby sneezes, which you decide to take as approval.', fx:(s,v)=>({nameKid:v.n2}), go:'END'},
+        {label:(s,v)=>`Name {b.him} after ${v.fr}.`, show:(s,v)=>!!v.fr, t:(s,v)=>`When you tell ${v.fr}, ${v.fr} has to sit down.`, fx:(s,v)=>({nameKid:v.fr}), go:'END'},
+        {label:(s,v)=>`Name {b.him} after your ${S.npcs[S.year.arc.cast.b].g==='f'?'mother':'father'}, ${v.par}.`, show:(s,v)=>!!v.par, t:'Your parent pretends not to cry. Your parent fails.', fx:(s,v)=>({nameKid:v.par, relAll:1}), go:'END'}
+      ]}
+  }
+});
+FX_EXT.nameKid = name=>{ const k = S.npcs[S.year.arc.cast.b]; if(!k) return []; k.name = name; delete k.unnamed; chronicle(`Named your ${k.g==='m'?'son':'daughter'} ${name}.`); return [[`${name} ${k.sur}`, 'heart']]; };
+
+const KID_MOMENTS = {
+  ask:{ t:`{b} climbs into your lap with a serious face. "Where were you before you were here?"\n\nYou have never told anyone the whole truth. {b} is ${'{v.age}'} years old and waiting.`,
+    c:[{label:'Tell {b} everything.', t:'Trains. Phones. A job that ate your life. A truck. A goddess with a clipboard. {b} listens to the whole thing with enormous eyes and then asks if the goddess is nice. "Mostly," you say.', fx:{npc:{b:2}, cha:1}, log:'Told {b} about your first life.'},
+       {label:'Tell {b} it\'s a story for when {b.he}\'s older.', t:'{b} sighs the sigh of someone who has heard this before. "Everything is for when I\'m older."', fx:{luck:1}}]},
+  lost:{ t:'{b} is missing. {b.He} was in the garden, and then {b.he} wasn\'t. Someone saw a small figure heading toward {wood} with a stick and a look of great purpose.',
+    c:[{label:'Track {b} into {wood}.', check:{stat:'wit', dc:10}, win:{t:'You find {b} by a stream, building a dam for "the frogs\' kingdom." {b.He} is very annoyed to be rescued.', fx:{npc:{b:1}, wit:1}}, lose:{t:'It takes until dark, and half the village. {b} is found asleep in a hollow tree, completely fine, and you age ten years.', fx:{hp:-2}}},
+       {label:'Raise the whole village.', t:'Every door in {home} opens. Within the hour, forty people are calling {b}\'s name. {b} is found, and learns that a village is a kind of family.', fx:{relAll:1, npc:{b:1}}}]},
+  gift:{ t:'You catch {b} doing something {b.he} shouldn\'t be able to do yet: reading the old books on your shelf, or lifting a cart wheel, or making the candle flame dance without touching it.',
+    c:[{label:'Teach {b} properly.', t:'You teach {b} everything you know. {b} learns it faster than you did, which is humbling and wonderful.', fx:{npc:{b:2}, wit:1}},
+       {label:'Let {b} find {b.his} own way.', t:'You leave {b} to it. {b.He} is going to be extraordinary, and {b.he} is going to do it {b.his} own way.', fx:{luck:1, npc:{b:1}}}]}
+};
+ARCS.push({
+  id:'h_kid', stage:'adult', repeat:true, cooldown:2, world:true, kind:'love', memo:'when I was little',
+  title:'{b}', scene:'village',
+  blurb:'Parenting, it turns out, is mostly surprises.',
+  cond:s=>kids().some(k=>!k.unnamed && personAge(k)>=3),
+  cast:{ b:{ pick:(s,used)=>pickOne(kids().filter(k=>!k.unnamed && personAge(k)>=3 && !used.has(k.id))) } },
+  init:(s,v,c)=>{ v.age = personAge(c.b); v.k = pickOne(Object.keys(KID_MOMENTS)); },
+  start:'a',
+  beats:{
+    a:{ scene:'village', text:(s,v)=>KID_MOMENTS[v.k].t,
+      choices:Object.keys(KID_MOMENTS).flatMap(k=>KID_MOMENTS[k].c.map(c=>Object.assign({}, c.check ? {label:c.label, check:c.check, win:Object.assign({go:'END'}, c.win), lose:Object.assign({go:'END'}, c.lose)} : {label:c.label, t:c.t, fx:c.fx, log:c.log, go:'END'}, {show:(s,v)=>v.k===k}))) }
+  }
+});
+
+/* ---------- hooks: allies, news, epilogue, People, legacy ---------- */
+(function(){
+  const baseAllies = allies;
+  allies = function(){ const a = baseAllies(); const p = partner(); if(p){ const i = a.findIndex(x=>x[0]===p.name); if(i>=0) a[i][1] = 2; else a.push([p.name, 2]); } return a; };
+  const baseEpi = socialEpilogue;
+  socialEpilogue = function(kind){
+    const out = [];
+    const p = partner(), K = kids().filter(k=>!k.unnamed);
+    if(p && kind!=='death') out.push(S.married ? `You and ${p.name} grow old together${K.length?'':' in a house full of books and arguments'}. ${capFirst(PRON[p.g].he)} never stops laughing at your jokes, even the old-world ones nobody else understands.` : `You and ${p.name} never quite got around to the wedding. You never quite needed to.`);
+    if(K.length) out.push(K.length===1 ? `Your ${K[0].g==='m'?'son':'daughter'}, ${K[0].name}, grows up brave and strange and kind.` : `Your children, ${K.map(k=>k.name).join(' and ')}, grow up loud, brave and impossible, and the house is never quiet again.`);
+    if(kind==='death' && p) out.push(`${p.name} keeps your chair by the fire empty for the rest of ${PRON[p.g].his} life.`);
+    return out.concat(baseEpi(kind));
+  };
+  const baseLeg = makeLegacy;
+  makeLegacy = function(kind){ const L = baseLeg(kind); if(L){ const p = S.partner && S.npcs[S.partner]; L.partner = p ? {name:p.name, sur:p.sur} : null; L.kids = kids().filter(k=>!k.unnamed).map(k=>k.name); } return L; };
+  const baseApply = applyLegacy;
+  applyLegacy = function(W, L, rng){ baseApply(W, L, rng); if(L.kids && L.kids.length){ W.legends.push(`The ${L.sur} family of ${W.places.home.name} descend from ${L.name}'s ${L.kids.length>1?'children, '+L.kids.join(' and '):'child, '+L.kids[0]}${L.partner?', and from '+L.partner.name+' '+L.partner.sur:''}.`); } };
+})();
 
 ;
 /* =========================================================
@@ -7340,16 +7729,16 @@ function openSheet(tab){
   if(UI.tab==='bonds'){
     const comps = Object.keys(COMP).filter(met).map(k=>`<div class="person">${headImg(CHAR_ART[k])}<div class="p-main"><b>${COMP[k].name}${S.flags[k+'Romance']?' ♥':''}</b><span>${COMP[k].role}</span></div><span class="hearts">${'♥'.repeat(Math.ceil(rel(k)/2))}<i>${'♥'.repeat(5-Math.ceil(rel(k)/2))}</i></span></div>`).join('');
     const ppl = people().sort((a,b)=>b.att-a.att).map(n=>{
-      const mood = n.nem>0&&!n.broken?'Nemesis':n.sworn?'Sworn':n.att>=4?'Devoted':n.att>=2?'Friendly':n.att>=0?'Neutral':n.att>=-2?'Wary':'Hostile';
-      const cls = n.nem>0&&!n.broken?'bad':n.att>=2?'good':n.att<=-2?'bad':'';
+      const mood = n.id===S.partner?(S.married?'Spouse':'Beloved'):n.kid?(n.g==='m'?'Your son':'Your daughter'):n.nem>0&&!n.broken?'Nemesis':n.sworn?'Sworn':n.att>=4?'Devoted':n.att>=2?'Friendly':n.att>=0?'Neutral':n.att>=-2?'Wary':'Hostile';
+      const cls = (n.id===S.partner||n.kid)?'good':n.nem>0&&!n.broken?'bad':n.att>=2?'good':n.att<=-2?'bad':'';
       if(n.w) fillMind(n);
       const fam = familyOf(n), age = n.born!=null ? personAge(n) : null;
       const sub = `${esc(TRAITS[n.trait]?TRAITS[n.trait].adj:n.trait)} ${esc(TRADES[n.role]||NPC_ROLES[n.role]||n.role)}${age!=null && n.alive!==false?` · ${age}`:''}${n.alive===false?' · <i>gone</i>':''}`;
       const more = n.want && n.att>=2 && n.alive!==false ? `<span class="want">Wants ${esc(n.want)}.</span>` : fam && !fam.player ? `<span class="want">Of the ${esc(fam.sur)} family</span>` : '';
       const vo = voiceOf(n), mm = strongestMemory(n);
-      const memL = mm ? `<span class="want">${mm.d>0?'Remembers':'Holds against you'}: ${esc(mm.memo||mm.t)} (age ${mm.age})</span>` : '';
+      const memL = mm ? `<span class="want">${mm.d>0?'Remembers':'Holds against you'}: ${esc(memoView(mm))} (age ${mm.age})</span>` : '';
       const secL = n.secretKnown && n.secret && n.alive!==false ? `<span class="want secret">🔑 Secretly ${esc(n.secret)}.</span>` : '';
-      return `<div class="person">${headImg(npcArt(n))}<div class="p-main"><b>${esc(n.name)} ${esc(n.sur)}</b><span>${sub}${vo&&vo!=='plain'?` · ${esc(VOICES[vo].name)} voice`:''}</span>${more}${memL}${secL}</div><span class="mood ${cls}">${mood}</span></div>`; }).join('');
+      return `<button class="person tap" data-person="${n.id}">${headImg(npcArt(n))}<div class="p-main"><b>${esc(n.name)} ${esc(n.sur)}</b><span>${sub}${vo&&vo!=='plain'?` · ${esc(VOICES[vo].name)} voice`:''}</span>${more}${memL}${secL}</div><span class="mood ${cls}">${mood}</span></button>`; }).join('');
     content = `<div class="eyebrow">Companions</div>${comps||'<div class="muted small">Nobody close yet.</div>'}<div class="eyebrow">People you've met</div>${ppl||'<div class="muted small">Nobody yet.</div>'}`;
   }
   if(UI.tab==='world'){
@@ -7410,6 +7799,7 @@ function openSheet(tab){
     <div class="sheet-head"><div class="tabs" role="tablist">${tabs.map(t=>`<button role="tab" class="${UI.tab===t[0]?'on':''}" data-stab="${t[0]}">${t[1]}</button>`).join('')}</div><button class="x" data-close aria-label="Close">✕</button></div>
     <div class="sheet-body">${content}</div>`, 'side');
   oroot.querySelectorAll('[data-stab]').forEach(b=>b.onclick=()=>openSheet(b.dataset.stab));
+  oroot.querySelectorAll('[data-person]').forEach(b=>b.onclick=()=>openPerson(b.dataset.person));
   oroot.querySelectorAll('[data-speed]').forEach(b=>b.onclick=()=>{ PREFS.speed=b.dataset.speed; savePrefs(); openSheet('settings'); });
   const q=$('#quit'); if(q) q.onclick=()=>{ closeOverlay(); UI.screen='title'; render(); };
   const ck=$('#copyKey'); if(ck) ck.onclick=()=>{ try{ navigator.clipboard.writeText(S.world.key); ck.textContent='Copied!'; setTimeout(()=>{ ck.textContent=S.world.key; },1200); }catch(e){} };
@@ -7424,11 +7814,41 @@ function openHall(){
   overlay(`<div class="sheet-head"><h3>Past lives</h3><button class="x" data-close aria-label="Close">✕</button></div><div class="sheet-body">${items}</div>`, 'side');
   oroot.querySelectorAll('[data-life]').forEach(b=>b.onclick=()=>openBook(HALL[+b.dataset.life]));
 }
+function memoView(m){ return m.memo ? m.memo.replace(/\bme\b/g,'them').replace(/\bmy\b/g,'their').replace(/\bour\b/g,'your').replace(/\bI\b/g,'they').replace(/\bwas little\b/g,'were little') : m.t; }
+function openPerson(id){
+  const n = S.npcs[id]; if(!n) return;
+  if(n.w) fillMind(n);
+  const P = PRON[n.g], age = n.born!=null ? personAge(n) : null, fam = familyOf(n);
+  const rel = {parent:'Parent', child:n.g?'Child':'Child', spouse:'Spouse', sibling:'Sibling', crush:'Sweet on'};
+  const ties = (n.ties||[]).map(t=>({t, p:S.npcs[t.id]})).filter(x=>x.p && x.t.k!=='crush').map(x=>`<span class="tie">${rel[x.t.k]||x.t.k}: ${esc(x.p.name)}${x.p.alive===false?' †':''}</span>`).join('');
+  const tags = [n.id===S.partner?(S.married?'💍 Your spouse':'♥ Your beloved'):'', n.kid?`Your ${n.g==='m'?'son':'daughter'}`:'', n.sworn?'🤝 Sworn to you':'', n.nem>0&&!n.broken?`⚔ Your nemesis (${NEM_LEVEL[n.nem]})`:'', n.broken?'Broken, no longer a threat':'', n.peace?'Made peace with you':''].filter(Boolean);
+  const mem = (n.mem||[]).slice().sort((a,b)=>a.age-b.age).map(m=>`<div class="key ${m.d>0?'on':''}"><b>${m.d>0?'♥':'✕'}</b><span>Age ${m.age}: ${esc(memoView(m))} <i class="muted">(${m.d>0?'+':''}${m.d})</i></span></div>`).join('');
+  const rum = (S.rumours||[]).filter(r=>r.src===n.id).map(r=>`<div class="key"><b>🗣</b><span>Spread the story that you ${esc(r.t)}.${r.cleared?' <i class="muted">(cleared)</i>':''}</span></div>`).join('');
+  const keys = enigmas().flatMap(E=>E.keys.filter(k=>k.src.t==='npc' && k.src.id===n.id).map(k=>k.found?`<div class="key on"><b>🗝</b><span>${esc(enigmaTitle(E))}: told you what ${P.he} knew.</span></div>`:`<div class="key"><b>?</b><span>Knows something about “${esc(enigmaTitle(E))}”.</span></div>`)).join('');
+  const notes = (n.notes||[]).map(x=>`<div class="muted small">${x.age}: ${esc(x.t)}</div>`).join('');
+  const vo = voiceOf(n);
+  overlay(`<div class="sheet-head"><button class="x" id="pBack" aria-label="Back">‹</button><h3>${esc(n.name)} ${esc(n.sur)}</h3><button class="x" data-close aria-label="Close">✕</button></div>
+    <div class="sheet-body">
+      <div class="p-hero">${headImg(npcArt(n), 'big')}<div><div>${esc(TRAITS[n.trait]?TRAITS[n.trait].adj:n.trait||'')} ${esc(TRADES[n.role]||NPC_ROLES[n.role]||n.role)}${age!=null&&n.alive!==false?`, ${age}`:''}${n.alive===false?' · <i>gone</i>':''}</div>
+        <div class="muted small">${fam&&!fam.player?`Of the ${esc(fam.sur)} family · `:''}${n.home==='home'?esc(wPlace('home')):n.home==='academy'?'The Academy':n.home==='away'?'Far away':esc(wPlace('capital'))}${vo&&vo!=='plain'?` · ${esc(VOICES[vo].name)} voice`:''}</div>
+        ${tags.length?`<div class="small gold">${tags.join(' · ')}</div>`:''}</div></div>
+      ${ties?`<div class="ties">${ties}</div>`:''}
+      ${n.alive!==false && n.want?`<div class="eyebrow">What ${P.he} wants</div><div class="small">${esc(capFirst(n.want))}.${n.wantDone?' <i class="muted">(It came true.)</i>':''}</div>`:''}
+      ${n.fear && (n.att||0)>=3?`<div class="small muted">Afraid of ${esc(n.fear)}.</div>`:''}
+      ${n.secretKnown && n.secret?`<div class="small">🔑 Secretly ${esc(n.secret)}.</div>`:''}
+      ${mem?`<div class="eyebrow">Between you</div>${mem}`:''}
+      ${keys?`<div class="eyebrow">Enigmas</div>${keys}`:''}
+      ${rum?`<div class="eyebrow">Rumours</div>${rum}`:''}
+      ${notes?`<div class="eyebrow">Notes</div>${notes}`:''}
+    </div>`, 'side');
+  $('#pBack').onclick=()=>openSheet('bonds');
+}
 const GUIDE = [
   ['🗝 World Keys', 'Every world is built from its World Key. The same Key always makes the same land, people and secrets, so you can share a Key with a friend and compare your lives.'],
   ['📜 Stories', 'Each year you pick one of three stories. The Director chooses them from what is actually happening: your village’s trouble, the people you know, old promises and grudges coming due, and the kinds of choices you tend to make.'],
   ['🔍 Enigmas', 'Every world hides three mysteries with a different answer each time. Find Keys by following leads, chasing them in the quiet months, or spending time with the people who know something. Three Keys unlock the truth. The Codex tracks them.'],
-  ['💬 People', 'Everyone has their own voice, wants and secrets. People remember what you did for them or to them, and say so. Trusted friends tell you their secrets. Helping or hurting someone reaches their whole family.'],
+  ['💬 People', 'Everyone has their own voice, wants and secrets. People remember what you did for them or to them, and say so. Trusted friends tell you their secrets. Helping or hurting someone reaches their whole family. Tap anyone in the People tab to see their family, what they want, and your history together.'],
+  ['💍 Love and family', 'As an adult, someone close to you may become more than a friend. Court them, marry, and name your children. Your family stands with you in the final battle, and becomes part of the world\'s history when you are reborn.'],
   ['♥ Friends and 🔑 secrets', 'In a tough moment you can call on a devoted friend for help, or use a secret you know about someone in the scene. Friends you stand by more than once may swear to stand by you, and count double in the final battle.'],
   ['⚔ Nemeses', 'Hurt someone badly enough and they become your nemesis. They will strike at your business, friends or name, and come back harder each time you beat them, until they break or you make peace.'],
   ['🗣 Rumours', 'Your deeds travel between your village, the Academy and the capital, and change along the way. Enemies spread lies. What people say about you changes your Charm rolls there.'],
