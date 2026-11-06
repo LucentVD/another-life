@@ -1214,6 +1214,7 @@ function checkParts(c, ctx){
       if(n.att<=-3 && (st==='cha')) parts.push([`${n.name} resents you`, -3]);
     }
   }
+  if(typeof repPart==='function'){ const rp = repPart(c); if(rp) parts.push(rp); }
   if(c.extra) parts = parts.concat(c.extra(S, ctxVars(ctx), castObj(ctx)) || []);
   return parts;
 }
@@ -1249,7 +1250,7 @@ function allies(){
   if(S.flags.banditAlly) a.push([fmt('the {wood} band'),1]);
   if(S.flags.mentor) a.push(['the old archmage',2]);
   const friends = people(n=>n.att>=4).slice(0,3);
-  friends.forEach(n=>a.push([n.name,1]));
+  friends.forEach(n=>a.push([n.name, n.sworn?2:1]));
   return a;
 }
 const PEACE_FLAGS = {demon:['lore','demonKid','malBond','vexaTruce'], usurper:['usurpProof','heirBond','ariaSafe','lore','dukeTruth'], otherworlder:['otherHome','otherCheat','otherMet','kenjiAlly','otherSummon']};
@@ -1320,6 +1321,7 @@ function arcWeight(a){
   const top = Object.entries(D.style).sort((x,y)=>y[1]-x[1])[0];
   if(top && top[1]>=3 && STYLE_KIND[top[0]]===a.dream) w *= 1.35;
   if(a.world) w *= 1.4;
+  if(typeof vowWeight==='function') w *= vowWeight(a);
   return w;
 }
 function eligible(stage){
@@ -1399,7 +1401,7 @@ function choose(i){
   const text = fmt(br.t);
   const chips = applyFx(br.fx);
   S.year.chips.push(...chips);
-  if(br.log || c.log) chronicle(fmt(br.log || c.log));
+  if(br.log || c.log){ const lg = fmt(br.log || c.log); chronicle(lg); if(typeof spawnRumour==='function') spawnRumour(lg, chips); }
   let go = typeof br.go==='function' ? br.go(S, ctxVars(), castObj()) : br.go;
   if(!go) go = 'END';
   S.year.arc.prev = {label, text, chips, roll: roll ? {roll:roll.roll, ok:roll.ok, bonus:roll.bonus, dc:roll.dc, parts:roll.parts, reroll:roll.reroll, auto:roll.auto} : null};
@@ -1442,13 +1444,14 @@ function chooseDowntime(id){
   const gap = next - S.age;
   S.age = next;
   worldTick(gap);
+  if(typeof socialTick==='function') socialTick(gap);
   S.hp = clamp(S.hp + Math.round(S.maxhp*0.3*gap), 0, S.maxhp);
   startYear(note);
 }
 
 /* ---------- world news shown at the start of a year ---------- */
 function yearNews(){
-  const out = (typeof prophecyNews==='function' ? prophecyNews() : []).concat(worldNews(2));
+  const out = (typeof prophecyNews==='function' ? prophecyNews() : []).concat(typeof socialNews==='function' ? socialNews() : [], worldNews(2));
   const st = stageOf(S.age);
   if(crisisIs('demon') && S.omen>=3 && st!=='child') out.push('Frost came early in the north again. Travelers whisper about horned shapes in the snow.');
   else if(crisisIs('demon') && S.omen>=1 && st==='adult') out.push('The northern border has been quiet. Too quiet, the soldiers say.');
@@ -1503,11 +1506,12 @@ function finish(kind){
     lines.push(done ? `As a child, you dreamed ${DREAMS[S.dream].line}. You did it.` : `As a child, you dreamed ${DREAMS[S.dream].line}. Life had other plans, and that was all right too.`);
   }
   if(typeof enigmaEpilogue==='function') lines.push(...enigmaEpilogue(kind));
+  if(typeof socialEpilogue==='function') lines.push(...socialEpilogue(kind));
   if(kind!=='death') lines.push('Somewhere in an endless white office, Goddess Lumi stamps your file and draws a little heart on it.');
 
   const statSum = Object.values(S.st).reduce((a,b)=>a+b,0);
   const bonus = {slain:40, peace:50, repelled:15, stayed:20, fallen:25, death:0}[kind]||0;
-  const score = S.fame*3 + Math.floor(S.gold/25) + statSum + bonus + people(n=>n.att>=4).length*5 + Object.values(S.rel).reduce((a,b)=>a+b,0);
+  const score = S.fame*3 + Math.floor(S.gold/25) + statSum + bonus + people(n=>n.att>=4).length*5 + Object.values(S.rel).reduce((a,b)=>a+b,0) + (typeof vowBonus==='function' ? vowBonus(kind) : 0);
   const rank = score>=260?'S':score>=200?'A':score>=145?'B':score>=90?'C':'D';
   const C0 = {cast:{}, vars:{}};
   title = fmt(title, C0);
@@ -5609,7 +5613,7 @@ function contextChoices(b, base){
   if(ally){
     const P = PRON[ally.g];
     out.push({ label:`Call on ${ally.name} for help.`, ctxTag:'friend',
-      check:Object.assign({}, c0.check, {extra:(s,vv,c)=>(c0.check.extra ? c0.check.extra(s,vv,c)||[] : []).concat([[`${ally.name} helps`, 3]])}),
+      check:Object.assign({}, c0.check, {extra:(s,vv,c)=>(c0.check.extra ? c0.check.extra(s,vv,c)||[] : []).concat([[`${ally.name} helps`, ally.sworn?4:3]])}),
       win:Object.assign({}, c0.win, {t:wrapT(vary(`{~${ally.name} comes the moment you ask.|You send word to ${ally.name}, and ${P.he} is there by morning.|${ally.name} doesn't even ask why.} `, a.id+ally.id)+'\n\n', c0.win.t), fx:wrapFx(c0.win.fx, {npc:{[ally.id]:1}, set:{_ctx:1}, allyUsed:ally.id})}),
       lose:Object.assign({}, c0.lose, {t:wrapT(`Even with ${ally.name} at your side, it doesn't go your way.\n\n`, c0.lose.t), fx:wrapFx(c0.lose.fx, {set:{_ctx:1}, allyUsed:ally.id})}) });
   }
@@ -5643,6 +5647,283 @@ FX_EXT.allyUsed = id=>{ const n = S.npcs[id]; if(n) n.helped = S.age; return [];
   };
   DOWNTIME.forEach(d=>{ if(V[d.id]) d.t = V[d.id]; });
 })();
+
+;
+/* =========================================================
+   ENIGMA-KEY — The Social Web
+   1. Ripples: what you do to one person reaches their family
+   2. The rumour mill: your deeds travel, and change as they go
+   3. Nemeses: people you keep crossing come back harder
+   4. Sworn allies: people you keep standing by swear to you
+   5. Vows: a life goal the story bends toward
+   ========================================================= */
+
+/* ---------- 1. ripples ---------- */
+function rippleFrom(n, d){
+  if(!n.w || Math.abs(d)<2) return [];
+  const kin = Object.values(S.npcs).filter(p=>p!==n && p.alive!==false && !p.arch && p.w &&
+    ((n.fam && p.fam===n.fam) || (n.ties||[]).some(t=>t.id===p.id)));
+  if(!kin.length) return [];
+  const s = Math.sign(d);
+  let moved = 0;
+  kin.slice(0,4).forEach(p=>{ const b = p.att||0; if((s>0 && b<3) || (s<0 && b>-3)){ p.att = b + s; moved++; } });
+  if(!moved) return [];
+  const fam = familyOf(n);
+  const who = fam && !fam.player ? `The ${fam.sur} family` : `${n.name}'s people`;
+  return [[`${who} ${s>0?'warm to you':'cool toward you'}`, s>0?'heart':'down']];
+}
+
+/* ---------- 2. the rumour mill ---------- */
+const RUMOUR_PLACES = ['home','academy','capital'];
+function placeName(p){ return p==='academy' ? 'the Academy' : wPlace(p); }
+function herePlace(){ const st = stageOf(S.age); return st==='child' ? 'home' : st==='academy' ? 'academy' : 'capital'; }
+function rumours(){ return S.rumours || (S.rumours = []); }
+const GRAND = [', single-handed', ' in a single night', ', blindfolded, apparently', ', and it took about five minutes', ' without breaking a sweat', ', and the gods themselves applauded'];
+const TWIST = [', but only for the money', ', and robbed them afterwards', ', and that the whole thing was a con', ', but only to make yourself look good'];
+const LIES = ['cheat at cards','stole from the temple box as a child','owe money to the Velvet Hand','ran from a fight once and let a friend take the blame','sold out a friend for ten gold','can\'t actually read','talk to yourself at night in a language nobody knows'];
+const RVERB = new Set(['took','kept','won','lost','saved','fought','made','brought','hid','met','found','became','beat','stole','gave','ran','spent','sent','left','tried','helped','ended','stood','sang','built','broke','caught','chose','defeated','faced','fed','freed','healed','held','hunted','led','let','opened','paid','proved','refused','rescued','sealed','shared','solved','stopped','taught','told','turned','walked','went','wrote','got','set','dragged','talked','sat','danced','tamed','befriended','outwitted','outsmarted','escaped','exposed','survived','lured','blackmailed','forgave','spared','raised','threw','swore','bought','sold','was','were']);
+function deedPhrase(log){
+  if(!log) return null;
+  let t = log.trim().split(/(?<=[.!?])\s/)[0].replace(/[.!]$/,'');
+  const w = t.split(' ')[0];
+  if(!RVERB.has(w.toLowerCase()) && !/^[A-Z][a-z]+ed$/.test(w)) return null;
+  if(/^(told|met|spent|went|walked|sat|talked|registered|chose|let|got|kept|was|were|tried|asked|started|joined|learned|signed|moved|visited|swore)$/i.test(w)) return null;
+  if(/\byou\b|\byour\b/i.test(t.slice(w.length))) return null;
+  return w.charAt(0).toLowerCase() + t.slice(1);
+}
+function addRumour(o){
+  const L = rumours();
+  if(L.some(r=>r.p===o.p && r.t===o.t)) return null;
+  const r = Object.assign({id:uid(), age:S.age, cleared:false}, o);
+  L.push(r);
+  if(L.length>14){ const i = L.findIndex(x=>x.kind==='true' || x.cleared); L.splice(i>=0?i:0, 1); }
+  return r;
+}
+function spawnRumour(log, chips){
+  const t = deedPhrase(log); if(!t) return;
+  const famous = (chips||[]).some(c=>/Fame$/.test(c[0]) && /^\+/.test(c[0]));
+  if(!famous && R()>.15) return;
+  addRumour({root:uid(), p:herePlace(), t, kind:'true', val:1});
+}
+function repAt(p){ return clamp(rumours().filter(r=>r.p===p && !r.cleared).reduce((a,r)=>a+r.val,0), -2, 2); }
+function repPart(c){
+  if(c.stat!=='cha') return null;
+  const p = herePlace(), v = repAt(p);
+  if(!v) return null;
+  return [v>0 ? `Your name in ${placeName(p)}` : `Rumours in ${placeName(p)}`, v];
+}
+function rumourLine(r){ return `they say you ${r.t}.`; }
+function enemies(){ return people(n=>n.att<=-3 && n.alive!==false); }
+// once a year: rumours travel, grow and twist; enemies talk
+function socialTick(gap){
+  const news = [];
+  const L = rumours();
+  L.filter(r=>!r.cleared && r.age<S.age).slice().forEach(r=>{
+    if(R()>.45) return;
+    const there = new Set(L.filter(x=>x.root===r.root).map(x=>x.p));
+    const next = RUMOUR_PLACES.filter(p=>!there.has(p)); if(!next.length) return;
+    const p = next[Math.floor(R()*next.length)];
+    let o = {root:r.root, p, t:r.t, kind:r.kind, val:r.val, src:r.src};
+    const foe = enemies()[0];
+    if(r.val>0 && foe && R()<.2){ o.t = r.t + TWIST[Math.floor(R()*TWIST.length)]; o.kind = 'twisted'; o.val = -1; o.src = foe.id; }
+    else if(r.val>0 && r.kind==='true' && R()<.3){ o.t = r.t + GRAND[Math.floor(R()*GRAND.length)]; o.kind = 'grand'; o.val = 2; }
+    const nr = addRumour(o);
+    if(nr && news.length<1) news.push(`Word travels. In ${placeName(p)}, ${rumourLine(nr)}`);
+  });
+  enemies().forEach(foe=>{
+    if(R()<.12 && !L.some(r=>r.kind==='lie' && !r.cleared && r.src===foe.id)){
+      const nr = addRumour({root:uid(), p:herePlace(), t:LIES[Math.floor(R()*LIES.length)], kind:'lie', val:-1, src:foe.id});
+      if(nr && news.length<2) news.push(`A nasty story is going around ${placeName(nr.p)}: ${rumourLine(nr)} It isn't true.`);
+    }
+  });
+  // old rumours fade
+  L.forEach(r=>{ if(!r.cleared && S.age - r.age >= 8 && r.kind!=='lie') r.cleared = 'faded'; });
+  S.socNews = news.map(t=>capFirst(t));
+}
+function badRumour(){ const p = herePlace(); return rumours().filter(r=>!r.cleared && r.val<0 && r.p===p).sort((a,b)=>a.age-b.age)[0] || null; }
+
+/* ---------- 3. nemeses and 4. sworn allies (grown from memory) ---------- */
+function bondsFrom(n, d){
+  const out = [];
+  if(!n.w || n.arch || n.alive===false) return out;
+  const neg = (n.mem||[]).filter(m=>m.d<0).length, pos = (n.mem||[]).filter(m=>m.d>0).length;
+  if(d<0 && n.att<=-3 && (n.mem||[]).filter(m=>m.d<0).reduce((a,m)=>a+m.d,0)<=-3 && !n.nem && !n.broken && (n.born==null || personAge(n)>=12)){
+    n.nem = 1; n.sworn = false;
+    out.push([`⚔ ${n.name} is now your nemesis`, 'down']);
+    chronicle(`${n.name} ${n.sur} swore to make you pay.`);
+  }
+  if(d>0 && n.att>=5 && pos>=2 && !n.sworn && !n.nem){
+    n.sworn = S.age;
+    out.push([`🤝 ${n.name} swears to stand by you`, 'heart']);
+    chronicle(`${n.name} ${n.sur} swore to stand by you, whatever comes.`);
+  }
+  return out;
+}
+function nemesis(){ return people(n=>n.nem>0 && !n.broken).sort((a,b)=>b.nem-a.nem)[0] || null; }
+function sworn(){ return people(n=>n.sworn && !n.nem); }
+
+// hook into memory: every remembered act ripples and may forge a bond
+(function(){
+  const base = remember;
+  remember = function(n, d){ const out = base(n, d) || []; if(!S.year || !S.year.arc) return out; return out.concat(rippleFrom(n, d), bondsFrom(n, d)); };
+})();
+
+/* ---------- the nemesis strikes ---------- */
+const NEM_LEVEL = ['', 'petty', 'dangerous', 'ruthless'];
+ARCS.push({
+  id:'n_strike', stage:['academy','adult'], repeat:true, cooldown:3, world:true, kind:'nemesis',
+  title:'{x} Strikes Again',
+  scene:'night',
+  blurb:s=>{ const n = nemesis(); return n ? `${n.name} hasn't forgotten. ${n.nem>=2 ? 'This time, ' + (n.nem>=3?'they mean to finish it.':'they have been planning.') : 'And they want you to know it.'}` : ''; },
+  cond:s=>!!nemesis() && S.age>=12,
+  urgent:s=>{ const n = nemesis(); return !!n && n.nem>=2 && S.age-(n.struck||0)>=3; },
+  memo:'what happened between us',
+  cast:{ x:{ pick:()=>nemesis() } },
+  init:(s,v,c)=>{
+    const n = c.x; n.struck = S.age; v.lvl = n.nem;
+    const fr = people(p=>p.att>=4 && p!==n && p.alive!==false).sort((a,b)=>b.att-a.att)[0];
+    const kinds = ['name','duel'];
+    if(S.income>0 || hasSeed('business')) kinds.push('biz','biz');
+    if(fr){ kinds.push('friend'); v.fr = fr.id; v.frName = fr.name; }
+    v.k = kinds[Math.floor(R()*kinds.length)];
+  },
+  start:'a',
+  beats:{
+    a:{ scene:'night', text:(s,v)=>({
+        biz:`Smoke, at dawn. Someone broke into your business in the night, smashed what they could and poured lamp oil over the rest. Painted on the door, in letters a foot high: REMEMBER ME?\n\nYou don't need to guess. {x} is sitting across the street with a cup of tea, watching you read it.`,
+        friend:`{v.frName} turns up at your door with a split lip and a torn coat. "Someone jumped me on the way home," {v.frName} says. "Said to give you a message. Said you'd know who it was from."\n\nYou do. {x} has worked out that the surest way to hurt you is through the people you love.`,
+        name:`Doors start closing on you. Old friends find reasons to be busy. Somebody has been talking, carefully and patiently, and you can guess who.\n\n{x} smiles at you across the market square, and raises a cup.`,
+        duel:`{x} is waiting for you on the road, alone, with a weapon {x.he} clearly knows how to use. "I've been practising," {x.he} says. "Every day. Thinking about you."\n\n{x.He} is ${NEM_LEVEL[v.lvl]||'dangerous'} now, and {x.he} isn't leaving.`
+      })[v.k],
+      choices:[
+        {label:(s,v)=>({biz:'Set a trap for the next attempt.', friend:'Find {x} before {x.he} tries again.', name:'Trace the lies back to the source.', duel:'Outthink {x.him}.'})[v.k], check:{stat:'wit', dc:(s,v)=>10+2*v.lvl},
+          win:{t:(s,v)=>({biz:'The next night, {x}\'s hired help walks straight into your trap, and talks. By morning the whole street knows who has been breaking windows.', friend:'You find {x} first, in a tavern, bragging. You make sure {x.he} sees you, and that everyone else sees {x.him} flinch.', name:'You follow every whisper back to the same person. When you lay it out in public, {x} has nothing to say.', duel:'You make {x.him} chase you to ground you chose, then turn. It is over before {x.he} understands what happened.'})[v.k], fx:{nemWin:'x'}},
+          lose:{t:'{x} was one step ahead. {x.He} always is, lately.', fx:(s,v)=>({nemLose:v.k})}},
+        {label:(s,v)=>({biz:'Stand watch yourself, every night.', friend:'Walk {v.frName} home every night.', name:'Answer the lies with deeds.', duel:'Fight.'})[v.k], check:{stat:'combat', dc:(s,v)=>10+2*v.lvl},
+          win:{t:(s,v)=>({biz:'On the third night, {x} comes in person. You are waiting. {x.He} leaves with nothing but a limp.', friend:'When they come for {v.frName} again, you are there. They do not come a third time.', name:'You spend the season doing good in plain sight. The lies stop sticking.', duel:'Steel on steel, in the mud. When it is over, {x} is on the ground and you are not.'})[v.k], fx:{nemWin:'x'}},
+          lose:{t:'You give everything you have. It isn\'t enough, this time.', fx:(s,v)=>({nemLose:v.k, hp: v.k==='duel'?0:-5})}},
+        {label:'Offer {x} peace.', check:{stat:'cha', dc:(s,v)=>12+v.lvl, npc:'x'},
+          win:{t:'"Why?" {x} asks. You tell {x.him} the truth: you are tired, and you think {x.he} is too. A long silence. Then {x.he} lowers {x.his} hands. It isn\'t friendship. But it is over.', fx:{nemPeace:'x'}},
+          lose:{t:'{x} laughs in your face. "Peace? After everything?" {x.He} walks away, and you know {x.he} will be back.', fx:(s,v)=>({nemLose:v.k})}}
+      ]}
+  }
+});
+FX_EXT.nemWin = r=>{ const n = S.npcs[S.year.arc.cast[r]]; if(!n) return [];
+  n.beaten = (n.beaten||0) + 1;
+  if(n.beaten>=3){ n.nem = 0; n.broken = S.age; chronicle(`Broke ${n.name} ${n.sur}'s feud with you for good.`); return [[`${n.name} is finished`, 'seed'], ...applyFx({fame:2})]; }
+  n.nem = Math.min(3, n.nem+1);
+  return [[`${n.name} will be back, ${NEM_LEVEL[n.nem]}`, 'down'], ...applyFx({fame:1})];
+};
+FX_EXT.nemLose = k=>{
+  const v = S.year.arc.vars;
+  if(k==='biz'){ const loss = Math.min(60, Math.floor(S.gold/3)); return applyFx({gold:-loss, income: S.income>0?-5:0}); }
+  if(k==='friend'){ const f = S.npcs[v.fr]; if(f){ f.att = Math.max(-5, f.att-2); return [[`${f.name} was hurt because of you`, 'down']]; } return []; }
+  if(k==='name'){ const n = S.npcs[S.year.arc.cast.x]; addRumour({root:uid(), p:herePlace(), t:LIES[Math.floor(R()*LIES.length)], kind:'lie', val:-1, src:n?n.id:null}); return [[`Your name in ${placeName(herePlace())} suffers`, 'down']]; }
+  return applyFx({hp:-8, fame:-1});
+};
+FX_EXT.nemPeace = r=>{ const n = S.npcs[S.year.arc.cast[r]]; if(!n) return []; n.nem = 0; n.broken = false; n.att = 1; n.peace = S.age; chronicle(`Made peace with ${n.name} ${n.sur}, your old nemesis.`); return [[`${n.name}: nemesis no more`, 'heart']]; };
+
+/* ---------- clearing your name ---------- */
+ARCS.push({
+  id:'r_slander', stage:['child','academy','adult'], minAge:10, repeat:true, cooldown:2, world:true, kind:'rumour',
+  title:'Your Name in the Mud',
+  scene:'village',
+  blurb:s=>{ const r = badRumour(); return r ? `All over ${placeName(r.p)}, ${rumourLine(r)} Conversations stop when you walk in.` : ''; },
+  cond:s=>!!badRumour(),
+  weight:s=>2,
+  memo:'that ugly rumour',
+  cast:{ src:{ pick:()=>{ const r = badRumour(); return r && r.src && S.npcs[r.src] && S.npcs[r.src].alive!==false ? S.npcs[r.src] : null; }, optional:true } },
+  init:(s,v)=>{ const r = badRumour() || addRumour({root:uid(), p:herePlace(), t:LIES[0], kind:'lie', val:-1}); v.rid = r.id; v.t = r.t; v.place = placeName(r.p); v.src = !!(r.src && S.year && S.year.arc && S.year.arc.cast.src); },
+  start:'a',
+  beats:{
+    a:{ scene:'village', text:`Everywhere you go in {v.place}, people look at you a beat too long. Then a friend finally tells you, wincing, what everyone is saying: that you {v.t}.\n\nIt doesn't matter that it isn't true. It matters who believes it.`,
+      choices:[
+        {label:'Find out who started it.', check:{stat:'wit', dc:12},
+          win:{t:(s,v)=>v.src ? 'You follow it back, ear by ear, to the same name every time: {src}. Once people know where it came from, they stop repeating it.' : 'You follow it back to a drunk, a misheard joke and a bored afternoon. Once people hear the real story, they laugh, and move on.', fx:(s,v)=>({clearRumour:v.rid, wit:1, npc: v.src?{src:-1}:{}})},
+          lose:{t:'Every trail goes cold. Whoever started this knew what they were doing.', fx:{wit:1}}},
+        {label:'Face it in public.', check:{stat:'cha', dc:12},
+          win:{t:'You stand up in the busiest place you can find and answer it, plainly, to anyone who wants to hear. Enough people do.', fx:(s,v)=>({clearRumour:v.rid, fame:1, cha:1})},
+          lose:{t:'You stand up, you speak, and somebody at the back laughs. The story only gets louder.', fx:{fame:-1}}},
+        {label:'Confront {src} directly.', show:(s,v)=>v.src, check:{stat:'cha', dc:13, npc:'src'},
+          win:{t:'"Take it back," you tell {src}, in front of everyone. {src.He} looks around at all the faces, and does.', fx:(s,v)=>({clearRumour:v.rid, npc:{src:-1}})},
+          lose:{t:'{src} just smiles. "Prove it." You can\'t.', fx:{npc:{src:-1}}}},
+        {label:'Ignore it. Let your life answer.', t:'You keep your head down and your hands busy. It is slow, and it is unfair, but year by year the story loses its teeth.', fx:(s,v)=>({fadeRumour:v.rid, luck:1})}
+      ]}
+  }
+});
+FX_EXT.clearRumour = id=>{ const r = rumours().find(x=>x.id===id); if(!r) return []; r.cleared = 'cleared'; rumours().filter(x=>x.root===r.root).forEach(x=>{ if(x.val<0) x.cleared='cleared'; }); return [[`Your name in ${placeName(r.p)} is clear`, 'up']]; };
+FX_EXT.fadeRumour = id=>{ const r = rumours().find(x=>x.id===id); if(r) r.age = Math.min(r.age, S.age-5); return []; };
+
+/* ---------- 5. vows ---------- */
+const VOWS = {
+  mystery:{ name:'Uncover the secrets of this world', line:'to uncover the secrets of this world', kinds:['mystery'] },
+  home:{ name:'Make {home} prosper', line:'to make {home} prosper', ids:/^p_/ },
+  peace:{ name:'End the crisis without a war', line:'to end it without a war', kinds:['mystery','love'] },
+  revenge:{ name:'Bring down your nemesis', line:'to bring down {vt}', kinds:['nemesis','rumour'] },
+  friend:{ name:'Protect someone dear', line:'to keep {vt} safe, whatever came', kinds:['love','echo'] },
+  name:{ name:'Make your name in {capital}', line:'to make your name in {capital}', kinds:['hero','rumour'] },
+  fortune:{ name:'Build a fortune', line:'to build a fortune', kinds:['rich'] }
+};
+function vowDone(kind){
+  const A = S.amb; if(!A) return false;
+  const t = A.target && S.npcs[A.target];
+  return ({
+    mystery: ()=>enigmas().filter(E=>E.solved).length>=2,
+    home: ()=>{ const T = wTrouble(); return !!(T && T.done) && (S.world.places.home.prosper||0)>=1; },
+    peace: ()=>kind ? kind==='peace' : peaceScore()>=3,
+    revenge: ()=>!!t && (t.broken || t.peace || t.alive===false),
+    friend: ()=>!!t && t.alive!==false && t.att>=3,
+    name: ()=>repAt('capital')>=2 || S.fame>=30,
+    fortune: ()=>S.gold>=400 || S.income>=30
+  }[A.k]||(()=>false))();
+}
+function vowWeight(a){
+  const A = S.amb; if(!A) return 1;
+  const V = VOWS[A.k];
+  if(V.ids && V.ids.test(a.id)) return 1.8;
+  if(V.kinds && V.kinds.includes(arcKind(a))) return 1.8;
+  return 1;
+}
+function vowText(){ const A = S.amb; if(!A) return ''; const t = A.target && S.npcs[A.target]; return fmt(VOWS[A.k].line.replace('{vt}', t ? t.name : 'them')); }
+ARCS.push({
+  id:'v_vow', stage:'adult', minAge:16, maxAge:19, world:true, kind:'vow',
+  title:'A Vow',
+  scene:'shrine',
+  blurb:'You are grown now. Lumi says every life needs a reason. Tonight, at the shrine, you choose yours.',
+  cond:s=>!S.amb, urgent:s=>!S.amb,
+  cast:{},
+  init:(s,v)=>{ const n = nemesis(); if(n){ v.nem = n.id; v.nemName = n.name; }
+    const f = sworn()[0] || people(p=>p.att>=4)[0]; if(f){ v.fr = f.id; v.frName = f.name; }
+    v.crisis = crisisIs('usurper') ? 'the coup' : crisisIs('otherworlder') ? 'the false Hero\'s war' : 'the war with the north'; },
+  start:'a',
+  beats:{
+    a:{ scene:'shrine', text:`The shrine is quiet. Someone has left fresh flowers, and the candles are already lit, though you didn't light them.\n\nIn your first life, you never decided anything. Things just happened to you, one Monday at a time. Not this time.\n\nYou kneel, and you make a promise. Out loud, so it counts.`,
+      choices:[
+        {label:'"I will uncover every secret this world is keeping."', fx:{vow:'mystery'}, t:'The candle flames lean toward you, just slightly, as if something is listening.', go:'END'},
+        {label:'"I will end {v.crisis} without a war."', fx:{vow:'peace'}, t:'Saying it out loud, it sounds impossible. You say it again anyway.', go:'END'},
+        {label:'"I will make {home} prosper."', fx:{vow:'home'}, t:'You think of the bakery, the old well, the shrine steps. Home. You will make it better than you found it.', go:'END'},
+        {label:'"I will bring {v.nemName} down."', show:(s,v)=>!!v.nem, fx:(s,v)=>({vow:['revenge', v.nem]}), t:'It doesn\'t feel holy. It feels necessary.', go:'END'},
+        {label:'"I will keep {v.frName} safe, whatever comes."', show:(s,v)=>!!v.fr, fx:(s,v)=>({vow:['friend', v.fr]}), t:'You think of {v.frName} laughing, and you mean every word.', go:'END'},
+        {label:'"I will make my name in {capital}."', show:(s,v)=>!v.nem || !v.fr, fx:{vow:'name'}, t:'Somewhere far away, a bard sits up in bed, not knowing why.', go:'END'},
+        {label:'"I will never be poor again."', show:(s,v)=>!v.nem && !v.fr, fx:{vow:'fortune'}, t:'Your first life\'s bank balance flashes before your eyes. Never again.', go:'END'}
+      ]}
+  }
+});
+FX_EXT.vow = v=>{ const [k, target] = [].concat(v); S.amb = {k, target:target||null, age:S.age}; chronicle(`Vowed ${vowText()}.`); return [[`Vow: ${fmt(VOWS[k].name)}`, 'seed']]; };
+
+/* ---------- hooks into the rest of the engine ---------- */
+function socialNews(){ const n = S.socNews || []; S.socNews = []; return n; }
+function vowBonus(kind){ return S.amb && vowDone(kind) ? 25 : 0; }
+function socialEpilogue(kind){
+  const out = [];
+  if(S.amb){ out.push(vowDone(kind) ? `At ${S.amb.age}, you vowed ${vowText()}. You kept your word.` : `At ${S.amb.age}, you vowed ${vowText()}. Some promises are bigger than one life.`); }
+  sworn().slice(0,2).forEach(n=>out.push(`${n.name} kept ${PRON[n.g].his} oath to stand by you, to the very end.`));
+  const nem = Object.values(S.npcs).find(n=>n.met && (n.broken || n.peace || n.nem>0));
+  if(nem) out.push(nem.peace ? `You and ${nem.name} never became friends. But you nod to each other in the street, and that is its own kind of ending.` : nem.broken ? `${nem.name} never troubled you again.` : `${nem.name} is still out there, somewhere, still angry.`);
+  const best = rumours().filter(r=>!r.cleared && r.val>0).sort((a,b)=>b.val-a.val)[0];
+  if(best) out.push(`Long after you are gone, people in ${placeName(best.p)} still say you ${best.t}.${best.kind==='grand'?' It wasn\'t quite like that.':''}`);
+  return out;
+}
 
 ;
 /* =========================================================
@@ -6828,8 +7109,8 @@ function openSheet(tab){
   if(UI.tab==='bonds'){
     const comps = Object.keys(COMP).filter(met).map(k=>`<div class="person">${headImg(CHAR_ART[k])}<div class="p-main"><b>${COMP[k].name}${S.flags[k+'Romance']?' ♥':''}</b><span>${COMP[k].role}</span></div><span class="hearts">${'♥'.repeat(Math.ceil(rel(k)/2))}<i>${'♥'.repeat(5-Math.ceil(rel(k)/2))}</i></span></div>`).join('');
     const ppl = people().sort((a,b)=>b.att-a.att).map(n=>{
-      const mood = n.att>=4?'Devoted':n.att>=2?'Friendly':n.att>=0?'Neutral':n.att>=-2?'Wary':'Hostile';
-      const cls = n.att>=2?'good':n.att<=-2?'bad':'';
+      const mood = n.nem>0&&!n.broken?'Nemesis':n.sworn?'Sworn':n.att>=4?'Devoted':n.att>=2?'Friendly':n.att>=0?'Neutral':n.att>=-2?'Wary':'Hostile';
+      const cls = n.nem>0&&!n.broken?'bad':n.att>=2?'good':n.att<=-2?'bad':'';
       if(n.w) fillMind(n);
       const fam = familyOf(n), age = n.born!=null ? personAge(n) : null;
       const sub = `${esc(TRAITS[n.trait]?TRAITS[n.trait].adj:n.trait)} ${esc(TRADES[n.role]||NPC_ROLES[n.role]||n.role)}${age!=null && n.alive!==false?` · ${age}`:''}${n.alive===false?' · <i>gone</i>':''}`;
@@ -6876,7 +7157,12 @@ function openSheet(tab){
       const keys = E.keys.map(kk=>kk.found ? `<div class="key on"><b>🗝</b><span>${ital(keyText(E,kk))}</span></div>` : `<div class="key"><b>?</b><span>${esc(keyHint(E,kk))}</span></div>`).join('');
       return `<div class="enigma ${E.solved?'solved':''}"><div class="en-h"><b>${esc(enigmaTitle(E))}</b><span class="mono">${E.solved?'SOLVED':`${n}/${E.need} KEYS`}</span></div>
         <div class="small">${esc(E.solved ? enigmaFmt(E, ENIGMA[E.k].reveal[E.truth]) : enigmaQ(E))}</div>${E.solved?'':keys}</div>`; }).join('');
-    content = `${proph}${ens?`<div class="eyebrow">Enigmas</div>${ens}`:''}${threads?`<div class="eyebrow">Open threads</div><div class="threads">${threads}</div>`:''}${flags?`<div class="eyebrow">Along the way</div><div class="chips">${flags}</div>`:''}<div class="eyebrow">Chronicle</div><div class="timeline">${log}</div>`;
+    const vow = S.amb ? `<div class="eyebrow">Your vow</div><div class="kv1 ${vowDone()?'':'warn'}"><b>“${esc(capFirst(vowText()))}.”</b><span>${vowDone()?'Kept, so far.':'Sworn at '+S.amb.age+'. Not yet kept.'}</span></div>` : '';
+    const RK = {true:'True', grand:'Exaggerated', twisted:'Twisted', lie:'A lie'};
+    const rum = (S.rumours||[]).filter(r=>!r.cleared).slice(-6).reverse().map(r=>`<div class="key ${r.val>0?'on':''}"><b>${r.val>0?'✦':'✕'}</b><span><i class="muted">${esc(capFirst(placeName(r.p)))}:</i> they say you ${esc(r.t)}. <i class="muted">(${RK[r.kind]})</i></span></div>`).join('');
+    const repL = RUMOUR_PLACES.map(p=>{ const v=repAt(p); return v ? `${capFirst(placeName(p))} ${v>0?'+'.repeat(v):'−'.repeat(-v)}` : ''; }).filter(Boolean).join(' · ');
+    const rumB = rum ? `<div class="eyebrow">What people say about you</div>${repL?`<div class="muted small">Reputation: ${esc(repL)}</div>`:''}${rum}` : '';
+    content = `${vow}${proph}${rumB}${ens?`<div class="eyebrow">Enigmas</div>${ens}`:''}${threads?`<div class="eyebrow">Open threads</div><div class="threads">${threads}</div>`:''}${flags?`<div class="eyebrow">Along the way</div><div class="chips">${flags}</div>`:''}<div class="eyebrow">Chronicle</div><div class="timeline">${log}</div>`;
   }
   if(UI.tab==='settings'){
     content = `<div class="eyebrow">Text speed</div>
