@@ -277,6 +277,8 @@ canvas.fx{position:absolute;inset:2px;width:calc(100% - 4px);height:calc(100% - 
 .wtl{display:flex;flex-direction:column;gap:6px;font-size:13px}
 .wtl div{display:grid;grid-template-columns:40px 1fr;gap:8px;color:var(--soft);line-height:1.45}
 .wtl b{font-weight:400;color:var(--sakura);text-align:right}
+.frow{display:flex;justify-content:space-between;gap:8px;font-size:13px;padding:3px 0;color:var(--soft)}
+.frow i{font-style:normal;color:var(--gold);letter-spacing:1px;font-size:10px}
 .kv1{display:flex;flex-direction:column;gap:2px;padding:6px 0;border-bottom:1px dashed var(--line)}
 .kv1 b{font-weight:normal;color:var(--gold)}
 .kv1 span{font-size:13px;opacity:.9}
@@ -649,7 +651,7 @@ function genesis(key, opts={}){
   P('north', `the ${N.place('north')} Wastes`, 'frontier');
   P('elfhome', N.place('elf'), 'elven realm', {cult:'elf'});
   P('clanhold', N.place('north'), 'beastkin hold', {cult:'north'});
-  W.kingdom = {name: classic?'Valtheria':N.place(kc).replace(/(ton|stead|ford|wick|bury|dale|well|field|gate|watch|crest|fall|holm|mere|haven|brook|vale|moor)$/,'')+pick(['ia','or','mark','land','reach']), house: N.family(kc)};
+  W.kingdom = {name: classic?'Valtheria': kc==='west' ? pick(CULTURES.west.pre)+pick(['mark','land','reach','ia','dor','ria']) : N.place(kc), house: N.family(kc)};
   W.kingdom.house = CULTURES[kc].noble(kc==='west' ? N.house() : W.kingdom.house);
 
   /* history in fast-forward: residue first, then landmarks that point at it */
@@ -747,6 +749,31 @@ function genesis(key, opts={}){
   ['merchant','merchant','noble','noble','knight','knight','guard','priest','innkeeper','bard','healer','thief','adventurer','adventurer','mage','smith'].forEach(t=>{
     const c = chance(.75)?kc:pick(['elf','north','south','steppe']); person(c, chance(.5)?'m':'f', rint(-60,-20), t, null, chance(.85)?'capital':'town'); });
 
+  /* the crisis this world is heading for */
+  const ck = classic ? 'demon' : (opts.crisis || (rng()<.45 ? 'demon' : rng()<.55 ? 'usurper' : 'otherworlder'));
+  W.crisis = {k:ck, heat:0, stage:0};
+  if(ck==='usurper'){
+    const dukeHouse = CULTURES[kc].noble(kc==='west' ? N.house() : N.family(kc));
+    const duke = arch('duke', kc, 'm', rint(-50,-40), 'noble', 'capital', {trait:pick(['proud','cunning','greedy'])}); duke.sur = dukeHouse;
+    const heir = arch('heir', kc, rng()<.5?'m':'f', rint(-1,1), 'student', 'academy', {trait:pick(['timid','honest','gloomy','kind'])}); heir.sur = dukeHouse; tie(duke, heir, 'child', 'parent');
+    W.crisis.banner = `the ${dukeHouse.replace(/^(von|di|of House) /,'')} Banner`;
+  }
+  if(ck==='otherworlder'){
+    const hero = arch('hero', 'west', 'm', rint(-6,-3), 'noble', 'away', {trait:pick(['proud','cheerful','cunning'])}); hero.name = N.earth(); hero.sur = '';
+    W.crisis.cheat = pick(['Absolute Command','Word of the Sovereign','The Gacha of Ten Thousand Swords','Status Screen: Administrator']);
+    W.crisis.realm = N.place(kc==='south' ? 'steppe' : 'south');
+    W.crisis.empire = `the ${pick(['Radiant','Shining','Eternal','Bright'])} ${pick(['Dominion','Empire','Ascendancy','Concord'])}`;
+  }
+  /* the powers of the realm */
+  W.factions = {
+    crown:{name:`the Crown of ${W.kingdom.name}`, power:6}, nobles:{name:'the Royal Council', power:5}, guild:{name:'the Adventurers\' Guild', power:4},
+    merchants:{name:'the Golden Ledger Consortium', power:4}, temple:{name:'the Temple of Lumi', power:4}, cult:{name:'the Black Sun', power:2},
+    elves:{name:`the elves of ${W.places.elfhome.name}`, power:5}, clans:{name:`the clans of ${W.places.clanhold.name}`, power:4}
+  };
+  if(ck==='demon') W.factions.horde = {name:'the Demon Legions', power:3};
+  if(ck==='usurper') W.factions.banner = {name:capFirst(W.crisis.banner), power:3};
+  if(ck==='otherworlder') W.factions.dominion = {name:capFirst(W.crisis.empire), power:3};
+  W.places.home.prosper = 0; W.places.home.size = 'village';
   W.genesisLog = `${W.people.length} people, ${Object.keys(W.fams).length} families, ${Object.keys(W.places).length} places`;
   return W;
 }
@@ -757,6 +784,7 @@ function genesis(key, opts={}){
 const WORLD_TOKENS = ['home','capital','town','wood','port','peak','ruin','north','kingdom','king','fam','mom','dad','lina','sera','rook','nimue','aria','kenji','festival','elfhome','clanhold'];
 function W_(){ return S && S.world; }
 function wPlace(k){ const W=W_(); return W && W.places[k] ? W.places[k].name : ({home:'Mirebrook',capital:'Asterhold',wood:'Thornwood',port:'Saltmere',peak:'Ashpeak'}[k]||k); }
+function crisisIs(k){ const W=W_(); return (W && W.crisis ? W.crisis.k : 'demon')===k; }
 function stagePlace(st){ return st==='child' ? wPlace('home') : st==='academy' ? 'the Royal Academy' : wPlace('capital'); }
 function wCast(k){ const W=W_(); return W && W.cast[k] ? S.npcs[W.cast[k]] : null; }
 function personAge(p){ return S.age - p.born; }
@@ -768,6 +796,7 @@ function worldToken(k, sub){
     if(k==='fam') return W.fams.fp.sur;
     if(k==='festival') return W.village.festival.name;
   }
+  if(!sub && W.crisis){ if(k==='banner') return W.crisis.banner||'the rebels'; if(k==='Banner') return capFirst(W.crisis.banner||'the rebels'); if(k==='Empire') return capFirst(W.crisis.empire||'the empire'); if(k==='realm') return W.crisis.realm||'the east'; if(k==='empire') return W.crisis.empire||'the empire'; if(k==='cheat2') return W.crisis.cheat||'a cheat skill'; }
   if(k==='T' && sub){ const T=W.village.trouble||{}, L=W.lore||{};
     if(sub==='fa'||sub==='fb') return W.fams[T[sub]] ? W.fams[T[sub]].sur : 'neighbour';
     if(sub==='founder') return `${L.founder} ${L.founderFam}`; if(sub==='war') return L.war; if(sub==='disaster') return (L.disaster||'').replace(/^the /,'');
@@ -806,7 +835,8 @@ function applyWorld(){
     ['lina','sera','rook','nimue'].forEach(k=>CHAR_FIND.push([k, re(nm(k)||COMP[k].name)]));
     CHAR_FIND.push(['lumi',/\bLumi\b/],['mal',/\bMal\b/],['vexa',/\bVexa\b/],['kenji',re(nm('kenji')||'Kenji')],['pia',/\bPia\b/],['aria',re(nm('aria')||'Aria')],
       ['hilde', new RegExp('Mama '+(nm('mom')||'Hilde')+'|\\bMama\\b')],['bram', new RegExp('Papa '+(nm('dad')||'Bram')+'|\\bPapa\\b')]);
-    if(typeof castLookFor==='function') ['lina','sera','rook','nimue','aria','kenji','mom','dad'].forEach(k=>{ const n=wCast(k); if(n){ const art = castLookFor(k, n, W.key); CHAR_ART[k==='mom'?'hilde':k==='dad'?'bram':k] = art; } });
+    ['duke','heir','hero'].forEach(k=>{ const n=wCast(k); if(n){ CHAR_NAMES[k]=n.name; CHAR_FIND.push([k, re(n.name)]); } });
+    if(typeof castLookFor==='function') ['lina','sera','rook','nimue','aria','kenji','mom','dad','duke','heir','hero'].forEach(k=>{ const n=wCast(k); if(n){ const art = castLookFor(k, n, W.key); CHAR_ART[k==='mom'?'hilde':k==='dad'?'bram':k] = art; } });
   }
 }
 
@@ -902,10 +932,71 @@ function worldTick(years){
         else if(up && up!==p.role){ p.role=p.trade=up; say(`${p.name} ${p.sur} was made ${an(TRADES[up])}.`, [p], p.met); }
       }
     }
+    worldClock(yearAge, say);
     // the village trouble flares now and then
     if(W.village.trouble && !W.village.trouble.done && R()<.3 && y===years-1) W.news.push({t:W.village.trouble.t, who:[], big:false, age:S.age});
   }
 }
+
+/* =========================================================
+   THE WORLD CLOCK: the realm takes a turn every year
+   ========================================================= */
+const CRISIS_OMENS = {
+  demon:[], // the demon war has its own omens woven through the old stories
+  usurper:[
+    [9, "{duke} {duke.sur} has been named Lord Protector of the Royal Council. The king is said to be tired."],
+    [12, "{Banner} flies over three more castles this year. Nobody remembers voting for that."],
+    [14, "King {king} missed the spring court. The physicians say it is a cold. It has lasted four months."],
+    [16, "{duke} {duke.sur} has doubled his household guard. They wear black and silver, and they do not bow to the king's men."],
+    [18, "Princess {aria} was nearly thrown from her horse. The saddle strap had been cut, very neatly."],
+    [19, "The Royal Council voted, eleven to two, to give {duke} {duke.sur} command of the capital garrison."]],
+  otherworlder:[
+    [8, "A Hero was summoned in the far kingdom of {realm}. They say he never loses, and never sleeps."],
+    [11, "{realm} has a new ruler: the Hero {hero}. Its old king abdicated in tears and nobody can explain why."],
+    [13, "Two more kingdoms have joined {empire}. Their armies swore loyalty to the Hero on the same day, with the same words."],
+    [15, "Merchants from the east say people in {empire} smile all the time now. All the time."],
+    [17, "The Hero {hero} sent {capital} a letter. It begins: \"Hey! Fellow traveler!\" King {king} has not answered it."],
+    [19, "{Empire} has reached the border of {kingdom}. Its soldiers march in perfect step and never speak."]]
+};
+const REALM_EVENTS = [
+  {w:3, t:"A fat harvest across {kingdom}. Bread is cheap and everyone is a little kinder for it.", fx:W=>{ W.places.home.prosper++; }},
+  {w:2, t:"A hard winter. In {home}, the last of the grain ran out a month before spring.", fx:W=>{ W.places.home.prosper--; }},
+  {w:2, t:"Bandits on the {town} road. Three merchant wagons burned this season.", fx:W=>{ W.factions.guild.power++; W.danger=(W.danger||0)+1; }},
+  {w:2, t:"The Crown is building a new paved road through {home} to {town}.", fx:W=>{ W.places.home.prosper+=2; W.factions.crown.power++; }},
+  {w:2, t:"{merchants} opened a trading post in {town}. Prices rose. So did wages.", fx:W=>{ W.factions.merchants.power++; W.places.home.prosper++; }},
+  {w:1, t:"A dragon was seen circling {peak}. The guild posted a reward nobody has collected.", fx:W=>{ W.danger=(W.danger||0)+1; }},
+  {w:1, t:"A summer fever swept {capital}'s Low Ward. The Temple of Lumi opened its doors to the sick.", fx:W=>{ W.factions.temple.power++; }},
+  {w:2, t:"The elves of {elfhome} sent an envoy to {capital} for the first time in fifty years.", fx:W=>{ W.factions.elves.power++; }},
+  {w:1, t:"A border quarrel with the clans of {clanhold} ended in a wrestling match. The clans won. Nobody died.", fx:W=>{ W.factions.clans.power++; }},
+  {w:2, t:"The Royal Academy opened a new tower. It has already been set on fire once.", fx:()=>{}},
+  {w:1, t:"Strange black-sun symbols were found chalked on the walls of {town}.", fx:W=>{ W.factions.cult.power++; }},
+  {w:2, t:"A travelling circus wintered in {home}. Two children ran away with it and one came back.", fx:W=>{ W.places.home.prosper++; }},
+  {w:1, t:"Floods along the river. {home} lost a bridge and a lot of chickens.", fx:W=>{ W.places.home.prosper--; }}
+];
+const BIZ_OPEN = [['bakery','baker'],['tavern','innkeeper'],['smithy','smith'],['general store','merchant'],['herbalist\'s shop','herbalist'],['tailor\'s shop','weaver'],['brewery','brewer']];
+function worldClock(yearAge, say){
+  const W = W_(); if(!W || !W.crisis) return;
+  const rt = s=>s.replace(/\{(\w+)(?:\.(\w+))?\}/g,(m,k,sub)=>{ if(k==='banner') return W.crisis.banner||''; if(k==='Banner') return capFirst(W.crisis.banner||''); if(k==='realm') return W.crisis.realm||''; if(k==='empire') return W.crisis.empire||''; if(k==='Empire') return capFirst(W.crisis.empire||''); if(k==='merchants') return W.factions.merchants.name; const v=worldToken(k,sub); return v!=null?v:m; });
+  // 1. the crisis grows
+  const C = W.crisis; C.heat++;
+  (CRISIS_OMENS[C.k]||[]).forEach(([age,t],i)=>{ if(yearAge===age){ C.stage=i+1; say(rt(t), [], true); const f=W.factions.banner||W.factions.dominion; if(f) f.power+=1; } });
+  // 2. the realm takes a turn
+  if(R()<.75){ const tot=REALM_EVENTS.reduce((a,e)=>a+e.w,0); let r=R()*tot, ev=REALM_EVENTS[0]; for(const e of REALM_EVENTS){ r-=e.w; if(r<=0){ ev=e; break; } } ev.fx(W); say(rt(ev.t), []); }
+  // 3. home changes with its fortunes
+  const H = W.places.home;
+  if(W.village.trouble && W.village.trouble.done && !H.healed){ H.healed=true; H.prosper++; }
+  const opened = (H.notes||[]).length, avail = BIZ_OPEN.filter(([b])=>!(H.bizs||[]).includes(b));
+  if(H.prosper>=3 && opened<3 && avail.length && R()<.35){
+    const [biz, trade] = avail[Math.floor(R()*avail.length)]; (H.bizs=H.bizs||[]).push(biz);
+    const owner = Object.values(S.npcs).find(p=>p.w && !p.arch && p.alive!==false && p.home==='home' && (yearAge-p.born)>=18 && (yearAge-p.born)<=40 && !p.biz);
+    if(owner){ owner.biz = biz; owner.role = owner.trade = trade; say(`A new ${biz} opened in ${H.name}, run by ${owner.name} ${owner.sur}.`, [owner]); H.prosper -= 1; (H.notes=H.notes||[]).push(`${owner.name} ${owner.sur}'s ${biz}`); }
+  }
+  if(H.size==='village' && H.prosper>=6){ H.size='town'; H.prosper=2; say(`${H.name} is a market town now, with a charter, a mayor, and a great deal of opinion about both.`, [], true); }
+  if(H.prosper<=-3){ H.prosper=-1; const fam = Object.values(W.fams).find(f=>!f.player && !f.left); if(fam){ fam.left=true; Object.values(S.npcs).filter(p=>p.fam===fam.id && p.home==='home').forEach(p=>p.home='town'); say(`Hard times: the ${fam.sur} family packed their cart and left ${H.name} for ${W.places.town.name}.`, [], true); } }
+  // 4. your name travels
+  if(S.fame>=20 && !H.proud){ H.proud=true; H.prosper++; say(`Travellers now stop in ${H.name} to see where ${S.name} grew up.`, [], true); }
+}
+function crisisWord(){ const W=W_(); const k=W&&W.crisis?W.crisis.k:'demon'; return {demon:'The north stirs', usurper:'The duke\'s banner rises', otherworlder:'The Hero\'s shadow grows'}[k]; }
 
 /* what the world says at the start of a year: people you know first */
 function worldNews(max){
@@ -1039,7 +1130,7 @@ function applyFx(fx, ctx){
     else if(k==='maxhp'){ S.maxhp+=v; S.hp=clamp(S.hp+v,0,S.maxhp); chips.push([`${v>0?'+':''}${v} Max HP`, v>0?'up':'down']); }
     else if(k==='gold'){ let g=v; if(g>0 && S.cheat==='cook') g=Math.round(g*1.5); if(g<0) g=Math.max(g,-S.gold); S.gold+=g; if(g) chips.push([`${g>0?'+':''}${g} gold`, g>0?'up':'down']); }
     else if(k==='fame'){ if(!v) continue; S.fame=Math.max(0,S.fame+v); chips.push([`${v>0?'+':''}${v} Fame`, v>0?'up':'down']); }
-    else if(k==='omen'){ S.omen=Math.max(0,S.omen+v); if(v>0) chips.push(['The north stirs','down']); }
+    else if(k==='omen'){ S.omen=Math.max(0,S.omen+v); if(v>0) chips.push([crisisWord(),'down']); }
     else if(k==='income'){ S.income=Math.max(0,S.income+v); chips.push([`${v>0?'+':''}${v} gold / year`, v>0?'up':'down']); }
     else if(k==='rel'){ for(const c in v){ if(!v[c]) continue; S.rel[c]=clamp(rel(c)+v[c],0,10); chips.push([`${COMP[c].name} ${v[c]>0?'♥+'+v[c]:'♥'+v[c]}`, v[c]>0?'heart':'down']); } }
     else if(k==='relAll'){ let any=false; for(const c in COMP){ if(met(c)){ S.rel[c]=clamp(S.rel[c]+v,0,10); any=true; } } if(any) chips.push([`Friends ♥+${v}`,'heart']); }
@@ -1150,14 +1241,17 @@ function allies(){
   friends.forEach(n=>a.push([n.name,1]));
   return a;
 }
-function peaceScore(){ return ['lore','demonKid','malBond','vexaTruce'].filter(f=>S.flags[f]).length; }
+const PEACE_FLAGS = {demon:['lore','demonKid','malBond','vexaTruce'], usurper:['usurpProof','heirBond','ariaSafe','lore'], otherworlder:['otherHome','otherCheat','otherMet','kenjiAlly']};
+function peaceScore(){ const k = S.world && S.world.crisis ? S.world.crisis.k : 'demon'; return PEACE_FLAGS[k].filter(f=>S.flags[f]).length; }
+const CRISIS_MAIN = {usurper:{siege:'siege_usurper', finale:'finale_usurper'}, otherworlder:{siege:'siege_other', finale:'finale_other'}};
+function mainFor(age){ let m = MAIN_AT[age]; const k = S.world && S.world.crisis ? S.world.crisis.k : 'demon'; if(m && CRISIS_MAIN[k] && CRISIS_MAIN[k][m]) m = CRISIS_MAIN[k][m]; return m; }
 
 /* =========================================================
    LIFE FLOW
    phases: open (pick a lead) -> beat (scenes) -> done (arc result) -> yearend (downtime) -> next chapter
    ========================================================= */
 function newLife(c){
-  const world = genesis(c.key || randomWorldKey());
+  const world = genesis(c.key || randomWorldKey(), {crisis:c.crisis});
   S = {v:2, id:uid(), name:c.name, death:c.death, race:c.race, job:c.job, cheat:c.cheat, dream:null, look:c.look||null,
        age:5, ch:0, st:{str:2, mag:2, wit:2, cha:2, luck:2}, hp:RACES[c.race].hp, maxhp:RACES[c.race].hp,
        gold:0, fame:0, omen:0, income:0, path:null, rel:{}, flags:{}, npcs:{}, seeds:[], seen:{},
@@ -1177,7 +1271,7 @@ function chronicle(t, age){ S.log.push({age: age==null?S.age:age, t}); }
 function startYear(downNote){
   // purge people who were offered in leads but never met
   for(const id in S.npcs){ if(!S.npcs[id].met && !S.npcs[id].w) delete S.npcs[id]; }
-  const main = MAIN_AT[S.age];
+  const main = mainFor(S.age);
   const leads = [], used = new Set();
   if(main && ARC[main] && !S.seen[main]){
     leads.push({id:main, cast:castFor(ARC[main], used)});
@@ -1344,8 +1438,8 @@ function chooseDowntime(id){
 function yearNews(){
   const out = worldNews(2);
   const st = stageOf(S.age);
-  if(S.omen>=3 && st!=='child') out.push('Frost came early in the north again. Travelers whisper about horned shapes in the snow.');
-  else if(S.omen>=1 && st==='adult') out.push('The northern border has been quiet. Too quiet, the soldiers say.');
+  if(crisisIs('demon') && S.omen>=3 && st!=='child') out.push('Frost came early in the north again. Travelers whisper about horned shapes in the snow.');
+  else if(crisisIs('demon') && S.omen>=1 && st==='adult') out.push('The northern border has been quiet. Too quiet, the soldiers say.');
   const owed = seeds('owed'); if(owed.length && R()<.5){ const n=S.npcs[owed[owed.length-1].npc]; if(n) out.push(`A letter arrives from ${n.name}: "If you ever need anything, I haven't forgotten."`); }
   const grudge = seeds('grudge'); if(grudge.length && R()<.5){ const n=S.npcs[grudge[grudge.length-1].npc]; if(n) out.push(`You hear ${n.name}'s name in the market. Nobody says it kindly, and neither, apparently, does ${n.name} say yours.`); }
   if(S.income>0) out.push(`Your business keeps paying: ${S.income} gold a year.`);
@@ -1374,6 +1468,8 @@ function finish(kind){
     body = S.gold>=500 ? `The Demon Lord falls to other heroes. You barely notice: you are opening your ninth café. Nobles queue around the block. Your mayonnaise recipe is a state secret.` :
            `The Demon Lord falls to other heroes. Your little café stays exactly as it is: warm, slightly cluttered, and full of regulars who know your name. It is everything your first life never had.`; }
 
+  if(kind!=='death' && kind!=='stayed'){ const ce = crisisEnding(kind, path); if(ce){ title = ce.title; body = ce.body; } }
+  if(kind==='stayed' && !crisisIs('demon')) body = body.replace('The Demon Lord falls to other heroes.', crisisIs('usurper') ? 'The civil war is won by other hands.' : 'The Hero is stopped by other hands.');
   const lines = [];
   const romance = ['lina','sera','rook','nimue'].find(k=>S.flags[k+'Romance']);
   const t = topComp();
@@ -4719,6 +4815,318 @@ ARCS.push({
 
 ;
 /* =========================================================
+   ENIGMA-KEY — world crises
+   Every world is heading somewhere. The demon war is one road.
+   The others: a usurper's coup, and a rival reincarnator with a broken cheat.
+   ========================================================= */
+
+/* stories that only make sense while the Demon Lord is actually waking */
+['a_omen','w_pia','w_stranger','w_black_sun','d_court','w_lumi'].forEach(id=>{
+  const a = ARCS.find(x=>x.id===id); if(!a) return;
+  const c = a.cond; a.crisis = 'demon';
+  a.cond = s=>crisisIs('demon') && (!c || c(s));
+});
+Object.assign(FLAG_NAMES, {
+  usurpProof:'Proof of the duke\'s treason', heirBond:'Friend of {heir}', ariaSafe:'Saved Princess {aria}',
+  otherHome:'Knows who {hero} really was', otherCheat:'Knows the flaw in {cheat2}', otherMet:'Met the Hero {hero}'
+});
+
+/* =========================================================
+   THE USURPER
+   ========================================================= */
+ARCS.push({
+  id:'u_heir', weight:()=>3, stage:'academy', minAge:13, maxAge:15, crisis:'usurper', kind:'bond',
+  title:'The Duke\'s Child', scene:'academy',
+  blurb:'{heir} {heir.sur} eats lunch alone every day. Everyone knows whose child {heir.he} is. Nobody knows anything else about {heir.him}.',
+  cond:s=>crisisIs('usurper'),
+  cast:{ h:{pick:s=>wCast('heir')}, b:{role:'student', trait:'proud'} },
+  start:'a',
+  beats:{
+    a:{ scene:'academy', text:`{h} eats lunch alone, every day, at the end of the long table. Everyone knows {h.he} is the only child of {duke} {duke.sur}, the most powerful lord on the Royal Council. Nobody sits near {h.him}. It is not clear if that is fear or manners.\n\nToday {b} and two friends stand over {h}'s tray. "Tell your father," {b} says, "that we don't bow to {banner} here."`,
+      choices:[
+        {label:'Sit down next to {h}.', t:'You put your tray down and start eating as if nothing is happening. {b} stares. {h} stares. After a moment, {b} leaves, outnumbered by your total lack of concern.', fx:{npc:{h:2, b:-1}}, go:'talk'},
+        {label:'Tell {b} to back off.', check:{stat:'cha', dc:12, npc:'b'}, win:{t:'"{h} isn\'t {h.his} father." {b} opens {b.his} mouth, closes it, and leaves.', fx:{npc:{h:2, b:-1}, cha:1}, go:'talk'},
+          lose:{t:'{b} laughs at you both. But the laughing is less fun with two targets, and eventually {b.he} gets bored.', fx:{npc:{h:1}}, go:'talk'}},
+        {label:'Stay out of it.', t:'You eat your lunch. {h} eats {h.his}. Neither of you looks up.', fx:{wit:1}, go:'END'}
+      ]},
+    talk:{ scene:'academy', text:`{h} doesn't say thank you. {h.He} says, very quietly: "My father has meetings at night. Men in black and silver. He says it is for the good of the kingdom."\n\n{h.He} pushes peas around {h.his} plate. "He always says that. I used to believe it."`,
+      choices:[
+        {label:'"You can talk to me. About anything."', t:'{h} looks at you like nobody has ever said that to {h.him}. Maybe nobody has. You eat lunch together every day after that.', fx:{npc:{h:3}, flag:'heirBond', seed:{k:'friend', npc:'h'}}, log:'Befriended {h}, heir of {duke.sur}.', go:'END'},
+        {label:'Ask what the meetings are about.', check:{stat:'wit', dc:13}, win:{t:'{h} hesitates, then tells you: lists of names. Which council members can be bought. Which guards drink. It is a list for a coup. {h} doesn\'t know that\'s what it is. You do.', fx:{npc:{h:1}, seed:'clue', wit:1}, log:'Learned the duke is planning something.', go:'END'},
+          lose:{t:'{h} closes up like a shell. "Forget I said anything." But {h.he} still sits with you at lunch.', fx:{npc:{h:1}}, go:'END'}}
+      ]}
+  }
+});
+ARCS.push({
+  id:'u_poison', weight:()=>3, stage:'adult', minAge:17, maxAge:19, crisis:'usurper', kind:'mystery',
+  title:'The King\'s Cough', scene:'palace',
+  blurb:'King {king} has been ill for two years and the physicians are baffled. Princess {aria} doesn\'t think it\'s an illness at all.',
+  cond:s=>crisisIs('usurper'),
+  cast:{ a:{pick:s=>wCast('aria')}, c:{role:'innkeeper', trait:pick(['timid','honest'])} },
+  start:'a',
+  beats:{
+    a:{ scene:'palace', text:`Princess {aria} catches your sleeve in a palace corridor and pulls you into an alcove. Up close she looks like she hasn't slept in a week.\n\n"My father coughs blood every evening and is fine every morning," she whispers. "The physicians say it is the damp. I say someone is poisoning his supper. I can't ask anyone in this palace. I don't know who's bought." She looks at you. "I'm asking you."`,
+      choices:[
+        {label:'Watch the royal kitchen.', check:{stat:'luck', dc:14}, win:{t:'On the third night you see it: {c}, the under-cook, adding a pinch of grey powder to the king\'s soup, crying while {c.he} does it.', go:'cook'},
+          lose:{t:'Nothing for a week. Then the head cook catches you in the larder. You talk your way out, but you saw the grey powder on the shelf.', fx:{set:{hard:1}}, go:'cook'}},
+        {label:'Test the king\'s food with magic.', check:{stat:'mag', dc:14}, win:{t:'The soup glows a sullen grey: nightbloom, slow and deadly. And on the spoon, a smear of wax with a seal pressed into it.', fx:{mag:1}, go:'cook'},
+          lose:{t:'The magic fizzles. But the cat who licks the spilled soup sleeps for two days.', fx:{set:{hard:1}}, go:'cook'}},
+        {label:'Nurse: check the king yourself.', show:s=>s.job==='nurse', t:'Pinpoint pupils. Grey nail beds. Night cough. You\'ve seen this on a ward once, in another life: poisoning, slow and deliberate.', fx:{wit:1}, go:'cook'}
+      ]},
+    cook:{ scene:'night', text:`{c} breaks down the moment you confront {c.him}. "They have my daughter," {c.he} sobs. "Men in black and silver. One pinch a night, they said, or I never see her again."\n\nIn {c.his} apron pocket is a folded note, sealed with the arms of {duke.sur}.`,
+      choices:[
+        {label:'Take the note to the princess.', t:'{aria} reads it twice. Her hands don\'t shake. "Now I know," she says. "Now we can do something." The king\'s soup is tasted from then on, and he slowly gets better.', fx:{flag:'usurpProof', npc:{c:2}, rel:{}, fame:1}, log:'Found proof that {duke} {duke.sur} was poisoning the king.', go:'girl'},
+        {label:'Use it to bargain for the cook\'s daughter.', check:{stat:'cha', dc:15}, win:{t:'You walk into the duke\'s townhouse with the note and walk out with a frightened little girl. The duke smiles at you the whole time. You keep a copy of the note.', fx:{flag:'usurpProof', npc:{c:4}, seed:{k:'owed', npc:'c'}}, log:'Rescued a hostage from the duke and kept the proof.', go:'END'},
+          lose:{t:'The duke\'s men take the note and throw you into the street. The girl comes home a week later anyway, because the duke no longer needs the cook. That is almost worse.', fx:{hp:-8, npc:{c:2}}, go:'END'}}
+      ]},
+    girl:{ scene:'capital', text:`One more thing: {c}'s daughter is still somewhere in the duke's townhouse.`,
+      choices:[
+        {label:'Get her out tonight.', check:{stat:'combat', dc:15}, win:{t:'Over a wall, through a window, down a drainpipe with a nine-year-old clinging to your neck. {c} cannot stop crying.', fx:{npc:{c:4}, seed:{k:'owed', npc:'c'}, str:1}, go:'END'},
+          lose:{t:'You get her out. You also get a crossbow bolt in the shoulder and a very good look at the duke\'s guard captain.', fx:{hp:-12, npc:{c:4}, seed:{k:'owed', npc:'c'}}, go:'END'}},
+        {label:'Leave it to the princess.', t:'{aria} sends three loyal guards that night. The girl comes home. The duke now knows someone is onto him.', fx:{omen:1}, go:'END'}
+      ]}
+  }
+});
+ARCS.push({
+  id:'siege_usurper', main:true, mainAge:20, crisis:'usurper', stage:'adult', scene:'palace',
+  title:'The Night of Knives',
+  blurb:'Midnight. The palace bells ring, then stop. Black and silver banners are going up over {capital}.',
+  init:s=>{ const k=wCast('king'); if(k){ k.alive=false; k.died=s.age; } s.world.crisis.regent=true; },
+  start:'a',
+  beats:{
+    a:{ scene:'night', text:s=>`The bells of {capital} ring at midnight, then stop all at once. From your window you see torches in the palace square and banners going up: black and silver, {banner}.\n\nBy dawn the news is everywhere. King {king} is dead. {duke} {duke.sur} has declared himself Lord Regent "until the crisis passes." Princess {aria} has vanished.${s.flags.usurpProof?' You have the note. You know exactly what this is.':''}${s.path==='crown'?'\n\nYour captain in the Royal Order has been arrested. Half the Order has already sworn to the regent.':''}`,
+      choices:[
+        {label:'Find the princess before they do.', t:'If she is alive, she is hiding, and she is out of time.', go:'aria'},
+        {label:'Rally the loyal guard at the palace.', check:{stat:'combat', dc:17}, win:{t:'Forty loyal guards, one gate, and you. You hold it until noon. It buys the city a day to choose sides.', fx:{fame:3, str:1}, go:'aria'},
+          lose:{t:'The gate falls. You escape through the kitchens, bloody and furious.', fx:{hp:-14}, go:'aria'}},
+        {label:'Hide people in the café cellar.', show:s=>s.path==='shop', t:'Loyalists, their families, a council member in his nightshirt. Forty people under your floorboards and the regent\'s soldiers drinking tea above them.', fx:{cha:1, fame:2}, go:'aria'},
+        {label:'Rally the Royal Order.', show:s=>s.path==='crown', check:{stat:'cha', dc:16}, win:{t:'Half the Order swore to the regent. The other half follow you out of the barracks at dawn.', fx:{fame:3, cha:1, set:{order:1}}, go:'aria'},
+          lose:{t:'Six knights follow you. Six good ones.', fx:{set:{order:1}}, go:'aria'}}
+      ]},
+    aria:{ scene:'capital', text:s=>`You find {aria} where only a friend would look${s.flags.princess?': the apple stall where you first met her, disguised as a boy':': in the old chapel crypt, with a dagger and no plan'}. Her eyes are red.\n\n"He killed my father," she says. "In front of me. And the council clapped."`,
+      choices:[
+        {label:'Smuggle her out of the city.', check:{stat:'wit', dc:16}, win:{t:'A fish cart, a forged pass, and a very convincing argument about smells. By nightfall {aria} is outside the walls and free.', fx:{flag:'ariaSafe', fame:2}, log:'Smuggled Princess {aria} out of {capital} on the Night of Knives.', go:'duke'},
+          lose:{t:'The gate guard recognizes her. You run. You both get out, through the river, half-drowned.', fx:{hp:-10, flag:'ariaSafe'}, log:'Escaped {capital} with Princess {aria}.', go:'duke'}},
+        {label:'"Then we prove it. Here. Now."', show:s=>s.flags.usurpProof, t:'You show her the note. She reads it, and her face changes from grief to something harder. "Then he hangs for it." She stays, hidden, and starts writing letters.', fx:{flag:'ariaSafe', wit:1}, go:'duke'},
+        {label:'Call in an old favor to hide her.', show:s=>hasSeed('owed'), t:s=>{ const n=seedNpc('owed'); return `${n?n.name:'An old friend'} doesn't ask a single question. The princess sleeps in ${n&&n.g==='f'?'her':'his'} attic for a month.`; }, fx:s=>{ const n=seedNpc('owed'); return n?{flag:'ariaSafe', useSeed:{k:'owed', npc:n.id}}:{flag:'ariaSafe'}; }, go:'duke'}
+      ]},
+    duke:{ scene:'palace', text:s=>`A week later, the regent summons you. {duke} {duke.sur} receives you in the throne room, sitting on the steps beneath the empty throne, not on it. He is very polite.\n\n"You are popular," he says. "The people listen to you. I would like them to listen to you say my name kindly. Join me, and you'll want for nothing."${s.flags.heirBond?'\n\nBehind him, {heir} stands very still, and does not look at you.':''}`,
+      choices:[
+        {label:'Refuse to his face.', check:{stat:'cha', dc:16}, win:{t:'"No." You say it loud enough for the guards to hear. Some of them look at the floor. The duke lets you go, smiling, which is the most dangerous thing he does all day.', fx:{fame:3, cha:1, omen:1}, go:'END'},
+          lose:{t:'You refuse. He has you thrown in a cell for a month "to reflect." You reflect on how much you hate him.', fx:{hp:-10, omen:1}, go:'END'}},
+        {label:'Pretend to agree. Learn everything.', check:{stat:'wit', dc:17}, win:{t:'For a month you smile at his dinners and memorize his maps. When you finally slip away, you take the names of every lord he has bought.', fx:{wit:2, flag:'usurpProof', seed:'clue'}, log:'Spied on the regent from inside his court.', go:'END'},
+          lose:{t:'He sees through you within a week. You escape over a wall, with nothing but bruises.', fx:{hp:-8}, go:'END'}},
+        {label:'Look at {heir}. Just look.', show:s=>s.flags.heirBond, t:'{heir} meets your eyes for one long second. That night, a note is slipped under your door, in a handwriting you know from school: *"I\'m sorry. I\'ll help you. Wait."*', fx:{npc:{}, omen:-1, wit:1}, log:'{heir} turned against {heir.his} father in secret.', go:'END'}
+      ]}
+  }
+});
+ARCS.push({
+  id:'finale_usurper', main:true, final:true, mainAge:25, crisis:'usurper', stage:'adult', scene:'battlefield',
+  title:'The Crownless Field',
+  blurb:'Five years of civil war end on one field outside {capital}. Everything you have built comes down to this.',
+  init:(s,v)=>{ v.bonus=0; v.peace=0; },
+  start:'a',
+  beats:{
+    a:{ scene:'battlefield', text:s=>{
+        let t=`Five years of civil war. Now it ends on one field outside {capital}: the regent's black and silver on one side, ${s.flags.ariaSafe?`Queen-in-exile {aria}'s colours on the other`:'every lord who refused to bow on the other'}.`;
+        const a=allies(); t+= a.length ? `\n\nStanding with you: ${a.map(x=>x[0]).join(', ')}.` : `\n\nYou stand almost alone.`;
+        return t+`\n\nIt is the night before the battle.`; },
+      choices:[
+        {label:'Rally the army with a speech.', check:{stat:'cha', dc:18}, win:{t:'You talk about the bakers and the farmers and the children who should not have to learn which banner is safe. When you finish, the whole camp is on its feet.', fx:{set:{bonus:4}, fame:2}, go:'battle'},
+          lose:{t:'Your voice cracks. But they saw you try, and they stay.', fx:{set:{bonus:1}}, go:'battle'}},
+        {label:'Call in every favor you are owed.', show:s=>seeds('owed').length+seeds('friend').length>=2, t:s=>`Letters go out to everyone who ever owed you anything. They come: ${[...seeds('owed'),...seeds('friend')].map(x=>s.npcs[x.npc]).filter(Boolean).slice(0,4).map(n=>n.name).join(', ')}. They bring others.`, fx:s=>({set:{bonus:2+Math.min(4,seeds('owed').length+seeds('friend').length)}}), go:'battle'},
+        {label:'Ride to the regent\'s camp under a white flag.', show:s=>peaceScore()>0, t:'You leave your sword behind and ride across the field alone.', go:'parley'},
+        {label:'Stay behind and feed both armies.', show:s=>s.path==='shop', t:'Someone has to feed the wounded, whatever colour they wear. You stay. The field is decided by others. The first soldier through your door after the battle orders a coffee and cries.', fx:{finale:'stayed', gold:60}, go:'END'}
+      ]},
+    parley:{ scene:'night', text:s=>`{duke} {duke.sur} receives you in a plain tent. He looks older than five years should make anyone look.${s.flags.heirBond?' {heir} stands behind him, and this time meets your eyes.':''}\n\n"I wanted a strong kingdom," he says. "I thought a strong man was the same thing."`,
+      choices:[
+        {label:'"Then end it. Tonight. Before anyone else dies."', check:{stat:'cha', dc:(s,v)=>26-3*peaceScore()}, win:{t:s=>`You lay it all out: ${s.flags.usurpProof?'the poison, the note, the names,':'everything you know,'} and what the morning will cost. ${s.flags.heirBond?'{heir} speaks last, very quietly, and the duke closes his eyes.':''}\n\nAt dawn, {banner} comes down without a single blow struck.`, fx:{fame:10, finale:'peace'}, log:'Ended the civil war at a parley in the regent\'s tent.', go:'END'},
+          lose:{t:'"Go back to your army," he says, almost kindly. "Tomorrow we find out who was right."', fx:{set:{peace:2}}, go:'battle'}}
+      ]},
+    battle:{ scene:'battlefield', text:`Dawn. The armies meet, and the world becomes noise and mud and banners. Somehow you cut through all of it to the regent's standard, where {duke} {duke.sur} waits, sword drawn.`,
+      choices:[
+        {label:'Fight with everything you have.', check:{stat:'combat', dc:29, extra:(s,v)=>allies().concat(v.bonus?[['Your army',v.bonus]]:[]).concat(s.flags.order?[['The loyal Order',2]]:[])},
+          win:{t:'The duke is a fine swordsman. You are better, today, when it matters. His standard falls, and with it his army\'s will.', fx:{fame:10}, go:'victory'},
+          lose:{t:'You give everything. It is not quite enough.', fx:{hp:-30}, go:'fall'}},
+        {label:'Show the army the proof.', show:s=>s.flags.usurpProof, check:{stat:'cha', dc:(s,v)=>24-2*peaceScore()}, win:{t:'You read the poisoner\'s note aloud across the field, the names, the seals. The regent\'s own soldiers lower their spears, one company at a time. By noon he stands alone.', fx:{fame:10, finale:'peace'}, log:'Ended the civil war by reading the regent\'s crimes to his own army.', go:'END'},
+          lose:{t:'Too much noise. Too many drums. The battle swallows your voice.', fx:{hp:-15}, go:'fall'}}
+      ]},
+    victory:{ scene:'palace', text:`{duke} {duke.sur} kneels in the mud with his sword across his knees.\n\n"Well," he says. "Finish it. That is how these stories end."`,
+      choices:[
+        {label:'Crown {aria}, and let the law judge him.', t:'{aria} is crowned in a half-burned cathedral. The duke is tried, found guilty, and exiled north. The kingdom begins, slowly, to heal.', fx:s=>{ s.world.crisis.queen=true; return {finale:'slain'}; }, log:'Won the civil war and saw {aria} crowned.', go:'END'},
+        {label:'Spare him for {heir}\'s sake.', show:s=>s.flags.heirBond, fx:s=>{ s.world.crisis.queen=true; return {finale:'peace'}; }, t:'You let him live, on one condition: he spends the rest of his life rebuilding what he burned. {heir} takes his place on the council, and does better.', log:'Spared the regent for {heir}\'s sake.', go:'END'}
+      ]},
+    fall:{ scene:'battlefield', text:s=> s.hp>0 ? `You are on your back in the mud. The battle rolls past you. When it is over, nobody has won: both armies limp away from the field.` : `The world goes quiet. Somewhere far away, people are calling your name.`,
+      choices:[{label:s=>s.hp>0?'Get up.':'Let go.', t:s=>s.hp>0?'You get up. You will always get up.':'You let go.', fx:s=>({finale: s.hp>0?'repelled':'fallen'}), go:'END'}]}
+  }
+});
+
+/* =========================================================
+   THE OTHERWORLDER
+   ========================================================= */
+ARCS.push({
+  id:'o_refugee', weight:()=>3, stage:'academy', minAge:13, maxAge:15, crisis:'otherworlder', kind:'mystery',
+  title:'The Girl Who Smiled', scene:'academy',
+  blurb:'A new student has arrived from {realm}. She smiles all the time. She cries in her sleep.',
+  cond:s=>crisisIs('otherworlder'),
+  cast:{ r:{role:'student', g:'f', trait:'timid'} },
+  start:'a',
+  beats:{
+    a:{ scene:'academy', text:`{r} came from {realm} with nothing but a satchel and a smile, and the smile never leaves. She smiles through lessons, through meals, through a fall down the stairs that should have made anyone cry.\n\nYour roommate says she cries in her sleep, every night, and smiles the moment she wakes.`,
+      choices:[
+        {label:'Ask her about home.', check:{stat:'cha', dc:12}, win:{t:'It takes a week of shared lunches. Then, at night by the fountain, the smile slips. "The Hero spoke to our whole city once," she whispers. "He said, *be happy*. And we were. We still are. I can\'t stop."', fx:{npc:{r:3}}, go:'flaw'},
+          lose:{t:'She smiles and changes the subject, every time. But one night she leaves a note in your book: *the Hero spoke and we obeyed*.', fx:{npc:{r:1}, set:{hard:1}}, go:'flaw'}},
+        {label:'Look into it with magic.', check:{stat:'mag', dc:13}, win:{t:'There is a spell on her. Not a spell: a command, threaded through her like a fishhook, three years old and still pulling.', fx:{mag:1}, go:'flaw'},
+          lose:{t:'You feel something on her, a pull. You can\'t name it.', fx:{set:{hard:1}}, go:'flaw'}}
+      ]},
+    flaw:{ scene:'night', text:`Something bothers you about {r}'s story. The Hero spoke, and a whole city obeyed. Every word.\n\nThen why didn't it work on the merchant from Earth's... no. Why did she say *everyone born there*?`,
+      choices:[
+        {label:'Work it out.', check:{stat:'wit', dc:14}, win:{t:'You go over everything she said, three times. And there it is: his command binds everyone *born in this world*. Not those who came from somewhere else. Not people like him. Not people like you.', fx:{flag:'otherCheat', wit:1}, log:'Worked out the flaw in the Hero\'s cheat skill: it cannot touch other reincarnators.', go:'help'},
+          lose:{t:'The thought slips away. But you write it down, and keep the page.', fx:{seed:'clue'}, go:'help'}},
+        {label:'Help {r} first. Think later.', t:'Thinking can wait. {r} can\'t.', go:'help'}
+      ]},
+    help:{ scene:'academy', text:`{r} is still smiling. It looks like it hurts.`,
+      choices:[
+        {label:'Try to break the command.', check:{stat:'mag', dc:15}, win:{t:'You pull at the fishhook gently, for an hour. It comes loose. {r} bursts into tears, real ones, and laughs, and cries again. "I forgot what my own face felt like," she says.', fx:{npc:{r:4}, mag:1, seed:{k:'friend', npc:'r'}}, log:'Freed {r} from the Hero\'s command.', go:'END'},
+          lose:{t:'It won\'t come loose. But it slips, a little. {r} frowns, for the first time in three years, and hugs you for it.', fx:{npc:{r:3}}, go:'END'}},
+        {label:'Just be her friend.', t:'You can\'t fix it. You can sit with her. Sometimes that\'s more.', fx:{npc:{r:3}, seed:{k:'friend', npc:'r'}}, go:'END'}
+      ]}
+  }
+});
+ARCS.push({
+  id:'o_envoy', weight:()=>3, stage:'adult', minAge:17, maxAge:19, crisis:'otherworlder', kind:'mystery',
+  title:'A Letter From Another Earthling', scene:'tavern',
+  blurb:'An envoy from {empire} finds you in {capital}. The Hero {hero} would like a word with "the other one."',
+  cond:s=>crisisIs('otherworlder'),
+  cast:{ e:{role:'noble', trait:'cheerful'} },
+  start:'a',
+  beats:{
+    a:{ scene:'tavern', text:`The envoy from {empire} is very polite and smiles all the time. {e} hands you a crystal sphere wrapped in silk.\n\n"His Radiance, the Hero {hero}, would like a word," {e} says. "He says you'll understand. He says to tell you: *I know you're from Earth too.*"\n\nThe crystal glows. A face appears in it: a young man, tired around the eyes, grinning.`,
+      choices:[
+        {label:'Talk to him.', t:'"Hey," says {hero}. "Finally. Someone who gets it."', go:'talk'},
+        {label:'Smash the crystal.', t:'It shatters. {e} keeps smiling, which is the creepiest thing you\'ve ever seen. "He said you might do that," {e} says. "He said: *see you in a few years.*"', fx:{omen:1, str:1}, go:'END'}
+      ]},
+    talk:{ scene:'night', text:`{hero} talks fast, like someone who hasn't had a real conversation in years. Convenience stores. Train announcements. A song you both know.\n\n"This place is a game, right?" he says. "NPCs. Quests. I fixed {realm} in a week. Everyone's happy now. I made them happy." He laughs. "Come work with me. Two players. We could fix everything."`,
+      choices:[
+        {label:'Ask about his life on Earth.', check:{stat:'cha', dc:15}, win:{t:'He goes quiet. Then: a hospital bed, for most of high school. Games, because there was nothing else. Nobody visited by the end. "Here, everybody loves me," he says. "I made sure of it." You understand him better than you want to.', fx:{flag:'otherHome', cha:1}, log:'Learned who the Hero {hero} was, back on Earth.', go:'end'},
+          lose:{t:'"Doesn\'t matter," he says, a little too fast. "That was the tutorial. This is the real game."', fx:{set:{hard:1}}, go:'end'}},
+        {label:'"They\'re not NPCs. They\'re people."', check:{stat:'wit', dc:15}, win:{t:'"People," he repeats. Something flickers in his face, and is gone. "Prove it." Then the crystal goes dark. But he heard you. You\'re sure of it.', fx:{wit:1, set:{doubt:1}}, go:'end'},
+          lose:{t:'He laughs. "That\'s what an NPC would say." The crystal goes dark.', go:'end'}},
+        {label:'Ask what his cheat is, exactly.', show:s=>!s.flags.otherCheat, check:{stat:'wit', dc:16}, win:{t:'He tells you, because he is proud of it: {cheat2}. Everyone born in this world must obey his voice. "Not you, though," he adds. "We\'re both imports." He says it like a compliment. It\'s a confession.', fx:{flag:'otherCheat'}, log:'Learned the flaw in the Hero\'s cheat skill.', go:'end'},
+          lose:{t:'"Trade secret," he says, and winks.', go:'end'}}
+      ]},
+    end:{ scene:'tavern', text:`"Think about it," {hero} says. "I'll come by in person in a couple of years. Everyone will be so happy to see me." The crystal goes dark.\n\n{e} bows, smiling, and leaves.`,
+      choices:[
+        {label:'Write to {kenji}.', show:s=>s.flags.kenjiAlly, t:'{kenji} writes back in a day: *Another one? With a cheat like THAT? Count me in. Main characters stick together.*', fx:{flag:'otherMet', luck:1}, go:'END'},
+        {label:'Warn King {king}.', t:'The king listens, and thanks you, and you can see he doesn\'t know what to do any more than you do.', fx:{flag:'otherMet', fame:1}, go:'END'},
+        {label:'Keep it to yourself.', t:'Some conversations you carry alone.', fx:{flag:'otherMet', wit:1}, go:'END'}
+      ]}
+  }
+});
+ARCS.push({
+  id:'siege_other', main:true, mainAge:20, crisis:'otherworlder', stage:'adult', scene:'palace',
+  title:'The Hero\'s Ultimatum',
+  blurb:'The Hero of {empire} has come to {capital} in person. Every soldier who hears his voice puts down their sword.',
+  start:'a',
+  beats:{
+    a:{ scene:'capital', text:s=>`He doesn't come with an army. He doesn't need one. The Hero {hero} walks through the gates of {capital} at noon, alone, waving, and when the guards raise their spears he says, cheerfully, "Put those down," and they do.\n\nHe walks to the palace square. The whole city follows him, smiling. ${s.flags.otherMet?'He sees you in the crowd and his face lights up.':'He scans the crowd, and stops on you, and grins.'} "There you are," he says. "The other one."`,
+      choices:[
+        {label:'Step forward.', t:'You walk out of the crowd. You are the only person in the square who can.', go:'face'},
+        {label:'Get the king out of the palace.', check:{stat:'wit', dc:16}, win:{t:'While {hero} waves to the crowd, you drag King {king}, who is smiling vacantly, out through the servants\' stairs. Out of earshot, the king blinks, and shudders, and whispers "thank you."', fx:{fame:3, wit:1}, go:'face'},
+          lose:{t:'You reach the king, but {hero}\'s voice is everywhere. The king smiles at you and says he is very happy. You leave him there.', fx:{omen:1}, go:'face'}},
+        {label:'Signal {kenji}.', show:s=>s.flags.kenjiAlly, t:'{kenji} drops from a rooftop beside you, sword drawn, grinning. "Two imports," he says. "Your move, Radiance."', fx:{set:{kenji:1}}, go:'face'}
+      ]},
+    face:{ scene:'palace', text:s=>`{hero} looks at you, delighted. "Finally! A real person." He spreads his arms at the smiling crowd. "Look at them. No hunger, no fear, no sadness. I did this. Join me. In five years I'll have fixed the whole map."${s.flags.otherCheat?'\n\nYou know something he doesn\'t think you know: his voice can\'t touch you.':''}`,
+      choices:[
+        {label:'Break the spell on the crowd.', check:{stat:'mag', dc:18, extra:s=>s.flags.otherCheat?[['You know its flaw',4]]:[]}, win:{t:'You shout, and put everything you have behind it: *wake up*. It is not a command. It is a request, from someone they know. Half the square blinks, frowns, and stops smiling. {hero} looks genuinely hurt.', fx:{fame:4, mag:1, omen:-1}, log:'Woke half of {capital} from the Hero\'s command.', go:'leave'},
+          lose:{t:'Your voice is just a voice. They keep smiling. {hero} pats your shoulder sympathetically.', fx:{hp:-6}, go:'leave'}},
+        {label:'Fight him. Here. Now.', check:{stat:'combat', dc:21, extra:(s,v)=>v.kenji?[[wCast('kenji').name,3]]:[]}, win:{t:'You land one clean blow before his cheat-blessed armour catches up. It is enough to make him bleed, and that is enough to make him afraid. He leaves. He promises to come back.', fx:{fame:5, str:1}, log:'Drew blood from the Hero {hero}.', go:'leave'},
+          lose:{t:'He doesn\'t even need his voice. He has every stat at the cap. You wake up in the palace infirmary.', fx:{hp:-18}, go:'leave'}},
+        {label:'Ask him if anyone ever visited him in the hospital.', show:s=>s.flags.otherHome, check:{stat:'cha', dc:16}, win:{t:'The square goes very quiet. {hero} stares at you, and for a second he is just a kid in a hospital gown. "Shut up," he says, not using his power. Then he leaves, very fast.', fx:{set:{shaken:1}, cha:1, omen:-1}, log:'Reminded the Hero who he used to be.', go:'leave'},
+          lose:{t:'"That was the tutorial," he says, too quickly. But his hands are shaking.', go:'leave'}}
+      ]},
+    leave:{ scene:'capital', text:`{hero} leaves the way he came: alone, waving. At the gate he turns.\n\n"Five years," he calls. "Then I come back for everyone. Think about it, other one. I'd really, really like a friend."`,
+      choices:[
+        {label:'"I\'ll be waiting."', t:'You will be.', fx:{str:1}, go:'END'},
+        {label:'"So would I."', t:'He hesitates at the gate, as if he wants to say something else. Then he is gone.', fx:{cha:1, flag:'otherMet'}, go:'END'}
+      ]}
+  }
+});
+ARCS.push({
+  id:'finale_other', main:true, final:true, mainAge:25, crisis:'otherworlder', stage:'adult', scene:'battlefield',
+  title:'The Last Isekai',
+  blurb:'{Empire} marches on {kingdom}, a hundred thousand smiling soldiers strong. At its head walks the Hero {hero}.',
+  init:(s,v)=>{ v.bonus=0; v.peace=0; },
+  start:'a',
+  beats:{
+    a:{ scene:'battlefield', text:s=>{
+        let t=`{Empire} comes over the hills: a hundred thousand soldiers marching in perfect step, every one of them smiling. At their head walks {hero}, waving.`;
+        const a=allies(); t+= a.length ? `\n\nStanding with you: ${a.map(x=>x[0]).join(', ')}. Every one of them stuffed wax in their ears this morning.` : `\n\nYou stand almost alone, with wax in your ears.`;
+        return t+`\n\nIt is the night before he arrives.`; },
+      choices:[
+        {label:'Rally the defenders.', check:{stat:'cha', dc:18}, win:{t:'You tell them about the girl who forgot what her own face felt like. You tell them: whatever he says tomorrow, remember tonight. They do.', fx:{set:{bonus:4}, fame:2}, go:'battle'},
+          lose:{t:'Your voice cracks. They stay anyway. It counts.', fx:{set:{bonus:1}}, go:'battle'}},
+        {label:'Call in every favor you are owed.', show:s=>seeds('owed').length+seeds('friend').length>=2, t:s=>`Letters go out. They come: ${[...seeds('owed'),...seeds('friend')].map(x=>s.npcs[x.npc]).filter(Boolean).slice(0,4).map(n=>n.name).join(', ')}, and others.`, fx:s=>({set:{bonus:2+Math.min(4,seeds('owed').length+seeds('friend').length)}}), go:'battle'},
+        {label:'Walk into his camp alone.', show:s=>peaceScore()>0, t:'You leave your sword in your tent and walk across the field. His voice can\'t touch you. Nobody else in the world can say that.', go:'tent'},
+        {label:'Stay behind and keep the café open.', show:s=>s.path==='shop', t:'Someone has to be there with hot food when people wake up. You stay. The field is decided by others. The first soldier through your door afterward has stopped smiling, and is crying, and orders a coffee.', fx:{finale:'stayed', gold:60}, go:'END'}
+      ]},
+    tent:{ scene:'night', text:s=>`His tent is full of things he has had made from memory: a crooked vending machine, a hand-painted poster of a game, a plastic-looking chair carved from wood. He is sitting on the floor.\n\n"I knew you'd come," says {hero}. "You're the only one who ever could."`,
+      choices:[
+        {label:'"Tell me about home."', check:{stat:'cha', dc:(s,v)=>26-3*peaceScore()}, win:{t:s=>`You talk until dawn: about Earth, about hospitals, about how lonely it is to be the only real person in the room. ${s.flags.otherHome?'He tells you his real name, the one from before. ':''}Near sunrise he says, very quietly, "If I let them go, they won't love me anymore."\n\n"Some of them will," you say. "The ones who choose to."`, fx:{set:{peace:8}}, go:'battle'},
+          lose:{t:'"Nice try," he says. "Go back to your army, other one."', fx:{set:{peace:2}}, go:'battle'}},
+        {label:'Cook him something from home.', show:s=>s.cheat==='cook'||s.job==='chef', t:'You make curry, as close as this world allows. He eats one spoonful and then cannot stop crying. "My mom made it like this," he says. "Exactly like this."', fx:{set:{peace:6}, heal:1}, go:'battle'}
+      ]},
+    battle:{ scene:'battlefield', text:s=>`Dawn. A hundred thousand smiling soldiers, and {hero} at the front, opening his mouth to speak.${s.flags.otherCheat?'\n\nYou know the flaw. His voice cannot touch you. It is going to have to be you.':''}`,
+      choices:[
+        {label:'Fight your way to him.', check:{stat:'combat', dc:s=>30-(s.flags.otherCheat?3:0), extra:(s,v)=>allies().concat(v.bonus?[['Your defenders',v.bonus]]:[])},
+          win:{t:'His army can\'t stop someone who doesn\'t obey. You reach him at noon. His cheat is perfect; his swordwork isn\'t. When his blade spins away into the grass, a hundred thousand soldiers stop smiling at once.', fx:{fame:10}, go:'victory'},
+          lose:{t:'You give everything. It is not quite enough.', fx:{hp:-30}, go:'fall'}},
+        {label:'"Let them go."', show:(s,v)=>peaceScore()>0||v.peace>0, check:{stat:'cha', dc:(s,v)=>27-3*peaceScore()-v.peace},
+          win:{t:s=>`You walk out across the field, alone, the only person his voice can't bend. You don't shout. You say it the way you'd say it to a friend.\n\nFor a long time {hero} says nothing. Then he closes his eyes and speaks one last command, so quietly only the front rank hears it: *"You're free."*\n\nA hundred thousand people stop smiling, and then, slowly, some of them start again, on purpose.`, fx:{fame:10, finale:'peace'}, log:'Convinced the Hero {hero} to free everyone he had commanded.', go:'END'},
+          lose:{t:'"I tried being alone," he says. "I hated it." He opens his mouth to speak.', fx:{hp:-24}, go:'fall'}}
+      ]},
+    victory:{ scene:'battlefield', text:`{hero} sits down in the grass, as if his strings have been cut. Around him, a hundred thousand people are blinking, crying, asking each other where they are.\n\n"So," he says. "This is the bad ending, huh."`,
+      choices:[
+        {label:'Take him prisoner. Let the world judge him.', t:'He goes quietly. The trial lasts a year. Half the witnesses ask for mercy. You are one of them.', fx:{finale:'slain'}, log:'Defeated the Hero {hero} and broke {empire}.', go:'END'},
+        {label:'"No. It\'s the part where you make it right."', show:s=>peaceScore()>0, t:'You offer him your hand. He stares at it for a long time. Then, unbelievably, he takes it.', fx:{finale:'peace'}, log:'Spared the Hero {hero} and offered him a way back.', go:'END'},
+        {label:'Call Lumi.', t:'You shout at the sky. The sky, after a pause, answers: a very sheepish goddess with a clipboard. "So, um," says Lumi. "That cheat was a typo. I meant *Word of Encouragement*." She takes it back. {hero} cries for an hour. Then he asks if she has a job for him.', fx:{finale:'slain', luck:2}, log:'Had Lumi revoke the Hero\'s cheat. It was a typo.', go:'END'}
+      ]},
+    fall:{ scene:'battlefield', text:s=> s.hp>0 ? `You are on your back in the grass. {hero} stands over you, then turns away. "Not today," he says, and his smiling army withdraws.` : `The world goes quiet. Somewhere far away, people are calling your name.`,
+      choices:[{label:s=>s.hp>0?'Get up.':'Let go.', t:s=>s.hp>0?'You get up. You will always get up.':'You let go.', fx:s=>({finale: s.hp>0?'repelled':'fallen'}), go:'END'}]}
+  }
+});
+
+/* =========================================================
+   CRISIS ENDINGS (the demon war keeps the original ones)
+   ========================================================= */
+const CRISIS_END = {
+  usurper:{
+    slain:p=>({title: p==='shop'?'The Café That Crowned a Queen':p==='crown'?'The Queen\'s Champion':'The Kingmaker',
+      body: p==='shop'?`Queen {aria} is crowned. The day after, she comes to your café in disguise, orders three cakes, and tries to pay with a diamond. Some things never change.`:
+            p==='crown'?`Queen {aria} names you Lord Protector of the Realm, a title that briefly belonged to a man now living in exile. You intend to do the job better.`:
+            `The guild has no rank for "ended a civil war." They invent one. Children in {capital} play "{name} and the Night of Knives," and argue over who gets to be you.`}),
+    peace:()=>({title:'The Peacemaker of {capital}', body:`There is no final blow. There is a treaty, signed in a plain tent, and a regent who walks into exile on his own feet. {aria} is crowned. The council is rebuilt with fewer dukes and more bakers. It is not perfect. It is a lot better.`}),
+    repelled:()=>({title:'The Long Civil War', body:`The field decides nothing. The war drags on, one bitter season after another. You spend the years that follow holding a line on a map, and holding people together, and you are good at it.`}),
+    fallen:()=>({title:'The Last Loyal Blade', body:`You fall on the Crownless Field. But the people you gathered finish what you started, and {banner} comes down at sunset. They carve your name above the palace gate.`})
+  },
+  otherworlder:{
+    slain:p=>({title: p==='shop'?'The Café Owner Who Beat the Hero':p==='crown'?'Champion of {kingdom}':'The One Who Broke the Cheat',
+      body: p==='shop'?`You defeat the strongest cheat in the world, then go straight back to work. {hero} visits years later, powerless and polite, and orders curry. You give it to him free.`:
+            p==='crown'?`The king names you Champion of {kingdom}. The freed people of {empire} send a statue of you. It is smiling. You find that a bit much.`:
+            `The guild invents a new rank just for you. A hundred thousand people remember the day they woke up, and whose face they saw first.`}),
+    peace:()=>({title:'Two Strangers from Earth', body:`There is no final blow. There is a young man in a hospital gown's memory, choosing to let a hundred thousand people go. {hero} spends the rest of his life rebuilding what he took. Sometimes you two sit on a roof and argue about which convenience store was best.`}),
+    repelled:()=>({title:'The Cold War of Heroes', body:`You survive, and so does he. {empire} pulls back to its borders, still smiling. You spend the years that follow teaching people how to stuff their ears with wax, and waiting.`}),
+    fallen:()=>({title:'The Otherworlder Who Fell', body:`You fall on the field, the only person his voice couldn't touch. It is enough: your defenders hold, and by sunset {empire}'s army is walking home, no longer sure why it came.`})
+  }
+};
+function crisisEnding(kind, path){
+  const W = S.world, k = W && W.crisis ? W.crisis.k : 'demon';
+  const E = CRISIS_END[k]; if(!E || !E[kind]) return null;
+  return E[kind](path);
+}
+
+;
+/* =========================================================
    PIXEL ART — buffers, anime portraits, dithered scenes
    ========================================================= */
 const PXC = {};
@@ -5357,6 +5765,9 @@ const CAST_LOOK = {
   aria: {face:'f', hs:['B_13','A_22','B_17','B_18','B_21'], hc:['blonde','pink','red','peach','white'], eye:['violet','blue','gold','green'], fit:'55', hat:'17'},
   kenji:{face:'m', hs:['B_00','A_00','A_07','B_07','A_16'], hc:['black','dark','brown'], eye:['brown','grey','blue'], fit:'44'},
   mom:  {face:'f', hs:['B_21','A_22','B_19','A_10','B_13'], hc:['brown','chestnut','black','blonde','ginger','dark'], eye:['brown','green','blue','amber'], fit:'47'},
+  duke: {face:'m', hs:['A_07','A_16','B_07','A_11'], hc:['grey','white','black','silver','dark'], eye:['grey','ice','violet','brown'], fit:'40'},
+  heir: {face:'f', hs:['A_06','B_12','B_19','A_15','A_09'], hc:['black','silver','navy','dark','brown'], eye:['grey','ice','blue','violet'], fit:'44'},
+  hero: {face:'m', hs:['A_03','B_01','B_03','A_00','B_00'], hc:['blonde','white','ginger','red','gold'], eye:['gold','amber','red','ice'], fit:'03', halo:0},
   dad:  {face:'m', hs:['B_04','A_07','A_16','A_01','A_11'], hc:['brown','black','chestnut','blonde','ginger','dark'], eye:['brown','blue','green','grey'], fit:'45'}
 };
 function castLookFor(k, n, key){
@@ -5367,6 +5778,7 @@ function castLookFor(k, n, key){
   const C = CULTURES[n.cult] || CULTURES.west;
   const d = {face:L.face, skin:pick(C.skin), hs:pick(L.hs), hc:pick(L.hc), eye:pick(L.eye), fit:L.fit};
   ['hat','animal','ears'].forEach(x=>{ if(L[x]) d[x]=L[x]; });
+  if(k==='heir') d.face = n.g==='m' ? 'm' : 'f';
   return {doll:d};
 }
 
@@ -5521,7 +5933,7 @@ function buildFlow(){
   if(S.ending){
     const e=S.ending, t=topComp();
     f.scene = e.kind==='peace'?'shrine':e.kind==='death'||e.kind==='fallen'?'realm':e.kind==='stayed'?'cafe':'north';
-    f.chars = [{key:'you', name:S.name, spec:playerArt(S)}].concat(t && rel(t)>=5 ? [{key:t, name:COMP[t].name, spec:CHAR_ART[t]}] : []).concat(e.kind==='peace'?[{key:'mal',name:'Mal',spec:CHAR_ART.mal}]:[]);
+    f.chars = [{key:'you', name:S.name, spec:playerArt(S)}].concat(t && rel(t)>=5 ? [{key:t, name:COMP[t].name, spec:CHAR_ART[t]}] : []).concat(e.kind==='peace'?(crisisIs('demon')?[{key:'mal',name:'Mal',spec:CHAR_ART.mal}]:(()=>{ const k=crisisIs('usurper')?'duke':'hero'; const n=wCast(k); return n?[{key:k,name:n.name,spec:CHAR_ART[k]}]:[]; })()):[]);
     f.top = `<div class="tag-title gold">THE END</div>`;
     f.card = {big:e.title, small:'The End'};
     paginate(e.body).forEach(t=>f.pages.push({text:t, kind:'narr'}));
@@ -5909,9 +6321,13 @@ function openSheet(tab){
     const deaths = Object.values(S.npcs).filter(n=>n.met && n.alive===false).length;
     content = `<div class="worldkey"><span class="eyebrow">World Key</span><button class="mono keybtn" id="copyKey" aria-label="Copy World Key">${esc(W.key)}</button></div>
       <div class="eyebrow">Kingdom of ${esc(W.kingdom.name)}</div>
-      <div class="muted small">Ruled by King ${esc(wCast('king').name)} ${esc(W.kingdom.house)} from ${esc(P.capital.name)}.</div>
-      <div class="eyebrow">${esc(P.home.name)}</div>
+      <div class="muted small">${W.crisis&&W.crisis.queen ? `Ruled by Queen ${esc(wCast('aria').name)}` : W.crisis&&W.crisis.regent ? `Ruled, for now, by Lord Regent ${esc(wCast('duke').name)} ${esc(wCast('duke').sur)}` : `Ruled by King ${esc(wCast('king').name)} ${esc(W.kingdom.house)}`} from ${esc(P.capital.name)}.</div>
+      ${(()=>{ const F=W.factions||{}; const list=Object.values(F).sort((a,b)=>b.power-a.power); const C=W.crisis||{};
+        const cline = C.k==='usurper' ? (C.stage>0?`${capFirst(C.banner)} is gathering power.`:'The court is quiet. For now.') : C.k==='otherworlder' ? (C.stage>0?`${capFirst(C.empire)} grows in the east.`:'There are rumours of a Hero summoned far away.') : (S.omen>=2?'The north stirs.':'The old seal in the north holds.');
+        return `<div class="eyebrow">The realm now</div><div class="kv1 ${C.stage>=3||S.omen>=3?'warn':''}"><b>${esc(cline)}</b></div>${list.map(f=>`<div class="frow"><span>${esc(capFirst(f.name))}</span><i>${'■'.repeat(Math.max(1,Math.min(10,f.power)))}</i></div>`).join('')}`; })()}
+      <div class="eyebrow">${esc(P.home.name)}${P.home.size==='town'?' (market town)':''}</div>
       <div class="small">${esc(capFirst(P.home.desc))}. Your family, the ${esc(W.fams.fp.sur)}s, ${dad&&dad.alive!==false?`are ${esc(TRADES[W.fams.fp.trade]||W.fams.fp.trade)}s`:'keep the house'}: Papa ${esc(dad?dad.name:'')} and Mama ${esc(mom?mom.name:'')}.</div>
+      <div class="muted small">${P.home.prosper>=2?'Times are good here.':P.home.prosper<=-1?'Times are hard here.':'Life goes on here, much as it always has.'}${(P.home.notes||[]).length?` New since you were small: ${esc(P.home.notes.join(', '))}.`:''}</div>
       ${V.landmarks.map(l=>`<div class="kv1"><b>${esc(capFirst(l.name))}</b><span>${esc(capFirst(l.why))}.</span></div>`).join('')}
       <div class="kv1"><b>${esc(capFirst(V.festival.name))}</b><span>Every ${esc(V.festival.season.toLowerCase())}, ${esc(V.festival.custom)}.</span></div>
       ${V.trouble.done ? `<div class="kv1"><b>Peace</b><span>${esc(V.trouble.outcome||"The old trouble is over.")}</span></div>` : `<div class="kv1 warn"><b>Trouble</b><span>${esc(V.trouble.t)}</span></div>`}
