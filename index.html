@@ -372,6 +372,7 @@ img.head.hd{image-rendering:pixelated;object-fit:cover}
 .god-hero .ghbg{position:absolute;inset:0}
 .god-hero .sprite{position:relative}
 .god-box b{color:var(--gold, #ffd36b)}
+.linkbtn{background:none;border:0;color:var(--gold, #ffd36b);font:inherit;text-decoration:underline;padding:0;cursor:pointer}
 </style>
 </head>
 <body>
@@ -379,6 +380,8 @@ img.head.hd{image-rendering:pixelated;object-fit:cover}
 <div id="app"></div>
 <div id="overlay-root"></div>
 <script>
+const BUILD = '2026-11-07 08:59 UTC';
+;
 /* =========================================================
    ANOTHER LIFE v2 — core data
    ========================================================= */
@@ -8348,6 +8351,7 @@ function openSheet(tab){
       <div class="eyebrow">Game</div>
       <button class="btn ghost wide" id="quit">Save and return to title</button>
       <div class="muted small">${cloudMsg()}</div>
+      <div class="muted small">Version ${typeof BUILD!=='undefined'?BUILD:'dev'}${window.swReg?' · <button class="linkbtn" id="checkUpd">Check for updates</button>':''}</div>
       <div class="eyebrow">How this world works</div>
       ${GUIDE.map(([h,t])=>`<details class="guide"><summary>${h}</summary><p>${t}</p></details>`).join('')}`;
   }
@@ -8357,6 +8361,7 @@ function openSheet(tab){
   oroot.querySelectorAll('[data-stab]').forEach(b=>b.onclick=()=>openSheet(b.dataset.stab));
   oroot.querySelectorAll('[data-person]').forEach(b=>b.onclick=()=>openPerson(b.dataset.person));
   oroot.querySelectorAll('[data-god]').forEach(b=>b.onclick=()=>openGod(b.dataset.god));
+  const cu = oroot.querySelector('#checkUpd'); if(cu) cu.onclick=()=>{ cu.textContent='Checking…'; fetch('index.html', {cache:'no-store'}).then(r=>r.text()).then(t=>{ const m = t.match(/const BUILD = '([^']+)'/); if(m && m[1]!==BUILD){ cu.textContent='Updating…'; (window.swReg ? window.swReg.update() : Promise.resolve()).finally(()=>setTimeout(()=>location.reload(), 600)); } else cu.textContent='You have the latest version'; }).catch(()=>{ cu.textContent='Offline, try again later'; }); };
   oroot.querySelectorAll('[data-speed]').forEach(b=>b.onclick=()=>{ PREFS.speed=b.dataset.speed; savePrefs(); openSheet('settings'); });
   const q=$('#quit'); if(q) q.onclick=()=>{ closeOverlay(); UI.screen='title'; render(); };
   const ck=$('#copyKey'); if(ck) ck.onclick=()=>{ try{ navigator.clipboard.writeText(S.world.key); ck.textContent='Copied!'; setTimeout(()=>{ ck.textContent=S.world.key; },1200); }catch(e){} };
@@ -8538,6 +8543,17 @@ if(document.fonts && document.fonts.ready) document.fonts.ready.then(()=>{ measu
 initCloud();
 
 </script>
-<script>if('serviceWorker' in navigator){addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));}</script>
+<script>
+if('serviceWorker' in navigator){
+  // a new version takes over as soon as it is installed; reload once so it shows straight away
+  const hadController = !!navigator.serviceWorker.controller; let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', ()=>{ if(hadController && !reloaded){ reloaded = true; location.reload(); } });
+  addEventListener('load', ()=>navigator.serviceWorker.register('sw.js').then(reg=>{
+    window.swReg = reg;
+    // check for a new version whenever the app comes back to the foreground
+    document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') reg.update().catch(()=>{}); });
+  }).catch(()=>{}));
+}
+</script>
 </body>
 </html>
