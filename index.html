@@ -14,26 +14,32 @@
 <link rel="icon" type="image/png" href="icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Jersey+10&family=Silkscreen&display=swap" rel="stylesheet">
 <style>
 /* Layout idea: a 16-bit JRPG / visual novel that owns the whole screen. HUD on top, a painted pixel
    stage with character sprites in the middle, a framed dialogue window at the bottom. Nothing scrolls
    except menus. One dark theme by choice. */
 :root{
-  --night:#070a1a;
-  --win-a:#1b2a6b;
-  --win-b:#0f1842;
-  --raise:#22337c;
-  --frame:#e6eaff;
-  --edge:#04061a;
-  --line:#3a4a9a;
-  --ink:#f3f5ff;
-  --soft:#cbd2f4;
-  --muted:#8e98c8;
+  --night:#0b0915;
+  --win-a:#241e3c;
+  --win-b:#130f22;
+  --raise:#2d2648;
+  --frame:#cfa552;
+  --frame-hi:#f6dc94;
+  --frame-lo:#7a5a24;
+  --edge:#07050d;
+  --line:#4a3f68;
+  --ink:#f4ead4;
+  --soft:#d6cab0;
+  --muted:#9a8fab;
   --sakura:#ff8fb6;
-  --gold:#ffd166;
-  --good:#7cf0a4;
-  --bad:#ff7a7a;
+  --gold:#f2cd6e;
+  --teal:#66dccb;
+  --teal-lo:#2d8c84;
+  --good:#7ee8a0;
+  --bad:#ff7d72;
+  --display:'Jersey 10', var(--pixel);
+  --label:'Silkscreen', var(--pixel);
   --pixel:'DotGothic16', 'MS Gothic', 'Osaka-Mono', ui-monospace, monospace;
   color-scheme: dark;
 }
@@ -374,6 +380,140 @@ img.head.hd{image-rendering:pixelated;object-fit:cover}
 .god-box b{color:var(--gold, #ffd36b)}
 .linkbtn{background:none;border:0;color:var(--gold, #ffd36b);font:inherit;text-decoration:underline;padding:0;cursor:pointer}
 .logo-img{display:block;image-rendering:pixelated;filter:drop-shadow(0 3px 0 rgba(4,6,26,.55))}
+
+/* =========================================================
+   THE GILDED GRIMOIRE — theme layer
+   Painted pixel art deserves a frame: night-violet panels, a gold
+   double rule with pixel corner studs, teal for whatever you are
+   about to touch, parchment-coloured ink. Display type in Jersey 10,
+   small caps labels in Silkscreen, story text stays in DotGothic16.
+   ========================================================= */
+body{background:radial-gradient(120% 70% at 50% 0%,#1d1734 0%,var(--night) 60%)}
+.win{background:linear-gradient(180deg,var(--win-a),var(--win-b) 70%);border:3px solid var(--edge);
+  box-shadow:inset 0 0 0 2px var(--frame),inset 0 0 0 3px var(--frame-lo),inset 0 0 0 5px var(--edge),inset 0 0 0 6px rgba(207,165,82,.22),inset 0 10px 0 6px rgba(255,236,190,.03),0 4px 0 rgba(0,0,0,.5)}
+.win::after{inset:6px;background:radial-gradient(130% 80% at 50% 0%,rgba(255,226,160,.05),transparent 60%)}
+.win::before{content:"";position:absolute;inset:-4px;pointer-events:none;z-index:3;
+  background:var(--stud) left top/10px 10px no-repeat,var(--stud) right top/10px 10px no-repeat,var(--stud) left bottom/10px 10px no-repeat,var(--stud) right bottom/10px 10px no-repeat;image-rendering:pixelated}
+:root{--stud:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' shape-rendering='crispEdges'%3E%3Cpath fill='%2307050d' d='M3 0h4v1h1v1h1v1h1v4h-1v1h-1v1h-1v1h-4v-1h-1v-1h-1v-1h-1v-4h1v-1h1v-1h1z'/%3E%3Cpath fill='%23cfa552' d='M4 1h2v1h1v1h1v1h1v2h-1v1h-1v1h-1v1h-2v-1h-1v-1h-1v-1h-1v-2h1v-1h1v-1h1z'/%3E%3Cpath fill='%23f6dc94' d='M4 2h2v1h-2zM3 3h1v1h-1z'/%3E%3Cpath fill='%2366dccb' d='M4 4h2v2h-2z'/%3E%3C/svg%3E")}
+
+/* frame for the stage */
+.stage{border:3px solid var(--edge);box-shadow:inset 0 0 0 2px var(--frame),inset 0 0 0 3px var(--frame-lo),0 0 0 2px rgba(207,165,82,.18),0 4px 0 rgba(0,0,0,.5)}
+.stage>.scene-box{inset:3px}
+.stage::before{content:'';position:absolute;inset:0;z-index:3;pointer-events:none;box-shadow:inset 0 0 0 2px var(--frame),inset 0 0 0 3px var(--frame-lo)}
+.stage::after{inset:3px;background:linear-gradient(180deg,rgba(11,9,21,.45),transparent 26%,transparent 72%,rgba(11,9,21,.5)),radial-gradient(140% 100% at 50% 50%,transparent 62%,rgba(7,5,13,.55))}
+.cast{left:3px;right:3px}
+
+/* type */
+.tag-title{font-family:var(--display);font-size:21px;line-height:1;padding:5px 10px 6px;color:var(--ink);background:linear-gradient(180deg,rgba(36,30,60,.92),rgba(19,15,34,.92));border:2px solid var(--frame);box-shadow:0 0 0 2px var(--edge),inset 0 0 0 1px var(--frame-lo);letter-spacing:.02em}
+.tag-title.gold{color:var(--gold)}
+.tag-sub,.pips,.age-badge{background:linear-gradient(180deg,rgba(36,30,60,.92),rgba(19,15,34,.92));border:2px solid var(--frame);box-shadow:0 0 0 2px var(--edge)}
+.tag-sub{font-family:var(--label);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--soft)}
+.pips{color:var(--teal)} .pips i{color:rgba(244,234,212,.25)}
+.age-badge span{font-family:var(--label);font-size:8px;letter-spacing:.15em}
+.age-badge b{font-family:var(--display);font-size:38px;color:var(--ink)}
+.title-card{background:radial-gradient(90% 60% at 50% 50%,rgba(19,15,34,.86),rgba(7,5,13,.72))}
+.title-card small{font-family:var(--label);font-size:11px;letter-spacing:.25em;text-transform:uppercase;color:var(--gold)}
+.title-card b{font-family:var(--display);font-size:52px;line-height:1;color:var(--ink);text-shadow:0 3px 0 var(--edge),0 0 18px rgba(242,205,110,.25)}
+.title-card b::before,.title-card b::after{content:"◆";font-size:14px;color:var(--frame);vertical-align:middle;margin:0 12px;position:relative;top:-6px}
+.eyebrow{font-family:var(--label);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);display:flex;align-items:center;gap:8px;margin-top:4px}
+.eyebrow::before{content:"";width:7px;height:7px;background:var(--teal);box-shadow:0 0 0 2px var(--edge);transform:rotate(45deg);flex:none}
+.eyebrow::after{content:"";flex:1;height:2px;background:linear-gradient(90deg,var(--frame-lo),transparent)}
+.sheet-head h3,.panel-h{font-family:var(--display);font-size:24px;line-height:1;color:var(--gold);font-weight:400}
+.lead-body h3{font-family:var(--display);font-size:27px;line-height:1;color:var(--ink)}
+.chapter-done b{font-family:var(--display);font-size:30px;line-height:1.05;color:var(--ink)}
+.stamp{font-family:var(--label);font-size:10px;letter-spacing:.2em;color:var(--teal);border-color:var(--teal)}
+.ending-title{font-family:var(--display);font-size:30px;line-height:1;color:var(--gold)}
+.rank-box{border-color:var(--frame);box-shadow:0 0 0 2px var(--edge),inset 0 0 0 2px var(--frame-lo)}
+.rank-box small{font-family:var(--label);font-size:8px}
+.rank-box b{font-family:var(--display);font-size:54px;line-height:.95}
+.book-title{font-family:var(--display);font-size:32px;line-height:1}
+.id-info b{font-family:var(--display);font-size:30px;line-height:1;color:var(--ink)}
+.who-top b{font-family:var(--display);font-size:22px;line-height:1}
+.who-top span{font-family:var(--label);font-size:9px;color:var(--gold)}
+.who-sub{font-size:11px}
+.leads-head{font-family:var(--label);font-size:10px;letter-spacing:.12em}
+.report-h{font-family:var(--label);font-size:10px;letter-spacing:.12em;text-transform:uppercase}
+.kv span{font-family:var(--label);font-size:8px;letter-spacing:.08em}
+.kv b{font-family:var(--display);font-size:20px;line-height:1}
+.story .say{color:#ffe7bf}
+.story em{color:var(--teal)}
+.timeline b,.wtl b{color:var(--gold)}
+.log-item b{color:var(--gold)}
+
+/* HUD */
+.face,.frame,.person .head,.hthumb{background:radial-gradient(100% 90% at 50% 25%,#3b305e,#1b1630)}
+.face{border:3px solid var(--frame);box-shadow:0 0 0 2px var(--edge),inset 0 0 0 1px var(--frame-lo),0 3px 0 2px rgba(0,0,0,.45)}
+.hp-track{border-color:var(--frame-lo);background:#0d0a18}
+.menu-btn{background:linear-gradient(180deg,#342b52,#211b38);box-shadow:inset 0 0 0 2px var(--frame),inset 0 0 0 3px var(--frame-lo),0 3px 0 rgba(0,0,0,.45)}
+.menu-btn span{background:var(--gold)}
+.purse .f{color:var(--teal)}
+.patron-sym{font-size:13px;color:var(--gold);margin-left:2px}
+
+/* dialogue */
+.nameplate{font-family:var(--display);font-size:19px;line-height:1;top:-15px;padding:4px 12px 5px;background:linear-gradient(180deg,var(--frame-hi),var(--frame) 55%,#a87f34);color:#2a1806;border:2px solid var(--edge);box-shadow:0 3px 0 var(--edge),inset 0 -2px 0 rgba(0,0,0,.2)}
+.nameplate.you{background:linear-gradient(180deg,#a7f0e4,var(--teal) 55%,var(--teal-lo));color:#062824}
+.dlg.news .dlg-text::before{content:"✦ ";color:var(--teal)}
+.next{color:var(--teal)}
+.mini{font-family:var(--label);font-size:9px;letter-spacing:.06em;border-color:var(--line);color:var(--soft);background:rgba(7,5,13,.5)}
+.mini.on{border-color:var(--teal);color:var(--teal)}
+.dlg-foot{gap:6px}
+.hint{color:var(--teal)}
+
+/* choices */
+.prompt{border-bottom:2px solid transparent;border-image:linear-gradient(90deg,transparent,var(--frame-lo),transparent) 1}
+.choice{border:2px solid transparent;transition:background .12s}
+.choice .cursor{color:var(--teal)}
+.choice:hover,.choice:focus-visible{background:linear-gradient(90deg,rgba(102,220,203,.14),rgba(102,220,203,.03));border-color:rgba(102,220,203,.5)}
+.choice:active{background:rgba(102,220,203,.22)}
+.choice.special .lbl{color:var(--gold)}
+.pill{font-family:var(--label);font-size:8px;letter-spacing:.06em;padding:4px 5px 3px}
+
+/* buttons */
+.btn{font-size:15px;border:3px solid var(--edge);text-shadow:none}
+.btn.primary{background:linear-gradient(180deg,var(--frame-hi),var(--gold) 45%,#c99a3c);color:#2a1806;box-shadow:inset -3px -3px 0 #9a6f26,inset 3px 3px 0 #fff0bf,0 3px 0 rgba(0,0,0,.5)}
+.btn.primary:active{box-shadow:inset 3px 3px 0 #9a6f26;transform:translateY(2px)}
+.btn.ghost{background:linear-gradient(180deg,#342b52,#221c3a);color:var(--ink);box-shadow:inset 0 0 0 2px var(--frame-lo),inset -3px -3px 0 #17122a,inset 3px 3px 0 #4a3f70,0 3px 0 rgba(0,0,0,.5)}
+
+/* tiles, segmented, tabs */
+.tile,.seg button,.tabs button,.dt,.hall-item,.detail,.kv div{background:rgba(7,5,13,.45);border-color:var(--line)}
+.tile.sel,.seg button.on,.tabs button.on{border-color:var(--teal);color:var(--teal);background:rgba(102,220,203,.1)}
+.tabs{flex-wrap:nowrap;flex:1;min-width:0}
+.tabs button{font-family:var(--label);font-size:9px;letter-spacing:0;text-transform:uppercase;min-height:36px;padding:6px 5px;flex:1 1 auto;white-space:nowrap}
+.tabs button[data-stab=settings]{flex:0 0 32px}
+.dt.ctx{border-color:var(--frame)} .dt.ctx b::before{color:var(--teal)}
+.detail i{color:var(--teal)}
+.thread{border-color:var(--frame-lo)} .thread::before{color:var(--teal)}
+.cheat-box{background:linear-gradient(180deg,rgba(242,205,110,.10),rgba(242,205,110,.03));border-color:var(--frame-lo)}
+.statrow span:first-child{font-family:var(--label);font-size:10px}
+.statrow .t{border-color:var(--frame-lo);background:#0d0a18}
+.statrow .f{background:repeating-linear-gradient(90deg,var(--gold) 0 6px,#b98a32 6px 8px)}
+.person,.log-item,button.person.tap{border-bottom-color:rgba(74,63,104,.7)}
+.tag{border-color:var(--line)} .tag.echo{border-color:var(--frame);color:var(--gold)} .tag.main{border-color:var(--teal);color:var(--teal)}
+.dots i{background:var(--line)} .dots i.on{background:var(--teal)}
+.enigma{border-color:var(--line);background:rgba(7,5,13,.35)}
+.enigma.solved{border-color:var(--frame);background:rgba(242,205,110,.06)}
+.key.on b{color:var(--teal)}
+.turn{border-left-color:var(--teal)}
+.kv1{border-bottom-color:rgba(74,63,104,.7)} .kv1 b{color:var(--gold)}
+.x{border-color:var(--line);color:var(--soft)}
+.overlay{background:rgba(5,3,10,.74)}
+
+.keybtn{color:var(--teal);border-color:var(--line)}
+.field input{border-color:var(--frame-lo);background:#0d0a18}
+.linkbtn,.gold{color:var(--gold)}
+
+/* title */
+.logo .kanji{font-family:var(--label);font-size:9px;letter-spacing:.2em;color:var(--gold);background:linear-gradient(180deg,rgba(36,30,60,.9),rgba(19,15,34,.9));border:2px solid var(--frame);box-shadow:0 0 0 2px var(--edge);padding:3px 10px}
+.title-menu .pitch{color:var(--soft)}
+
+/* long choice lists scroll inside the window instead of pushing the page */
+.game .panel.mode-choices{flex:0 1 auto;min-height:0;max-height:62%}
+.game .panel.mode-choices .choosing{min-height:0;max-height:100%;overflow:hidden}
+.game .panel.mode-choices .menu-list{flex:1 1 auto}
+.game .stage{min-height:120px}
+/* comfort */
+body.big .dlg-text{font-size:18px} body.big .choice .lbl{font-size:17px} body.big .lead-body p{font-size:15px} body.big .prompt{font-size:15px}
+@media (max-height:700px){ .title-card b{font-size:42px} .tag-title{font-size:18px} }
 </style>
 </head>
 <body>
@@ -381,7 +521,7 @@ img.head.hd{image-rendering:pixelated;object-fit:cover}
 <div id="app"></div>
 <div id="overlay-root"></div>
 <script>
-const BUILD = '2026-11-07 09:52 UTC';
+const BUILD = '2026-11-07 10:00 UTC';
 ;
 /* =========================================================
    ANOTHER LIFE v2 — core data
@@ -7751,26 +7891,49 @@ function headImg(spec, cls){ if(spec && spec.img) cls = (cls||'')+' hd'; return 
 function stageScene(){ const st=stageOf(S.age); if(st==='child') return 'village'; if(st==='academy') return 'academy'; return S.path==='shop'?'cafe':S.path==='crown'?'palace':S.path==='adv'?'tavern':'capital'; }
 /* falling sakura petals and leaves over holy scenes */
 let FX=null;
+const FX_STYLE = {
+  petals:{n:260, fall:true, cols:['#ffc4dc','#ff9cc4'], hi:'#fff0f6', leaf:.18},
+  motes:{n:520, rise:true, cols:['#f6dc94','#cfa552','#fff3cf']},
+  fireflies:{n:700, drift:true, cols:['#d8ff9a','#f6dc94','#a8ffe0'], glow:true},
+  runes:{n:520, rise:true, cols:['#66dccb','#a8fff2','#2d8c84'], glow:true},
+  spores:{n:380, drift:true, cols:['#9ad49a','#c6f0a0','#6aa87a']},
+  embers:{n:480, rise:true, cols:['#d7a8ff','#f2cd6e','#ff9cc4'], glow:true},
+  snow:{n:200, fall:true, cols:['#ffffff','#dfe8ff']}
+};
 function startFx(){
   if(FX){ FX.stop=true; FX=null; }
   const cv=document.querySelector('canvas.fx'); if(!cv) return;
   const w=Math.ceil(cv.clientWidth/2), h=Math.ceil(cv.clientHeight/2); if(!w||!h) return;
   cv.width=w; cv.height=h; const cx=cv.getContext('2d');
   const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const mk=(any)=>({x:Math.random()*(w+40), y:any?Math.random()*h:-3, vx:-(0.12+Math.random()*0.3), vy:0.18+Math.random()*0.3, ph:Math.random()*6.28, leaf:Math.random()<.18, big:Math.random()<.35});
-  const ps=Array.from({length:Math.round(w*h/260)+8},()=>mk(true));
+  const st = FX_STYLE[cv.dataset.fx] || FX_STYLE.petals;
+  const mk=(any)=>{
+    const p={x:Math.random()*(w+40)-20, y:any?Math.random()*h:(st.rise?h+3:-3), ph:Math.random()*6.28, c:st.cols[Math.floor(Math.random()*st.cols.length)], leaf:st.leaf&&Math.random()<st.leaf, big:Math.random()<.35, life:Math.random()};
+    if(st.fall){ p.vx=-(0.12+Math.random()*0.3); p.vy=0.18+Math.random()*0.3; }
+    else if(st.rise){ p.vx=(Math.random()-.5)*0.12; p.vy=-(0.06+Math.random()*0.16); }
+    else { p.vx=(Math.random()-.5)*0.16; p.vy=(Math.random()-.5)*0.1; }
+    return p; };
+  const ps=Array.from({length:Math.round(w*h/st.n)+6},()=>mk(true));
   const me={stop:false}; FX=me;
   const draw=()=>{
     if(me.stop || !cv.isConnected) return;
     cx.clearRect(0,0,w,h);
     for(const p of ps){
-      if(!reduce){ p.ph+=0.06; p.x+=p.vx+Math.sin(p.ph)*0.18; p.y+=p.vy; }
-      if(p.y>h+3||p.x<-4) Object.assign(p,mk(false));
+      if(!reduce){ p.ph+=0.05; p.x+=p.vx+Math.sin(p.ph)*(st.fall?0.18:0.08); p.y+=p.vy; }
+      if(p.y>h+3||p.y<-4||p.x<-6||p.x>w+6) Object.assign(p,mk(false));
       const x=Math.floor(p.x), y=Math.floor(p.y), flip=Math.sin(p.ph*1.3)>0;
-      if(p.leaf){ cx.fillStyle=flip?'#9ad49a':'#6aa87a'; cx.fillRect(x,y,2,1); cx.fillRect(x+(flip?1:0),y+1,1,1); }
-      else { cx.fillStyle=flip?'#ffc4dc':'#ff9cc4'; cx.fillRect(x,y,1,1); if(p.big){ cx.fillRect(x+1,y,1,1); cx.fillStyle='#fff0f6'; cx.fillRect(flip?x:x+1,y+1,1,1); } }
+      if(st===FX_STYLE.petals){
+        if(p.leaf){ cx.fillStyle=flip?'#9ad49a':'#6aa87a'; cx.fillRect(x,y,2,1); cx.fillRect(x+(flip?1:0),y+1,1,1); }
+        else { cx.fillStyle=flip?st.cols[0]:st.cols[1]; cx.fillRect(x,y,1,1); if(p.big){ cx.fillRect(x+1,y,1,1); cx.fillStyle=st.hi; cx.fillRect(flip?x:x+1,y+1,1,1); } }
+        continue;
+      }
+      const a = st.glow ? Math.max(0, Math.sin(p.ph*0.6+p.life*6)) : 0.85;
+      if(a<0.05) continue;
+      cx.globalAlpha = a; cx.fillStyle = p.c; cx.fillRect(x,y,1,1);
+      if(p.big && a>.6){ cx.globalAlpha = a*0.35; cx.fillRect(x-1,y,1,1); cx.fillRect(x+1,y,1,1); cx.fillRect(x,y-1,1,1); cx.fillRect(x,y+1,1,1); }
+      cx.globalAlpha = 1;
     }
-    if(!reduce) setTimeout(()=>requestAnimationFrame(draw), 33);
+    if(!reduce) setTimeout(()=>requestAnimationFrame(draw), 40);
   };
   draw();
 }
@@ -7818,7 +7981,8 @@ function fitPixelArt(root){
     img.style.width = (pw*m/dpr)+'px'; img.style.height = (ph*m/dpr)+'px';
   });
 }
-function sceneBox(key, seed, cls){ return `<div class="scene-box ${cls||''}" data-scene="${key}" data-seed="${esc(seed)}"></div>${(key==='realm'||key==='realm:lumi'||key==='shrine')&&!cls?'<canvas class="fx" aria-hidden="true"></canvas>':''}`; }
+const SCENE_FX = {realm:'petals', 'realm:lumi':'petals', shrine:'petals', 'realm:cittine':'motes', 'realm:dio':'motes', 'realm:tarsia':'motes', 'realm:verne':'motes', 'realm:miscura':'runes', 'realm:xubel':'spores', 'realm:zaan':'embers', 'art:title':'fireflies', forest:'fireflies', ruins:'runes', north:'snow', night:'fireflies'};
+function sceneBox(key, seed, cls){ const fx = SCENE_FX[key]; return `<div class="scene-box ${cls||''}" data-scene="${key}" data-seed="${esc(seed)}"></div>${fx&&!cls?`<canvas class="fx" data-fx="${fx}" aria-hidden="true"></canvas>`:''}`; }
 
 /* ---------- text: formatting, pages, typewriter ---------- */
 function prose(t){
@@ -7828,7 +7992,7 @@ function prose(t){
 }
 let CHAR_W = 8.2;
 function measureFont(){ try{ const c=document.createElement('canvas').getContext('2d'); c.font="16px DotGothic16"; CHAR_W = c.measureText('the quick brown fox jumps over a lazy dog, said Lina.').width/52 || 8.2; }catch(e){} }
-function pageCap(){ const b=UI.box||{w:Math.min(app.clientWidth||360,560)-52, h:5*27}; const cpl=Math.max(20, Math.floor(b.w/CHAR_W)); const lines=Math.max(3, Math.floor(b.h/27.2)-1); return Math.floor(cpl*lines*0.86); }
+function pageCap(){ const k = PREFS.big ? 18/16 : 1; const b=UI.box||{w:Math.min(app.clientWidth||360,560)-52, h:5*27}; const cpl=Math.max(20, Math.floor(b.w/(CHAR_W*k))); const lines=Math.max(3, Math.floor(b.h/(27.2*k))-1); return Math.floor(cpl*lines*0.86); }
 function paginate(text){
   const cap = pageCap(), out=[];
   String(text).split('\n\n').forEach(par=>{
@@ -7971,7 +8135,7 @@ function hud(){
   const place = stageOf(S.age)==='child' ? wPlace('home') : stageOf(S.age)==='academy' ? 'Royal Academy' : (S.path?PATH_NAME[S.path]:wPlace('capital'));
   return `<header class="hud">
     <button class="face" id="open-sheet" aria-label="Open character menu">${headImg(playerArt(S))}</button>
-    <div class="who"><div class="who-top"><b>${esc(S.name)}</b><span>AGE ${S.age}</span></div>
+    <div class="who"><div class="who-top"><b>${esc(S.name)}</b><span>AGE ${S.age}</span>${S.patron&&typeof GODS!=='undefined'?`<span class="patron-sym" title="${esc(godName(S.patron))}">${GODS[S.patron].sym}</span>`:''}</div>
       <div class="hp ${pct<35?'low':''}"><span class="hp-k">HP</span><div class="hp-track"><div class="hp-fill" style="width:${pct}%"></div></div><span class="hp-n">${S.hp}/${S.maxhp}</span></div>
       <div class="who-sub">${esc(place)}</div>
     </div>
@@ -8031,16 +8195,24 @@ function drawPage(){
     ${name?`<div class="nameplate ${p.speaker.key==='you'?'you':''}">${esc(name)}</div>`:''}
     ${p.pre?`<div class="pre">▶ ${esc(p.pre)}</div>`:''}
     <div class="dlg-text story" id="dlgText">${p.text?prose(p.text):''}</div>
-    <div class="dlg-foot"><button class="mini" id="logBtn">LOG</button><span class="pageno">${f.i+1}/${f.pages.length}</span><span class="next" id="nextMark">▼</span></div>
+    <div class="dlg-foot"><button class="mini" id="logBtn">LOG</button><button class="mini ${PREFS.auto?'on':''}" id="autoBtn" aria-pressed="${!!PREFS.auto}">AUTO</button><span class="pageno">${f.i+1}/${f.pages.length}</span><span class="next" id="nextMark">▼</span></div>
   </div>`;
-  $('#dlg').onclick = e=>{ if(e.target.id==='logBtn') return; advance(); };
+  $('#dlg').onclick = e=>{ if(e.target.id==='logBtn'||e.target.id==='autoBtn') return; advance(); };
+  $('#autoBtn').onclick = e=>{ e.stopPropagation(); PREFS.auto = !PREFS.auto; savePrefs(); e.target.classList.toggle('on', PREFS.auto); e.target.setAttribute('aria-pressed', PREFS.auto); if(PREFS.auto && !UI.typing) scheduleAuto(); };
   $('#logBtn').onclick = e=>{ e.stopPropagation(); openLog(); };
   // side effects of this page
   if(p.roll) showDice(p.roll); else hideDice();
   if(p.chips && p.chips.length) showToasts(p.chips);
   if(!UI.log.length || UI.log[UI.log.length-1].t!==p.text) UI.log.push({t:p.text, who:name, pre:p.pre});
   const mark=$('#nextMark'); mark.classList.add('wait');
-  typeInto($('#dlgText'), ()=>{ mark.classList.remove('wait'); });
+  typeInto($('#dlgText'), ()=>{ mark.classList.remove('wait'); scheduleAuto(); });
+}
+let autoT = null;
+function scheduleAuto(){
+  clearTimeout(autoT); if(!PREFS.auto) return;
+  const f = UI.flow; if(!f || f.mode!=='pages') return;
+  const key = f.key + ':' + f.i, len = (f.pages[f.i] && f.pages[f.i].text || '').length;
+  autoT = setTimeout(()=>{ const g = UI.flow; if(PREFS.auto && g && g.mode==='pages' && g.key+':'+g.i===key && !oroot.innerHTML) advance(); }, Math.min(6000, 1400 + len*28));
 }
 function advance(){
   const f=UI.flow; if(!f || f.mode!=='pages') return;
@@ -8353,7 +8525,9 @@ function openSheet(tab){
   if(UI.tab==='settings'){
     content = `<div class="eyebrow">Text speed</div>
       <div class="seg wide">${[['slow','Slow'],['normal','Normal'],['fast','Fast'],['instant','Instant']].map(([k,v])=>`<button class="${PREFS.speed===k?'on':''}" data-speed="${k}">${v}</button>`).join('')}</div>
-      <div class="muted small">Tap the text box or the scene to skip ahead or turn the page.</div>
+      <div class="muted small">Tap the text box or the scene to skip ahead or turn the page. AUTO in the text box turns pages for you.</div>
+      <div class="eyebrow">Text size</div>
+      <div class="seg wide">${[[false,'Normal'],[true,'Large']].map(([k,v])=>`<button class="${!!PREFS.big===k?'on':''}" data-big="${k}">${v}</button>`).join('')}</div>
       <div class="eyebrow">Game</div>
       <button class="btn ghost wide" id="quit">Save and return to title</button>
       <div class="muted small">${cloudMsg()}</div>
@@ -8369,6 +8543,7 @@ function openSheet(tab){
   oroot.querySelectorAll('[data-god]').forEach(b=>b.onclick=()=>openGod(b.dataset.god));
   const cu = oroot.querySelector('#checkUpd'); if(cu) cu.onclick=()=>{ cu.textContent='Checking…'; fetch('index.html', {cache:'no-store'}).then(r=>r.text()).then(t=>{ const m = t.match(/const BUILD = '([^']+)'/); if(m && m[1]!==BUILD){ cu.textContent='Updating…'; (window.swReg ? window.swReg.update() : Promise.resolve()).finally(()=>setTimeout(()=>location.reload(), 600)); } else cu.textContent='You have the latest version'; }).catch(()=>{ cu.textContent='Offline, try again later'; }); };
   oroot.querySelectorAll('[data-speed]').forEach(b=>b.onclick=()=>{ PREFS.speed=b.dataset.speed; savePrefs(); openSheet('settings'); });
+  oroot.querySelectorAll('[data-big]').forEach(b=>b.onclick=()=>{ PREFS.big = b.dataset.big==='true'; savePrefs(); document.body.classList.toggle('big', PREFS.big); if(UI.flow) UI.flow = null; openSheet('settings'); });
   const q=$('#quit'); if(q) q.onclick=()=>{ closeOverlay(); UI.screen='title'; render(); };
   const ck=$('#copyKey'); if(ck) ck.onclick=()=>{ try{ navigator.clipboard.writeText(S.world.key); ck.textContent='Copied!'; setTimeout(()=>{ ck.textContent=S.world.key; },1200); }catch(e){} };
 }
@@ -8543,6 +8718,7 @@ indexArcs();
 load();
 if(S && S.ending) S=null;
 measureFont();
+document.body.classList.toggle('big', !!PREFS.big);
 lastW=window.innerWidth; lastH=window.innerHeight;
 DOLL.ready.then(render);
 if(document.fonts && document.fonts.ready) document.fonts.ready.then(()=>{ measureFont(); });
