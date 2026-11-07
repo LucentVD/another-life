@@ -49,7 +49,7 @@ html,body{height:100%;margin:0;overscroll-behavior:none}
 body{position:fixed;inset:0;background:var(--night);color:var(--ink);font-family:var(--pixel);font-size:16px;line-height:1.7;-webkit-tap-highlight-color:transparent;overflow:hidden;-webkit-font-smoothing:none;letter-spacing:.02em;touch-action:manipulation}
 img{image-rendering:pixelated;image-rendering:crisp-edges}
 #sky{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;image-rendering:pixelated}
-#app{position:relative;z-index:1;height:100%;height:100dvh;max-width:560px;margin:0 auto}
+#app{position:relative;z-index:1;height:100%;height:100dvh;height:var(--app-h,100dvh);max-width:560px;margin:0 auto}
 button{font:inherit;color:inherit;cursor:pointer;-webkit-appearance:none;appearance:none;letter-spacing:inherit;background:none;border:none;padding:0}
 button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
@@ -521,7 +521,7 @@ body.big .dlg-text{font-size:18px} body.big .choice .lbl{font-size:17px} body.bi
 <div id="app"></div>
 <div id="overlay-root"></div>
 <script>
-const BUILD = '2026-11-07 10:00 UTC';
+const BUILD = '2026-11-07 10:14 UTC';
 ;
 /* =========================================================
    ANOTHER LIFE v2 — core data
@@ -5746,8 +5746,8 @@ function takeKey(ei, ki){
   const E = enigmas()[ei]; if(!E) return [];
   const kk = E.keys[ki]; if(!kk || kk.found) return [];
   kk.found = true; kk.age = S.age;
-  chronicle(`Found a Key to "${enigmaTitle(E)}" (${foundKeys(E)}/${E.need}).`);
-  return [[`🗝 Key: ${enigmaTitle(E)} (${foundKeys(E)}/${E.need})`, 'seed']];
+  chronicle(`Found a Key to "${enigmaTitle(E)}" (${Math.min(foundKeys(E),E.need)}/${E.need}).`);
+  return [[`🗝 Key: ${enigmaTitle(E)} (${Math.min(foundKeys(E),E.need)}/${E.need})`, 'seed']];
 }
 
 /* ---------- 1. A LEAD: follow one Key ---------- */
@@ -7982,6 +7982,46 @@ function fitPixelArt(root){
   });
 }
 const SCENE_FX = {realm:'petals', 'realm:lumi':'petals', shrine:'petals', 'realm:cittine':'motes', 'realm:dio':'motes', 'realm:tarsia':'motes', 'realm:verne':'motes', 'realm:miscura':'runes', 'realm:xubel':'spores', 'realm:zaan':'embers', 'art:title':'fireflies', forest:'fireflies', ruins:'runes', north:'snow', night:'fireflies'};
+/* =========================================================
+   Never let the bottom of the screen get cut off. Measures what is
+   really visible (iOS home-screen apps disagree with CSS about the
+   viewport) and shrinks the flexible art until everything fits.
+   ========================================================= */
+function setAppHeight(){
+  const vv = window.visualViewport, h = Math.round(Math.min(window.innerHeight, vv ? vv.height : 1e9, document.documentElement.clientHeight || 1e9));
+  document.documentElement.style.setProperty('--app-h', h + 'px');
+}
+function fitScreen(){
+  const scr = document.querySelector('.screen'); if(!scr) return;
+  const cs = getComputedStyle(scr), padB = parseFloat(cs.paddingBottom)||0;
+  const limit = Math.min(scr.getBoundingClientRect().bottom, window.innerHeight, window.visualViewport ? window.visualViewport.height + window.visualViewport.offsetTop : 1e9) - padB - 6;
+  // story cards: shrink the picture so the button stays on screen
+  document.querySelectorAll('.lead-card').forEach(card=>{
+    const art = card.querySelector('.lead-art'); if(!art) return;
+    art.style.flex = ''; art.style.height = '';
+    const car = card.parentElement, lim = Math.min(limit, car ? car.getBoundingClientRect().bottom : 1e9);
+    const contentBottom = Math.max(...[...card.children].map(c=>c.getBoundingClientRect().bottom)) + 8;
+    const over = Math.max(card.getBoundingClientRect().bottom, contentBottom) - lim;
+    if(over > 1){ art.style.flex = '0 0 auto'; art.style.height = Math.max(64, art.getBoundingClientRect().height - over - 2) + 'px'; }
+  });
+  // anything else: give the space back from the scene
+  const panel = document.querySelector('.screen .panel'), stage = document.querySelector('.screen .stage');
+  if(panel && stage){
+    stage.style.flex = ''; stage.style.height = '';
+    const deep = [...panel.querySelectorAll('.btn, .choice:last-child, .dlg-foot, .navbar')].reduce((m,e)=>Math.max(m, e.getBoundingClientRect().bottom), 0);
+    let over = Math.max(panel.getBoundingClientRect().bottom + (parseFloat(getComputedStyle(panel).marginBottom)||0), deep + 10) - (limit + 6);
+    if(over > 1){ const h = stage.getBoundingClientRect().height; stage.style.flex = '0 0 auto'; stage.style.height = Math.max(96, h - over) + 'px'; }
+  }
+  if(document.querySelector('.lead-art[style*=height], .stage[style*=height]')) paintScenesOnly();
+}
+function paintScenesOnly(){ document.querySelectorAll('[data-scene]').forEach(el=>{ el.dataset.painted=''; }); const f = window.fitScreen; window.__nofit = true; try{ paintScenes(); } finally { window.__nofit = false; } }
+let fitT = null;
+function fitScreenSoon(){ cancelAnimationFrame(fitT); fitT = requestAnimationFrame(()=>requestAnimationFrame(fitScreen)); }
+setAppHeight();
+window.addEventListener('resize', ()=>{ setAppHeight(); fitScreenSoon(); });
+if(window.visualViewport) window.visualViewport.addEventListener('resize', ()=>{ setAppHeight(); fitScreenSoon(); });
+window.addEventListener('orientationchange', ()=>setTimeout(()=>{ setAppHeight(); fitScreenSoon(); }, 300));
+if(document.fonts && document.fonts.ready) document.fonts.ready.then(()=>fitScreenSoon());
 function sceneBox(key, seed, cls){ const fx = SCENE_FX[key]; return `<div class="scene-box ${cls||''}" data-scene="${key}" data-seed="${esc(seed)}"></div>${fx&&!cls?`<canvas class="fx" data-fx="${fx}" aria-hidden="true"></canvas>`:''}`; }
 
 /* ---------- text: formatting, pages, typewriter ---------- */
@@ -8126,6 +8166,7 @@ function ageBadge(sub){ return `<div class="age-badge"><span>AGE</span><b>${S.ag
    ========================================================= */
 function render(){
   stopTyping();
+  fitScreenSoon();
   if(UI.screen==='title') return renderTitle();
   if(UI.screen==='create') return renderCreate();
   renderGame();
@@ -8173,6 +8214,7 @@ function renderGame(){
 }
 function drawPanel(){
   const f = UI.flow, panel = $('#panel'); if(!panel) return;
+  fitScreenSoon();
   stopTyping();
   panel.className = 'panel mode-'+f.mode;
   const scr = document.querySelector('.screen'); if(scr){ const prev=scr.dataset.mode; scr.dataset.mode = f.mode; if(prev!==f.mode) requestAnimationFrame(paintScenes); }
@@ -8271,6 +8313,7 @@ function drawLeads(){
   paintScenes();
   const car=$('#carousel');
   car.onscroll=()=>{ const i=Math.round(car.scrollLeft/(car.firstElementChild.offsetWidth+12)); panel.querySelectorAll('.dots i').forEach((d,k)=>d.classList.toggle('on',k===i)); };
+  fitScreenSoon();
   panel.querySelectorAll('[data-lead]').forEach(b=>b.onclick=()=>{ buzz(); chooseLead(+b.dataset.lead); UI.flow=null; UI.log=[]; render(); });
 }
 function leadCard(L,i){
@@ -8513,7 +8556,7 @@ function openSheet(tab){
       const n = foundKeys(E), shown = E.solved || n>0 || S.age>=8;
       if(!shown) return '';
       const keys = E.keys.map(kk=>kk.found ? `<div class="key on"><b>🗝</b><span>${ital(keyText(E,kk))}</span></div>` : `<div class="key"><b>?</b><span>${esc(keyHint(E,kk))}</span></div>`).join('');
-      return `<div class="enigma ${E.solved?'solved':''}"><div class="en-h"><b>${esc(enigmaTitle(E))}</b><span class="mono">${E.past?'KNOWN':E.solved?'SOLVED':`${n}/${E.need} KEYS`}</span></div>
+      return `<div class="enigma ${E.solved?'solved':''}"><div class="en-h"><b>${esc(enigmaTitle(E))}</b><span class="mono">${E.past?'KNOWN':E.solved?'SOLVED':`${Math.min(n,E.need)}/${E.need} KEYS`}</span></div>
         <div class="small">${E.past?`<i class="muted">Uncovered by ${esc(E.past)}, long ago. </i>`:''}${esc(E.solved ? enigmaFmt(E, ENIGMA[E.k].reveal[E.truth]) : enigmaQ(E))}</div>${E.solved?'':keys}</div>`; }).join('');
     const vow = S.amb ? `<div class="eyebrow">Your vow</div><div class="kv1 ${vowDone()?'':'warn'}"><b>“${esc(capFirst(vowText()))}.”</b><span>${vowDone()?'Kept, so far.':'Sworn at '+S.amb.age+'. Not yet kept.'}</span></div>` : '';
     const RK = {true:'True', grand:'Exaggerated', twisted:'Twisted', lie:'A lie'};
