@@ -569,15 +569,14 @@ body.big .dlg-text{font-size:18px} body.big .choice .lbl{font-size:17px} body.bi
 .body-pick{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .body-card{display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 6px 8px;border:2px solid var(--line);background:rgba(7,5,13,.45)}
 .body-card.sel{border-color:var(--teal);background:rgba(102,220,203,.1)}
-.bc-art{display:flex;align-items:flex-end;justify-content:center;height:clamp(96px,17vh,150px);overflow:hidden;width:100%}
-.bc-art img{image-rendering:pixelated;max-height:100%}
-.bc-art img.doll{width:auto;height:100%}
+.bc-art{display:flex;align-items:flex-start;justify-content:center;height:clamp(96px,17vh,150px);overflow:hidden;width:100%;background:rgba(7,5,13,.35)}
+.bc-art img,.age-art img{image-rendering:pixelated;flex:none;max-width:none;max-height:none}
 .bc-name{font-family:var(--display);font-size:22px;line-height:1;color:var(--gold)}
 .body-card.sel .bc-name{color:var(--teal)}
 .bc-soon{font-size:10.5px;color:var(--muted)}
 .ages{display:flex;justify-content:space-between;gap:6px;padding:6px 4px 0}
 .ages figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:3px;flex:1}
-.ages img{width:100%;max-width:64px;aspect-ratio:1;object-fit:contain;image-rendering:pixelated;background:rgba(7,5,13,.5);border:2px solid var(--line)}
+.age-art{display:flex;align-items:center;justify-content:center;width:100%;height:clamp(56px,11vh,88px);overflow:hidden;background:rgba(7,5,13,.5);border:2px solid var(--line)}
 .ages figcaption{font-size:10.5px;color:var(--soft)}
 .ages-soon{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 2px 0}
 </style>
@@ -587,7 +586,7 @@ body.big .dlg-text{font-size:18px} body.big .choice .lbl{font-size:17px} body.bi
 <div id="app"></div>
 <div id="overlay-root"></div>
 <script>
-const BUILD = '2026-11-08 10:35 UTC';
+const BUILD = '2026-11-08 10:40 UTC';
 ;
 /* =========================================================
    ANOTHER LIFE v2 — core data
@@ -8663,6 +8662,21 @@ function paintScenes(){
   });
 }
 /* premade art: whole device pixels per art pixel, never smoothed */
+/* pixel art inside a fixed box, at a whole number of device pixels per art pixel.
+   bust: fill the width and show the top of the picture; fit: the whole picture, centred. */
+function fitIntArt(root){
+  const dpr = window.devicePixelRatio||1;
+  (root||document).querySelectorAll('img[data-int]').forEach(img=>{
+    const go = ()=>{
+      const box = img.parentElement, W = box.clientWidth, H = box.clientHeight, pw = img.naturalWidth, ph = img.naturalHeight;
+      if(!W || !H || !pw || !ph) return;
+      const t = img.dataset.int==='bust' ? Math.min(W/pw, H/(ph*0.62)) : Math.min(W/pw, H/ph);
+      const m = Math.max(1, img.dataset.int==='bust' ? Math.floor(t*dpr + 1e-6) : Math.round(t*dpr));
+      img.style.width = (pw*m/dpr)+'px'; img.style.height = (ph*m/dpr)+'px';
+    };
+    if(img.complete && img.naturalWidth) go(); else img.addEventListener('load', go, {once:true});
+  });
+}
 function fitPixelArt(root){
   const dpr = window.devicePixelRatio||1;
   (root||document).querySelectorAll('img[data-pw]').forEach(img=>{
@@ -9200,9 +9214,9 @@ function drawCreatePanel(){
   if(P.kind==='look'){
     const race = c.race||'human', set = playerSet(race, c.look.face);
     const card = f=>{ const k = playerSet(race, f), v = k && PORTRAITS[k][2];
-      const img = v ? `<img alt="" src="${v.src}" data-pw="${v.w}" data-ph="${v.h}" data-fit="120x150">` : `<img class="doll" alt="" src="${PX.portrait(previewSpec(Object.assign({}, c, {look:Object.assign({}, c.look, {face:f})}), 16), 'head')}">`;
+      const img = v ? `<img alt="" src="${v.src}" data-int="bust">` : `<img alt="" src="${PX.portrait(previewSpec(Object.assign({}, c, {look:Object.assign({}, c.look, {face:f})}), 16), 'head')}" data-int="fit">`;
       return `<button class="body-card ${c.look.face===f?'sel':''}" data-body="${f}"><span class="bc-art">${img}</span><span class="bc-name">${f==='f'?'Female':'Male'}</span>${k?'':'<span class="bc-soon">Portrait coming soon</span>'}</button>`; };
-    const ages = set ? `<div class="ages">${['Child','Teen','Adult','Elder'].map((n,i)=>`<figure><img alt="" src="${PORTRAITS[set][i].head}"><figcaption>${n}</figcaption></figure>`).join('')}</div>`
+    const ages = set ? `<div class="ages">${['Child','Teen','Adult','Elder'].map((n,i)=>`<figure><span class="age-art"><img alt="" src="${PORTRAITS[set][i].head}" data-int="fit"></span><figcaption>${n}</figcaption></figure>`).join('')}</div>`
       : `<div class="ages-soon"><span class="muted small">No portrait for this body yet, so you get a generated look for now.</span><button class="btn ghost" id="shuffle" aria-label="New random look">⚄ New look</button></div>`;
     body = `<div class="body-pick">${card('m')}${card('f')}</div>${ages}`;
   }
@@ -9225,10 +9239,10 @@ function drawCreatePanel(){
   }
   panel.classList.toggle('formy', !abyss && !['page','choice','final'].includes(P.kind));
   panel.classList.remove('leaving');
-  fitPixelArt(panel);
+  fitIntArt(panel);
   // words arrive slowly in the dark, a little quicker in the light
   const showRest = ()=>{ const o = $('#popts'); if(o) o.classList.add('show'); const n = $('#pnext'); if(n) n.classList.add('show'); fitScreenSoon(); };
-  requestAnimationFrame(()=>requestAnimationFrame(()=>{ if(UI.screen==='create') paintScenes(); }));
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{ if(UI.screen==='create'){ paintScenes(); fitIntArt(panel); } }));
   if(fresh){
     c._typed = typedKey;
     const el = $('#ptext'), wait = c._revealT ? Math.max(0, 1500 - (performance.now()-c._revealT)) : 0;
