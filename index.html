@@ -569,7 +569,7 @@ body.big .dlg-text{font-size:18px} body.big .choice .lbl{font-size:17px} body.bi
 .body-pick{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .body-card{display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 6px 8px;border:2px solid var(--line);background:rgba(7,5,13,.45)}
 .body-card.sel{border-color:var(--teal);background:rgba(102,220,203,.1)}
-.bc-art{display:flex;align-items:flex-start;justify-content:center;height:clamp(96px,17vh,150px);overflow:hidden;width:100%;background:rgba(7,5,13,.35)}
+.bc-art{display:flex;align-items:flex-start;justify-content:center;height:clamp(110px,20vh,176px);overflow:hidden;width:100%;background:rgba(7,5,13,.35)}
 .bc-art img,.age-art img{image-rendering:pixelated;flex:none;max-width:none;max-height:none}
 .bc-name{font-family:var(--display);font-size:22px;line-height:1;color:var(--gold)}
 .body-card.sel .bc-name{color:var(--teal)}
@@ -586,7 +586,7 @@ body.big .dlg-text{font-size:18px} body.big .choice .lbl{font-size:17px} body.bi
 <div id="app"></div>
 <div id="overlay-root"></div>
 <script>
-const BUILD = '2026-11-08 10:40 UTC';
+const BUILD = '2026-11-08 10:58 UTC';
 ;
 /* =========================================================
    ANOTHER LIFE v2 — core data
@@ -611,11 +611,11 @@ const DEATHS = {
   banana:{name:'Slipped on a banana peel', desc:'Down the stairs. The goddess is still laughing about it.', fx:{luck:2, cha:-1}, apology:'I will never stop laughing about the banana'}
 };
 const RACES = {
-  human:{name:'Human', desc:'Adaptable. Nobody stares at you in town.', fx:{cha:1, wit:1}, hp:30, color:'#f3c96e'},
+  human:{name:'Human', desc:'Plain human blood. Adaptable, and nobody stares at you in town.', fx:{cha:1, wit:1}, hp:30, color:'#f3c96e'},
   elf:{name:'Elf', desc:'Pointed ears, long life, a gift for magic.', fx:{mag:2, wit:1, str:-1}, hp:26, color:'#8fe3b0'},
   beast:{name:'Fox Beastkin', desc:'Ears, a tail, sharp senses, and fast feet.', fx:{str:2, luck:1, wit:-1}, hp:34, color:'#ffad6b'},
   dragon:{name:'Dragonkin', desc:'Small horns and a big appetite. Tough as stone.', fx:{str:2, mag:1, cha:-1}, hp:38, color:'#ff7d7d'},
-  demon:{name:'Cambion', desc:'Demon blood and two small dark horns. The villagers whisper. You will show them.', fx:{mag:2, cha:1, luck:-1}, hp:30, color:'#c48bff'}
+  demon:{name:'Cambion', desc:'Human, with demon blood that changed the body: two small dark horns, and a gift for magic. The villagers whisper. You will show them.', fx:{mag:2, cha:1, luck:-1}, hp:30, color:'#c48bff'}
 };
 const JOBS = {
   office:{name:'Office Worker', a:'an office worker', desc:'Spreadsheets, meetings, infinite patience.', fx:{wit:2}},
@@ -6717,6 +6717,7 @@ const PRO_ASK = {
   why:{label:'"Why me?"'},
   world:{label:'"What\'s waiting for me down there?"'},
   mem:{label:'"Will I remember any of this?"'},
+  blood:{label:'"What does the demon blood mean?"'},
   ready:{label:'"No more questions. I\'m ready."'}
 };
 const PRO_CRISIS = {
@@ -6926,6 +6927,47 @@ const PRO_INTRO = {
 /* the old per-step lines still voice choosing a race, a face and a gift */
 const PRO_STEP_LINE = {race:2, look:3, gift:5};
 
+
+/* ---------- you are always human. The question is what runs in the blood ---------- */
+const PLAYABLE_RACES = ['human','demon'];
+const PRO_RACE = {
+  lumi:`"Lovely name! Now, one little box to tick. Plain human? Or..." She lowers her voice. "...the other kind. With a bit of something extra in the blood."`,
+  cittine:`"You will be born human. All of you are. But some are born with an older blood running under the new. Choose which you will be."`,
+  dio:`"Next field: bloodline. Standard human, or cambion: human, with an infernal inheritance. Choose carefully. It affects the footnotes."`,
+  miscura:`"Human, of course. Everyone from your world is. But tell me, little one... how human?"`,
+  tarsia:`"Quick question, quick answer: plain human, or human with a little demon in the blood? Both are on the schedule. One's more exciting."`,
+  verne:`"You will be born human. Choose your blood: clean, or touched by the old enemy."`,
+  xubel:`"Human. Always human. But I can smell possibilities on you. Shall we add a little smoke to the blood?"`,
+  zaan:`"Now, the basic package: human. Or the premium package." He smiles. "Human, with a dash of demon blood. Very popular. Very misunderstood."`
+};
+const PRO_RACE_INTRO = {
+  custody:['cittine',`"If you are going back," says Cittine, "go back as something. Plain human, or with the old blood in you?" "Not too much old blood," says Lumi.`],
+  contract:['zaan',`"Now: human, basic package, or human with the demon-blood upgrade?" "It is not an upgrade," says Dio. "It's a hereditary condition." "Upgrade," says Zaan.`],
+  late:['tarsia',`"Okay, we've got about a minute before she gets hungry again. Plain human, or with a bit of demon in you? Quick!"`],
+  trial:['verne',`"And your blood. Choose what you will be: clean, or touched by the old enemy."`],
+  bookworm:['dio',`"Next: bloodline. Human, or cambion. I have a whole shelf on cambions." He sighs. "It's a very short shelf."`],
+  council:['dio',`"Motion to let the soul choose its own blood," says Dio. "Human, or cambion?" "Seconded," says Miscura, a little too quickly.`]
+};
+/* choosing demon blood: every god has something to say about it */
+const PRO_CAMBION = {
+  lumi:{react:`"Cambion? Oh." She goes very quiet, which is unusual for her. "No, no, it's fine! It's allowed! It's just... the forms for those are kept in a different drawer. A locked one. I've never had the key." She brightens, unconvincingly. "You'll be lovely. Horns are very in."`,
+    blood:`"Honestly? I don't know, and I'm supposed to know everything about souls." She frowns at her clipboard. "Yours looks normal to me. Warm. Kind. The blood is just blood. You decide what it means."`},
+  cittine:{react:`"Demon blood." Her folded hands tighten, just slightly. "Every cambion who has ever come to my door came early, and none of them came by accident. Be careful, child. Something in that blood remembers where it came from."`,
+    blood:`"It means the people of {world} will look at you and see a warning. And it means that somewhere, long ago, an old door was opened, and you are what came through it. Live gently. Prove the warning wrong."`},
+  dio:{react:`"A cambion! Oh, splendid. Do you know how few reliable accounts there are? Seven. Six, really; one was written by a goat." He scribbles furiously. "The blood always comes from somewhere. Nobody has ever recorded where. You could be the first."`,
+    blood:`"Three hypotheses: an ancestral pact, a cursed bloodline, or deliberate tampering. I find the third the most likely and the least comforting. Keep notes on anyone who seems unusually interested in you."`},
+  miscura:{react:`She laughs, low and delighted. "Oh, now you're interesting. Demon blood is the oldest secret in {world}, little one. Everyone with horns is a door somebody left unlocked." She leans close. "I wonder who's on the other side of yours."`,
+    blood:`"It means you'll hear things other people don't. Whispers, at night. Most of them are lying." She smiles. "Not all of them. Learn which ones."`},
+  tarsia:{react:`"Cambion?" Her clock stutters. Actually stutters. "That's... huh. That wasn't on the schedule. Demon blood never is. It's like a stone in a river: everything bends around it." She taps the glass. "Things are going to bend around you."`,
+    blood:`"It means your road has a fork in it that nobody else's does. I can see it from here. I can't see where it goes." She hesitates. "That's never happened before."`},
+  verne:{react:`His hand drops to his sword, then, slowly, away from it. "Demon blood. In {world}, they will fear you for it before you have done a single thing." A pause. "Good. Then everything you do after that is a choice they cannot ignore. Prove them wrong."`,
+    blood:`"It means you will be tested twice: once by the world, and once by yourself. The blood will offer you power. Take only what you can carry with honour."`},
+  xubel:{react:`Xubel breathes in, deep and slow, and her eyes go wide. "Oh, I knew you tasted of something. Smoke. Iron. Old hunger." She sounds almost envious. "Something down there is going to recognise you, sweet thing. Something very old. Be careful when it says hello."`,
+    blood:`"It means you'll always be a little hungry. For power. For more. That isn't a curse, sweet thing. It's an appetite. Feed it carefully."`},
+  zaan:{react:`For the first time, Zaan's smile slips. "Demon blood. You know, someone always pays for that. A bargain, generations back, and the debt comes due in the grandchildren." He refills his glass. "Let me know if anyone comes to collect. I'd love to read the contract."`,
+    blood:`"It means there's an old debt with your name on it. Somebody, long ago, wanted something very badly and paid in blood. Their blood. Yours, now." He shrugs. "Read the fine print before you sign anything down there."`}
+};
+
 /* ---------- the flow ---------- */
 const PRO = {
   dark:{ phase:'abyss', kind:'page',
@@ -6951,10 +6993,11 @@ const PRO = {
   path:{ phase:'realm', kind:'choice', key:'path', opts:()=>PRO_PATH, mark:c=>c.thought, text:c=>PRO_GOD[c.god].pathQ, next:()=>'path.e' },
   'path.e':{ phase:'realm', kind:'page', text:c=>PRO_GOD[c.god].path[c.path], next:()=>'name' },
   name:{ phase:'realm', kind:'name', who:c=>(proIntroLine(c,'name')||[c.god])[0], text:c=>(proIntroLine(c,'name')||[0, PRO_GOD[c.god].name])[1], next:()=>'race' },
-  race:{ phase:'realm', kind:'race', who:c=>proOldLine(c,'race')[0], text:c=>proOldLine(c,'race')[1], next:()=>'look' },
+  race:{ phase:'realm', kind:'race', who:c=>proRaceLine(c)[0], text:c=>proRaceLine(c)[1], next:c=>c.race==='demon' ? 'race.e' : 'look' },
+  'race.e':{ phase:'realm', kind:'page', text:c=>PRO_CAMBION[c.god].react, next:()=>'look' },
   look:{ phase:'realm', kind:'look', who:c=>proOldLine(c,'look')[0], text:c=>proOldLine(c,'look')[1], next:()=>'gift' },
   gift:{ phase:'realm', kind:'gift', who:c=>proOldLine(c,'gift')[0], text:c=>proOldLine(c,'gift')[1], next:()=>'ask' },
-  ask:{ phase:'realm', kind:'choice', key:'q', opts:c=>{ const o = {}; for(const k in PRO_ASK) if(!(c.asked||[]).includes(k)) o[k] = PRO_ASK[k]; return o; },
+  ask:{ phase:'realm', kind:'choice', key:'q', opts:c=>{ const o = {}; for(const k in PRO_ASK) if(!(c.asked||[]).includes(k) && (k!=='blood' || c.race==='demon')) o[k] = PRO_ASK[k]; return o; },
     text:c=>(c.asked||[]).length ? `"Anything else?"` : PRO_GOD[c.god].askQ, next:c=>c.q==='ready' ? 'bye' : 'ask.e' },
   'ask.e':{ phase:'realm', kind:'page', text:c=>proAnswer(c), next:c=>{ (c.asked = c.asked||[]).push(c.q); return 'ask'; } },
   bye:{ phase:'realm', kind:'final', who:c=>(proIntroLine(c,'bye')||[c.god])[0], text:c=>(proIntroLine(c,'bye')||[0, PRO_GOD[c.god].bye])[1] }
@@ -6969,10 +7012,15 @@ function proOldLine(c, k){
   if(!c.legacy && c.intro && INTROS[c.intro] && !(c.intro==='council' && k==='gift')){ const L = INTROS[c.intro].lines[i]; if(L) return [L[0]==='@' ? c.god : L[0], L[1].replace(/\{g\}/g, godName(c.god))]; }
   return [c.god, c.god==='lumi' ? CREATE_LINES[i] : GOD_CREATE[c.god][i]];
 }
+function proRaceLine(c){
+  const I = !c.legacy && c.intro && PRO_RACE_INTRO[c.intro];
+  return I ? I : [c.god, PRO_RACE[c.god]];
+}
 function proAnswer(c){
   const G = PRO_GOD[c.god];
   if(c.q==='why') return G.why;
   if(c.q==='mem') return G.mem;
+  if(c.q==='blood') return PRO_CAMBION[c.god].blood;
   const W = c.legacy ? null : previewWorld(c.key);
   if(!W) return `${G.worldPre} The same world you left, decades on. New people. Old legends. Some of them might be about you.`;
   const home = W.places.home;
@@ -9187,13 +9235,12 @@ function drawCreatePanel(){
   // who is in the light with you
   const cast = $('#pcast');
   if(cast){
-    const sig = P.kind==='look' ? 'look:'+JSON.stringify(c.look)+c.race+c.name : proCast(c).join(',');
+    const sig = proCast(c).join(',');
     if(c._cast!==sig){
       c._cast = sig;
       const gods = proCast(c);
-      cast.className = 'cast n'+(P.kind==='look' ? 2 : gods.length);
-      cast.innerHTML = P.kind==='look' ? `<div class="slot small-slot">${sprite(previewSpec(c,7),'Age 7')}</div><div class="slot speaking">${sprite(previewSpec(c,16), c.name.trim()||'You')}</div>`
-        : gods.map(g=>`<div class="slot" data-god="${g}">${sprite(CHAR_ART[g]||CHAR_ART.lumi, godName(g))}</div>`).join('');
+      cast.className = 'cast n'+gods.length;
+      cast.innerHTML = gods.map(g=>`<div class="slot" data-god="${g}">${sprite(CHAR_ART[g]||CHAR_ART.lumi, godName(g))}</div>`).join('');
       fitPixelArt(cast);
     }
     cast.querySelectorAll('[data-god]').forEach(s=>s.classList.toggle('speaking', s.dataset.god===(sp||c.god)));
@@ -9210,12 +9257,12 @@ function drawCreatePanel(){
   if(P.kind==='name') body = `<div class="field"><label class="sr" for="name">Your new name</label><input id="name" maxlength="16" placeholder="Your new name" value="${esc(c.name)}" autocomplete="off" enterkeyhint="done"><button class="btn ghost" id="rand">Random</button></div>
       ${c.legacy ? `<div class="keyrow"><span class="eyebrow">Returning to ${esc(c.legacy.kingdom)}</span><div class="muted small">The same world, decades after ${esc(c.legacy.name)}, “${esc(c.legacy.title)}”. New people, old legends.</div></div>` : `<div class="keyrow"><span class="eyebrow">World Key</span><div class="field"><label class="sr" for="wkey">World Key</label><input id="wkey" class="mono" maxlength="24" value="${esc(c.key)}" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="done"><button class="btn ghost" id="rekey" aria-label="Roll a new world">⚄</button></div>
       <div class="muted small">${esc(previewWorld(c.key).places.home.name)}, in the Kingdom of ${esc(previewWorld(c.key).kingdom.name)}. Same Key, same world: share it with a friend.</div></div>`}`;
-  if(P.kind==='race') body = grid(RACES,'race', o=>fxText(o.fx)+`  ${o.hp} HP`);
+  if(P.kind==='race') body = grid(Object.fromEntries(PLAYABLE_RACES.map(k=>[k, RACES[k]])),'race', o=>fxText(o.fx)+`  ${o.hp} HP`);
   if(P.kind==='look'){
     const race = c.race||'human', set = playerSet(race, c.look.face);
     const card = f=>{ const k = playerSet(race, f), v = k && PORTRAITS[k][2];
       const img = v ? `<img alt="" src="${v.src}" data-int="bust">` : `<img alt="" src="${PX.portrait(previewSpec(Object.assign({}, c, {look:Object.assign({}, c.look, {face:f})}), 16), 'head')}" data-int="fit">`;
-      return `<button class="body-card ${c.look.face===f?'sel':''}" data-body="${f}"><span class="bc-art">${img}</span><span class="bc-name">${f==='f'?'Female':'Male'}</span>${k?'':'<span class="bc-soon">Portrait coming soon</span>'}</button>`; };
+      return `<button class="body-card ${c.look.face===f?'sel':''}" data-body="${f}" aria-pressed="${c.look.face===f}" aria-label="${f==='f'?'Feminine':'Masculine'} look"><span class="bc-art">${img}</span></button>`; };
     const ages = set ? `<div class="ages">${['Child','Teen','Adult','Elder'].map((n,i)=>`<figure><span class="age-art"><img alt="" src="${PORTRAITS[set][i].head}" data-int="fit"></span><figcaption>${n}</figcaption></figure>`).join('')}</div>`
       : `<div class="ages-soon"><span class="muted small">No portrait for this body yet, so you get a generated look for now.</span><button class="btn ghost" id="shuffle" aria-label="New random look">⚄ New look</button></div>`;
     body = `<div class="body-pick">${card('m')}${card('f')}</div>${ages}`;
