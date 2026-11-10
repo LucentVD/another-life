@@ -83,7 +83,7 @@ const HEROES = {
   lina:{name:'Lina', title:'The Village Healer', art:'lina', atk:1, res:10, ab:{mend:1}, tags:['holy','ward','heal'], trait:'Kind heart: her packs lean towards healing and protection.'},
   mal:{name:'Mal', title:'The Cambion', art:'mal', atk:3, res:8, ab:{lifesteal:1}, tags:['blood','fury','fire'], trait:'Demon blood: his packs lean towards fury, fire and blood.'}
 };
-function makeChar(k){ const H = HEROES[k]; return {key:k, name:H.name, title:H.title, art:H.art, lvl:1, xp:0, atk:H.atk, res:H.res, ab:Object.assign({}, H.ab), tags:H.tags, trait:H.trait, packSize:H.packSize||3, absorbed:[], pending:0}; }
+function makeChar(k){ const H = HEROES[k]; return {key:k, name:H.name, title:H.title, art:H.art, lvl:1, xp:0, atk:H.atk, res:H.res, ab:Object.assign({}, H.ab), tags:H.tags, trait:H.trait, packSize:H.packSize||3, absorbed:[], pending:0, slots:1, equip:[]}; }
 
 /* ---------- the card pool ---------- */
 const RAR = {c:{name:'Common', w:62}, u:{name:'Uncommon', w:27}, r:{name:'Rare', w:9.5}, l:{name:'Legendary', w:1.5}};
@@ -150,12 +150,17 @@ const CARDS = [
   C('echoc','Echo Crystal','l',0,0,['echo',1],['arcane'],'Everything twice.'),
   C('pact','Blood Pact','l',0,6,['bloodpact',1],['blood','arcane'],'Pay in blood. Never wait.'),
   C('titan','Titan\'s Heart','l',4,9,null,['stat'],'Pure, simple, enormous.'),
-  C('phoenix','Phoenix Feather','l',1,2,['rebirth',1],['fire','holy'],'Not yet.')
+  C('phoenix','Phoenix Feather','l',1,2,['rebirth',1],['fire','holy'],'Not yet.'),
+  // gear cards: more item slots
+  Object.assign(C('pouch','Belt Pouch','c',0,1,null,['gear','wild'],'Room for one more thing.'), {slots:1}),
+  Object.assign(C('harness','Adventurer\'s Harness','u',1,1,null,['gear','blade'],'Straps, buckles, possibilities.'), {slots:1}),
+  Object.assign(C('bandolier','Bandolier','r',0,0,null,['gear'],'A loop for everything.'), {slots:2})
 ];
+const MAX_SLOTS = 4;
 const CARD = Object.fromEntries(CARDS.map(c=>[c.id,c]));
 
 /* ---------- packs ---------- */
-function cardAllowed(ch, card){ if(!card.ab) return true; const [id] = card.ab, def = AB[id]; return ab(ch,id) < def.max; }
+function cardAllowed(ch, card){ if(card.slots && (ch.slots||1) + card.slots > MAX_SLOTS) return false; if(!card.ab) return true; const [id] = card.ab, def = AB[id]; return ab(ch,id) < def.max; }
 const isStatCard = c=>c.atk+c.res>=3;
 function rollRarity(lvl){
   const w = {c:RAR.c.w - 2.2*lvl, u:RAR.u.w + 1.2*lvl, r:RAR.r.w + .8*lvl, l:RAR.l.w + .25*lvl};
@@ -181,7 +186,91 @@ function openPack(ch){
 function absorb(ch, card){
   ch.atk = Math.max(0, ch.atk + card.atk); ch.res = Math.max(1, ch.res + card.res);
   if(card.ab){ const [id, l] = card.ab; if(l>0) ch.ab[id] = Math.min(AB[id].max, (ch.ab[id]||0) + l); }
+  if(card.slots) ch.slots = Math.min(MAX_SLOTS, (ch.slots||1) + card.slots);
   ch.absorbed.push(card.id);
+}
+
+/* ---------- items ----------
+   Items are cards too, but they aren't absorbed: they sit in a character's item slots
+   and can be swapped, moved or taken off between fights. While equipped, their stats add on
+   and their abilities stack with the character's own (up to each ability's cap). */
+const I = (id, name, rar, kind, atk, res, abs, flav)=>({id, name, rar, kind, atk, res, abs:abs||[], flav:flav||''});
+const ITEM_KIND = {weapon:'⚔', armor:'⛨', trinket:'❖', tome:'✎'};
+const ITEMS = [
+  // common
+  I('sword','Iron Sword','c','weapon',2,0,[],'Plain and honest.'),
+  I('jerkin','Leather Jerkin','c','armor',0,4,[],'Creaks when you move.'),
+  I('boots','Travel Boots','c','armor',1,2,[],'Broken in on a hundred roads.'),
+  I('amulet','Wooden Amulet','c','trinket',0,1,[['ward',1]],'Carved by a grandmother.'),
+  I('herbs','Herb Pouch','c','trinket',0,1,[['regen',1]],'Chew one when it hurts.'),
+  I('wand','Apprentice Wand','c','tome',0,0,[['firebolt',1]],'Points the right way, mostly.'),
+  I('kit','Healer\'s Kit','c','trinket',0,1,[['heal',1]],'Clean bandages, sharp scissors.'),
+  I('club','Spiked Club','c','weapon',2,0,[['thorns',1]],'Ugly. Effective.'),
+  // uncommon
+  I('kite','Kite Shield','u','armor',0,4,[['guard',1]],'Hide behind it. Others will too.'),
+  I('mail','Chain Shirt','u','armor',0,3,[['armor',1]],'Heavier than it looks.'),
+  I('bowi','Hunting Bow','u','weapon',2,0,[['ranged',1]],'For deer. Mostly.'),
+  I('serpent','Serpent Dagger','u','weapon',1,0,[['venom',2]],'Green along the edge.'),
+  I('focusring','Ring of Focus','u','trinket',0,0,[['arcane',1]],'Hums under your thoughts.'),
+  I('cloak','Shadow Cloak','u','armor',0,2,[['ward',2]],'Light slides off it.'),
+  I('brand','Burning Brand','u','weapon',2,0,[['volley',1]],'Lit at both ends.'),
+  I('spellbook','Frost Primer','u','tome',0,1,[['frost',1],['arcane',1]],'Chapter one: cold.'),
+  I('fangring','Fang Ring','u','trinket',1,0,[['lifesteal',1]],'It bites back.'),
+  // rare
+  I('greatsword','Greatsword','r','weapon',5,-1,[['cleave',1]],'Two hands, wide swings.'),
+  I('vampblade','Thirsting Blade','r','weapon',2,0,[['lifesteal',1],['bloodthirst',1]],'It always wants more.'),
+  I('aegis','Aegis','r','armor',0,5,[['guard',1],['armor',1]],'Nothing gets past.'),
+  I('staff','Archmage\'s Staff','r','tome',0,1,[['arcane',2],['quick',1]],'Older than the tower it came from.'),
+  I('thorncrown','Crown of Thorns','r','armor',0,3,[['thorns',3]],'Wear it and dare them.'),
+  I('warhorn','War Horn','r','trinket',1,1,[['rally',1]],'One blast and everyone stands taller.'),
+  I('standard','Holy Standard','r','trinket',0,2,[['bulwark',1],['mend',1]],'It never touches the ground.'),
+  I('twinfangs','Twin Fangs','r','weapon',1,0,[['twin',1]],'A matched pair.'),
+  I('stormtome','Tome of Storms','r','tome',0,0,[['meteor',1]],'Do not read aloud indoors.'),
+  // legendary
+  I('mirror','Mirror Orb','l','trinket',0,1,[['echo',1]],'Everything you cast, twice.'),
+  I('gauntlets','Titan\'s Gauntlets','l','weapon',4,4,[['enrage',1]],'Made for hands much larger.'),
+  I('plume','Phoenix Plume','l','trinket',0,2,[['rebirth',1],['lastbreath',2]],'Warm to the touch, always.')
+];
+const ITEM = Object.fromEntries(ITEMS.map(i=>[i.id,i]));
+let ITEM_UID = 0;
+const newItem = id=>({uid:'it'+Date.now().toString(36)+(ITEM_UID++)+Math.floor(rnd()*1e4), id});
+/* a fighter as it walks into battle: the card plus whatever it's carrying */
+function effective(ch){
+  const e = Object.assign({}, ch, {ab:Object.assign({}, ch.ab), src:{}});
+  for(const it of (ch.equip||[]).slice(0, ch.slots||1)){
+    const d = ITEM[it.id]; if(!d) continue;
+    e.atk += d.atk; e.res += d.res;
+    for(const [id,l] of d.abs){ e.ab[id] = Math.min(AB[id].max, (e.ab[id]||0) + l); (e.src[id] = e.src[id]||[]).push(d.name); }
+  }
+  e.atk = Math.max(0, e.atk); e.res = Math.max(1, e.res);
+  return e;
+}
+/* loot: choose one of a few; better odds from higher tiers and bosses */
+function rollLoot(tier, n, boss){
+  const out = [], taken = new Set();
+  for(let i=0;i<n;i++){
+    for(let tries=0; tries<20; tries++){
+      let rar = rollRarity(tier + (boss?6:0)); if(boss && rar==='c') rar = 'u';
+      const pool = ITEMS.filter(x=>x.rar===rar && !taken.has(x.id));
+      if(pool.length){ const it = pickOne(pool); taken.add(it.id); out.push(it); break; }
+    }
+  }
+  return out;
+}
+function itemValue(ch, it){
+  let v = it.atk*1.15 + it.res; const e = effective(ch);
+  for(const [id,l] of it.abs){ const room = Math.max(0, Math.min(l, AB[id].max - ab(e,id))); v += (AB_VALUE[id]||2) * room; if(['arcane','quick','echo','spellblade'].includes(id)) v += Object.keys(ch.ab).filter(k=>AB[k]&&AB[k].kind==='spell').length*1.8 - 2; }
+  return v;
+}
+/* hand out a bag of items to whoever gets the most from each one */
+function autoEquip(party, bag){
+  const all = bag.concat(...party.map(c=>c.equip)); for(const c of party) c.equip = [];
+  const left = [];
+  for(const it of all.sort((a,b)=>Math.max(...party.map(c=>itemValue(c,ITEM[b.id])))-Math.max(...party.map(c=>itemValue(c,ITEM[a.id]))))){
+    const best = party.filter(c=>c.equip.length < (c.slots||1)).sort((a,b)=>itemValue(b,ITEM[it.id])-itemValue(a,ITEM[it.id]))[0];
+    if(best) best.equip.push(it); else left.push(it);
+  }
+  return left;
 }
 function abilityLines(u){
   return Object.entries(u.ab).filter(([k,l])=>l>0 && AB[k]).sort((a,b)=>KIND_ORDER[AB[a[0]].kind]-KIND_ORDER[AB[b[0]].kind]).map(([k,l])=>({id:k, lvl:l, def:AB[k]}));
@@ -189,7 +278,7 @@ function abilityLines(u){
 const XP_NEED = l=>3 + 2*l;
 
 /* ---------- enemies ---------- */
-const TUNE = {fAtk:.3, fRes:.34, bAtk:.2, bRes:.24, resMul:1.55, atkMul:1.25};
+const TUNE = {fAtk:.31, fRes:.35, bAtk:.2, bRes:.24, resMul:1.85, atkMul:1.45, slotValue:4, lootPerLevel:1};
 const FOES = {
   slime:{name:'Slime', glyph:'◕', atk:1, res:8, ab:{regen:1}},
   wolf:{name:'Dire Wolf', glyph:'ᛉ', atk:3, res:5, ab:{swift:1}},
@@ -231,6 +320,7 @@ function toUnit(c, side, i){
   return u;
 }
 function newBattle(party, foes){
+  party = party.map(c=>c.equip ? effective(c) : c);
   const B = {round:0, units:[], ev:[], over:null, phase:'start', turn:null};
   party.forEach((c,i)=>B.units.push(toUnit(c,'p',i)));
   foes.forEach((c,i)=>B.units.push(toUnit(c,'e',i)));
@@ -491,20 +581,26 @@ function spellValue(ch, c){
   return (k==='spell' ? 10 : ['arcane','quick','echo','spellblade','bloodpact','overflow'].includes(id) ? 9 : 2) + l + (c.atk+c.res)*.3;
 }
 function cardValue(ch, c){
-  let v = c.atk*1.15 + c.res;
+  let v = c.atk*1.15 + c.res + (c.slots||0)*TUNE.slotValue;
   if(c.ab){ const [id,l] = c.ab, have = ab(ch,id); v += (AB_VALUE[id]||2) * l * (have ? .85 : 1); if(AB[id].kind==='spell' && ab(ch,'arcane')) v += 1; if(['arcane','quick','echo','spellblade'].includes(id)) v += Object.keys(ch.ab).filter(k=>AB[k]&&AB[k].kind==='spell').length * 1.6 - 1.5; }
   return v;
 }
-function buildParty(level, strat){
+function buildParty(level, strat, items=true){
   const party = ['you','lina','mal'].map(makeChar);
   for(const ch of party) for(let l=2;l<=level;l++){ ch.lvl = l; const pack = openPack(ch); absorb(ch, STRATS[strat].pick(ch, pack)); }
+  if(items){
+    // roughly what a party picks up on the way: a start item each, then loot from fights
+    const bag = []; for(let i=0;i<3;i++) bag.push(newItem(pickOne(ITEMS.filter(x=>x.rar==='c')).id));
+    for(let l=2;l<=level;l++) for(let k=0;k<TUNE.lootPerLevel;k++) if(rnd()<.8){ const [it] = rollLoot(l, 1, l%5===0); if(it) bag.push(newItem(it.id)); }
+    autoEquip(party, bag);
+  }
   return party;
 }
-function simulate(strat, level, tier, n, seed){
+function simulate(strat, level, tier, n, seed, items=true){
   RNG = rngFrom(seed || 12345);
   let w=0, rounds=0, survivors=0;
   for(let i=0;i<n;i++){
-    const party = buildParty(level, strat);
+    const party = buildParty(level, strat, items);
     const B = autoBattle(party, makeEncounter(tier));
     if(B.over==='win'){ w++; survivors += alive(B,'p').length; }
     rounds += B.round;
@@ -512,4 +608,4 @@ function simulate(strat, level, tier, n, seed){
   RNG = Math.random;
   return {win:w/n, rounds:rounds/n, survivors:w?survivors/w:0};
 }
-if(typeof module!=='undefined') module.exports = {TUNE, AB, CARDS, HEROES, FOES, makeChar, openPack, absorb, makeEncounter, autoBattle, simulate, buildParty, STRATS, rngFrom, setRng:f=>{RNG=f;}};
+if(typeof module!=='undefined') module.exports = {TUNE, ITEMS, effective, rollLoot, autoEquip, AB, CARDS, HEROES, FOES, makeChar, openPack, absorb, makeEncounter, autoBattle, simulate, buildParty, STRATS, rngFrom, setRng:f=>{RNG=f;}};

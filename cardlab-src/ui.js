@@ -11,10 +11,16 @@ const KIND_NAME = {kw:'Keyword', aura:'Aura', trig:'Trigger', mod:'Modifier', sp
 const app = $('#app'), layer = $('#layer');
 
 /* ---------- saved state ---------- */
-function fresh(){ return {party:['you','lina','mal'].map(makeChar), xp:0, plvl:1, tier:1, sel:0, wins:0, losses:0, tab:'party'}; }
+const STARTER = {you:'sword', lina:'amulet', mal:'club'};
+function fresh(){
+  const party = ['you','lina','mal'].map(makeChar);
+  for(const c of party) c.equip = [newItem(STARTER[c.key])];
+  return {party, bag:[], xp:0, plvl:1, tier:1, sel:0, wins:0, losses:0, tab:'party'};
+}
 let ST;
 try{ ST = JSON.parse(localStorage.getItem(SAVE)||'null'); }catch(e){ ST = null; }
 if(!ST || !ST.party) ST = fresh();
+ST.bag = ST.bag || []; for(const c of ST.party){ c.slots = c.slots || 1; c.equip = c.equip || []; }
 const save = ()=>{ try{ localStorage.setItem(SAVE, JSON.stringify(ST)); }catch(e){} };
 const xpNeed = ()=>XP_NEED(ST.plvl);
 function gainXp(n){
@@ -38,35 +44,37 @@ function fitInt(root){
 }
 
 /* ---------- text for abilities ---------- */
-function abLine(id, lvl, u, cls=''){
+function abLine(id, lvl, u, cls='', extra=''){
   const d = AB[id];
   const cd = d.kind==='spell' ? `<span class="cd">${u && ab(u,'bloodpact') ? '2 RES' : `CD ${Math.max(1, d.cd - (u?ab(u,'quick'):0))}`}</span>` : '';
-  return `<div class="abl k-${d.kind} ${cls}"><span class="abg">${KIND_GLYPH[d.kind]}</span><div><b>${esc(d.name)}${d.max>1?` <i class="lv">${ROMAN[lvl]||lvl}</i>`:''}</b>${cd}<span class="abt">${esc(d.text(lvl, u))}</span></div></div>`;
+  return `<div class="abl k-${d.kind} ${cls}"><span class="abg">${KIND_GLYPH[d.kind]}</span><div><b>${esc(d.name)}${d.max>1?` <i class="lv">${ROMAN[lvl]||lvl}</i>`:''}</b>${cd}<span class="abt">${esc(d.text(lvl, u))}</span>${extra}</div></div>`;
 }
 
 /* ---------- the big character card ---------- */
 function bigCard(ch, hl){
   hl = hl || {};
-  const lines = abilityLines(ch);
+  const e = effective(ch), lines = abilityLines(e);
+  const fromItems = (id, lvl)=>{ const own = ab(ch,id); if(!e.src[id]) return ''; return `<span class="from">◆ ${own ? `+${lvl-own} ` : ''}${esc(e.src[id].join(', '))}</span>`; };
+  const diff = (a,b)=>a!==b ? `<small class="itm">${a>b?'+':''}${a-b} items</small>` : '';
   return `<article class="ccard ${hl.flash?'flash':''}">
     <header class="cc-top"><span class="cc-name">${esc(ch.name)}</span><span class="cc-lv">Lv ${ch.lvl}</span></header>
     <div class="cc-art">${portraitImg(ch.art,'bust')}</div>
     <div class="cc-type">${esc(ch.title)} <span>· ${ch.absorbed.length} card${ch.absorbed.length===1?'':'s'} absorbed</span></div>
     <div class="cc-text">
-      ${lines.length ? lines.map(l=>abLine(l.id, l.lvl, ch, hl.ab===l.id?'new':'')).join('') : '<div class="muted small">No abilities yet. Every pack is a chance to add one.</div>'}
+      ${lines.length ? lines.map(l=>abLine(l.id, l.lvl, e, (hl.ab===l.id?'new ':'')+(ab(ch,l.id)?'':'itemonly'), fromItems(l.id, l.lvl))).join('') : '<div class="muted small">No abilities yet. Every pack is a chance to add one.</div>'}
       <div class="cc-trait">${esc(ch.trait)}</div>
     </div>
     <footer class="cc-stats">
-      <span class="gem atk ${hl.atk?'pop':''}" title="Attack"><i>⚔</i><b>${ch.atk}</b>${hl.atk?`<em class="${hl.atk>0?'up':'dn'}">${hl.atk>0?'+':''}${hl.atk}</em>`:''}</span>
+      <span class="gem atk ${hl.atk?'pop':''}" title="Attack"><i>⚔</i><b>${e.atk}</b>${diff(e.atk,ch.atk)}${hl.atk?`<em class="${hl.atk>0?'up':'dn'}">${hl.atk>0?'+':''}${hl.atk}</em>`:''}</span>
       <span class="pips">${ch.absorbed.slice(-14).map(id=>`<i class="r-${CARD[id].rar}"></i>`).join('')}</span>
-      <span class="gem res ${hl.res?'pop':''}" title="Resistance"><i>⛨</i><b>${ch.res}</b>${hl.res?`<em class="${hl.res>0?'up':'dn'}">${hl.res>0?'+':''}${hl.res}</em>`:''}</span>
+      <span class="gem res ${hl.res?'pop':''}" title="Resistance"><i>⛨</i><b>${e.res}</b>${diff(e.res,ch.res)}${hl.res?`<em class="${hl.res>0?'up':'dn'}">${hl.res>0?'+':''}${hl.res}</em>`:''}</span>
     </footer>
   </article>`;
 }
 
 /* ---------- a card from a pack ---------- */
 function packCard(c, ch, i){
-  const art = c.ab ? KIND_GLYPH[AB[c.ab[0]].kind] : c.atk>=c.res ? '⚔' : '⛨';
+  const art = c.slots ? '▤' : c.ab ? KIND_GLYPH[AB[c.ab[0]].kind] : c.atk>=c.res ? '⚔' : '⛨';
   const stat = (n, g, k)=>n ? `<span class="pd ${n>0?'up':'dn'} ${k}">${n>0?'+':''}${n} ${g}</span>` : '';
   let abl = '';
   if(c.ab){ const [id,l] = c.ab, have = ab(ch,id), to = Math.min(AB[id].max, have+l), d = AB[id];
@@ -77,11 +85,76 @@ function packCard(c, ch, i){
       <span class="pc-rar">${RAR[c.rar].name}</span>
       <span class="pc-name">${esc(c.name)}</span>
       <span class="pc-art">${art}</span>
-      <span class="pc-stats">${stat(c.atk,'⚔','a')}${stat(c.res,'⛨','r')}${!c.atk&&!c.res?'<span class="pd zero">no stats</span>':''}</span>
+      <span class="pc-stats">${stat(c.atk,'⚔','a')}${stat(c.res,'⛨','r')}${c.slots?`<span class="pd slot">+${c.slots} item slot${c.slots>1?'s':''}</span>`:''}${!c.atk&&!c.res&&!c.slots?'<span class="pd zero">no stats</span>':''}</span>
       ${abl}
       ${c.flav?`<span class="pc-flav">${esc(c.flav)}</span>`:''}
     </span>
   </button>`;
+}
+
+/* ---------- an item card ---------- */
+function itemCard(it, i, opts={}){
+  const stat = (n, g, k)=>n ? `<span class="pd ${n>0?'up':'dn'} ${k}">${n>0?'+':''}${n} ${g}</span>` : '';
+  return `<button class="pcard icard flip r-${it.rar} ${opts.cls||''}" data-i="${i}">
+    <span class="pc-face">
+      <span class="pc-rar">${RAR[it.rar].name} ${it.kind}</span>
+      <span class="pc-name">${esc(it.name)}</span>
+      <span class="pc-art">${ITEM_KIND[it.kind]}</span>
+      <span class="pc-stats">${stat(it.atk,'⚔','a')}${stat(it.res,'⛨','r')}${!it.atk&&!it.res?'<span class="pd zero">no stats</span>':''}</span>
+      ${it.abs.map(([id,l])=>`<div class="pc-ab"><b>${esc(AB[id].name)}${AB[id].max>1?` ${ROMAN[l]}`:''}</b><span class="abt">${esc(AB[id].text(l))}</span></div>`).join('')}
+      ${it.flav?`<span class="pc-flav">${esc(it.flav)}</span>`:''}
+    </span>
+  </button>`;
+}
+/* one line for an item in a list */
+function itemRow(inst, owner, act){
+  const it = ITEM[inst.id];
+  const st = [it.atk?`${it.atk>0?'+':''}${it.atk}⚔`:'', it.res?`${it.res>0?'+':''}${it.res}⛨`:''].filter(Boolean).join(' ');
+  return `<button class="irow r-${it.rar}" data-uid="${inst.uid}"><span class="ik">${ITEM_KIND[it.kind]}</span><span class="ib"><b>${esc(it.name)}</b> <small>${st}</small><span class="iab">${it.abs.map(([id,l])=>`${esc(AB[id].name)}${AB[id].max>1?' '+ROMAN[l]:''}`).join(' · ')||'<i>stats only</i>'}</span></span><span class="iact">${owner?`<small>on ${esc(owner.name)}</small>`:''}${act||''}</span></button>`;
+}
+const ownerOf = uid=>ST.party.find(c=>c.equip.some(x=>x.uid===uid)) || null;
+/* put an item into a slot; whatever was in that slot goes back where the new item came from */
+function equipInto(ch, slot, uid){
+  const from = ownerOf(uid);
+  if(from===ch) return;
+  const fromIdx = from ? from.equip.findIndex(x=>x.uid===uid) : -1;
+  const inst = from ? from.equip[fromIdx] : ST.bag.find(x=>x.uid===uid);
+  if(!inst) return;
+  const old = ch.equip[slot] || null;
+  if(from){ if(old) from.equip[fromIdx] = old; else from.equip.splice(fromIdx, 1); }
+  else { ST.bag.splice(ST.bag.indexOf(inst), 1); if(old) ST.bag.push(old); }
+  if(old) ch.equip[slot] = inst; else ch.equip.push(inst);
+  save();
+}
+function itemSheet(ch, slot){
+  const cur = ch.equip[slot];
+  const bag = ST.bag, others = ST.party.filter(c=>c!==ch).flatMap(c=>c.equip.map(x=>({x, c})));
+  layer.innerHTML = `<div class="ov" id="isheet"><div class="win sheet">
+    <div class="sh-head"><b>${esc(ch.name)} · item slot ${slot+1}</b><button class="x" id="ix">✕</button></div>
+    ${cur ? `<div class="cur">${itemCard(ITEM[cur.id], 0, {cls:'wide'})}</div><button class="btn ghost wide" id="unequip">Take it off (back to the bag)</button>` : '<p class="muted small">Empty. Choose something to put here.</p>'}
+    <div class="eyebrow">In the bag (${bag.length})</div>
+    <div class="ilist">${bag.length ? bag.map(x=>itemRow(x, null, `<b class="teal">${cur?'Swap':'Equip'}</b>`)).join('') : '<p class="muted small">Nothing spare. Win fights for loot.</p>'}</div>
+    ${others.length ? `<div class="eyebrow">Carried by the others</div><div class="ilist">${others.map(({x,c})=>itemRow(x, c, `<b class="gold">${cur?'Swap':'Take'}</b>`)).join('')}</div>` : ''}
+  </div></div>`;
+  const close = ()=>{ layer.innerHTML=''; render(); };
+  $('#ix').onclick = close; $('#isheet').onclick = e=>{ if(e.target.id==='isheet') close(); };
+  const un = $('#unequip'); if(un) un.onclick = ()=>{ ST.bag.push(ch.equip.splice(slot,1)[0]); save(); close(); };
+  $$('.irow', layer).forEach(b=>b.onclick = ()=>{ equipInto(ch, slot, b.dataset.uid); close(); });
+}
+function bagSheet(){
+  layer.innerHTML = `<div class="ov" id="bsheet"><div class="win sheet">
+    <div class="sh-head"><b>The bag · ${ST.bag.length} spare item${ST.bag.length===1?'':'s'}</b><button class="x" id="bx">✕</button></div>
+    <p class="muted small">Items are swapped between fights. Tap an item, then who should carry it.</p>
+    <div class="ilist">${ST.bag.length ? ST.bag.map(x=>itemRow(x, null, '')).join('') : '<p class="muted small">Empty.</p>'}</div>
+    <div id="bgive"></div>
+  </div></div>`;
+  const close = ()=>{ layer.innerHTML=''; render(); };
+  $('#bx').onclick = close; $('#bsheet').onclick = e=>{ if(e.target.id==='bsheet') close(); };
+  $$('.irow', layer).forEach(b=>b.onclick = ()=>{
+    $$('.irow', layer).forEach(x=>x.classList.toggle('sel', x===b));
+    $('#bgive').innerHTML = `<div class="give">${ST.party.map((c,i)=>{ const free = c.equip.length < c.slots; return `<button class="btn ${free?'primary':'ghost'}" data-give="${i}">${esc(c.name)}<small>${free?'free slot':'swap slot 1'}</small></button>`; }).join('')}</div>`;
+    $$('[data-give]', layer).forEach(g=>g.onclick = ()=>{ const c = ST.party[+g.dataset.give]; equipInto(c, c.equip.length < c.slots ? c.equip.length : 0, b.dataset.uid); close(); });
+  });
 }
 
 /* =========================================================
@@ -107,14 +180,19 @@ let SAND_OPEN = false;
 function renderParty(){
   const ch = ST.party[ST.sel];
   $('#body').innerHTML = `
-    <div class="chips">${ST.party.map((c,i)=>`<button class="chip ${i===ST.sel?'on':''}" data-sel="${i}"><span class="chip-art">${portraitImg(c.art,'head')}</span><span>${esc(c.name)}<small>${c.atk}⚔ ${c.res}⛨</small></span>${c.pending?`<i class="badge">${c.pending}</i>`:''}</button>`).join('')}</div>
+    <div class="chips">${ST.party.map((c,i)=>{ const e = effective(c); return `<button class="chip ${i===ST.sel?'on':''}" data-sel="${i}"><span class="chip-art">${portraitImg(c.art,'head')}</span><span>${esc(c.name)}<small>${e.atk}⚔ ${e.res}⛨</small></span>${c.pending?`<i class="badge">${c.pending}</i>`:''}</button>`; }).join('')}</div>
     <div class="cardwrap">${bigCard(ch)}</div>
+    <div class="slots win">
+      <div class="sl-head"><span class="eyebrow">Item slots ${ch.equip.length}/${ch.slots}</span><button class="bagbtn" id="bag">Bag <b>${ST.bag.length}</b></button></div>
+      <div class="sl-row n${ch.slots}">${Array.from({length:ch.slots}, (_,i)=>{ const x = ch.equip[i]; if(!x) return `<button class="islot empty" data-slot="${i}"><span class="ik">＋</span><span class="in">Empty slot</span></button>`; const it = ITEM[x.id]; return `<button class="islot r-${it.rar}" data-slot="${i}"><span class="ik">${ITEM_KIND[it.kind]}</span><span class="in">${esc(it.name)}</span><span class="is">${[it.atk?`${it.atk>0?'+':''}${it.atk}⚔`:'', it.res?`${it.res>0?'+':''}${it.res}⛨`:''].filter(Boolean).join(' ')}${it.abs.length?` · ${it.abs.map(([id])=>esc(AB[id].name)).join(', ')}`:''}</span></button>`; }).join('')}</div>
+    </div>
     <div class="row">
       ${ch.pending ? `<button class="btn primary wide glow" id="open">Open pack <small>${ch.pending} waiting</small></button>` : `<button class="btn ghost wide" id="gofight">No packs waiting · Fight to level up ▸</button>`}
     </div>
     <details class="sandbox" id="sandbox" ${SAND_OPEN?'open':''}><summary>Sandbox tools</summary>
       <div class="row2"><button class="btn ghost" id="lvlup">+1 party level</button><button class="btn ghost" id="lvl5">+5 levels</button></div>
       <div class="row2"><button class="btn ghost" id="autoall">Auto-pick all packs</button><button class="btn ghost danger" id="reset">Reset party</button></div>
+      <div class="row2"><button class="btn ghost" id="additem">+ Random item</button><button class="btn ghost" id="autoeq">Auto-equip everyone</button></div>
       <p class="muted small">Levels grant every member a pack. Auto-pick uses the Balanced strategy from the Lab.</p>
     </details>`;
   fitInt($('#body'));
@@ -125,6 +203,10 @@ function renderParty(){
   $('#lvlup').onclick=()=>{ gainXp(xpNeed()-ST.xp); render(); };
   $('#lvl5').onclick=()=>{ for(let i=0;i<5;i++) gainXp(xpNeed()-ST.xp); render(); };
   $('#autoall').onclick=()=>{ for(const c of ST.party) while(c.pending>0){ c.pending--; absorb(c, STRATS.smart.pick(c, openPack(c))); } save(); render(); };
+  $('#additem').onclick=()=>{ const [it] = rollLoot(ST.plvl, 1, false); ST.bag.push(newItem(it.id)); save(); renderParty(); };
+  $('#autoeq').onclick=()=>{ ST.bag = autoEquip(ST.party, ST.bag); save(); renderParty(); };
+  $$('[data-slot]').forEach(b=>b.onclick=()=>itemSheet(ch, +b.dataset.slot));
+  $('#bag').onclick = bagSheet;
   $('#reset').onclick=()=>confirmBox('Reset the party?', 'Everyone goes back to level 1 with fresh cards.', 'Reset', ()=>{ ST = Object.assign(fresh(), {tab:'party'}); save(); render(); });
 }
 
@@ -154,7 +236,7 @@ function openPackFlow(ch){
         pcs.forEach(x=>x.classList.toggle('sel', x===el)); pcs.forEach(x=>x.classList.toggle('dim', x!==el));
         const na = Math.max(0, ch.atk+picked.atk), nr = Math.max(1, ch.res+picked.res);
         const arrow = (a,b)=>a===b ? `${a}` : `${a} → <b class="${b>a?'up':'dn'}">${b}</b>`;
-        $('#pprev').innerHTML = `<span>⚔ ${arrow(ch.atk,na)}</span><span>⛨ ${arrow(ch.res,nr)}</span>${picked.ab?`<span class="gold">+ ${esc(AB[picked.ab[0]].name)}</span>`:''}`;
+        $('#pprev').innerHTML = `<span>⚔ ${arrow(ch.atk,na)}</span><span>⛨ ${arrow(ch.res,nr)}</span>${picked.ab?`<span class="gold">+ ${esc(AB[picked.ab[0]].name)}</span>`:''}${picked.slots?`<span class="teal">▤ ${ch.slots} → ${Math.min(MAX_SLOTS, ch.slots+picked.slots)} slots</span>`:''}`;
         $('#pabsorb').disabled = false; $('#pabsorb').textContent = `Absorb ${picked.name}`;
       });
       $('#pclose').onclick = ()=>{ layer.innerHTML=''; };
@@ -189,7 +271,7 @@ function renderFightMenu(){
       <button class="btn primary wide" id="start">⚔ Fight tier ${t}</button>
       <button class="btn ghost wide" id="startauto">Watch the AI fight it ▸▸</button>
     </div>
-    <div class="party-mini">${ST.party.map(c=>`<div class="pm"><span class="chip-art">${portraitImg(c.art,'head')}</span><div><b>${esc(c.name)}</b> <small>Lv ${c.lvl}</small><div class="small">${c.atk}⚔ ${c.res}⛨ · ${abilityLines(c).map(l=>esc(l.def.name)).join(', ')||'no abilities'}</div></div></div>`).join('')}</div>
+    <div class="party-mini">${ST.party.map(c=>`<div class="pm"><span class="chip-art">${portraitImg(c.art,'head')}</span><div><b>${esc(c.name)}</b> <small>Lv ${c.lvl}</small>${(()=>{ const e = effective(c); return `<div class="small">${e.atk}⚔ ${e.res}⛨ · ${abilityLines(e).map(l=>esc(l.def.name)).join(', ')||'no abilities'}</div><div class="small muted">◆ ${c.equip.map(x=>esc(ITEM[x.id].name)).join(', ')||'no items'}</div>`; })()}</div></div>`).join('')}</div>
     <div class="muted small center">Record: ${ST.wins} won · ${ST.losses} lost</div>`;
   fitInt($('#body'));
   $('#tdn').onclick=()=>{ ST.tier = Math.max(1, ST.tier-1); save(); renderFightMenu(); };
@@ -366,15 +448,21 @@ function finish(){
   if(win) ST.wins++; else ST.losses++;
   const ups = gainXp(xp);
   if(win && ST.tier < ST.plvl + 1) ST.tier = Math.min(20, ST.tier + 1);
+  const boss = F.tier%5===0, loot = win && (boss || Math.random() < .7) ? rollLoot(F.tier, boss ? 3 : 2, boss) : [];
+  let took = null;
   save();
   layer.innerHTML = `<div class="ov"><div class="win result ${win?'won':'lost'}">
     <div class="res-big">${win ? 'Victory' : B.over==='draw' ? 'Stalemate' : 'Defeat'}</div>
     <div class="small">${B.round} round${B.round===1?'':'s'} · ${alive(B,'p').length} of ${side(B,'p').length} standing</div>
     ${xp?`<div class="gold">+${xp} XP</div>`:''}
     ${ups?`<div class="lvlup">Party level ${ST.plvl}! Everyone has ${ups>1?ups+' new packs':'a new pack'}.</div>`:''}
-    <div class="row2">${win?'':`<button class="btn ghost" id="retry">Try again</button>`}<button class="btn primary" id="cont">${ups?'Open packs ▸':'Continue'}</button></div>
+    ${loot.length?`<div class="loot"><div class="eyebrow">Loot · take one</div><div class="pgrid n${loot.length} lootgrid">${loot.map((it,i)=>itemCard(it,i)).join('')}</div></div>`:''}
+    <div class="row2">${win?'':`<button class="btn ghost" id="retry">Try again</button>`}<button class="btn primary" id="cont">${loot.length ? 'Choose loot first' : ups?'Open packs ▸':'Continue'}</button></div>
   </div></div>`;
-  $('#cont').onclick=()=>{ layer.innerHTML=''; FIGHT = null; if(ups){ ST.tab='party'; ST.sel = 0; save(); } render(); };
+  $$('.lootgrid .pcard', layer).forEach(el=>el.onclick=()=>{ took = loot[+el.dataset.i]; $$('.lootgrid .pcard', layer).forEach(x=>{ x.classList.toggle('sel', x===el); x.classList.toggle('dim', x!==el); }); $('#cont').textContent = `Take ${took.name}`; });
+  $('#cont').onclick=()=>{ if(loot.length && !took){ $('.loot .eyebrow').textContent = 'Loot · tap one to take it'; $('.loot').classList.add('nudge'); return; }
+    if(took){ ST.bag.push(newItem(took.id)); }
+    layer.innerHTML=''; FIGHT = null; if(ups || took){ ST.tab='party'; if(ups) ST.sel = 0; save(); } render(); };
   const r = $('#retry'); if(r) r.onclick=()=>{ layer.innerHTML=''; const t = F.tier, a = F.auto; FIGHT = null; startFight(t, a); };
 }
 
