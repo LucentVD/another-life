@@ -582,6 +582,32 @@ body.big .dlg-text{font-size:18px} body.big .choice .lbl{font-size:17px} body.bi
 
 .mus-btn{position:absolute;top:10px;right:10px;z-index:5;width:36px;height:34px;font-size:17px;line-height:1;color:var(--soft);background:rgba(7,5,13,.55);border:2px solid rgba(207,165,82,.35)}
 .mus-btn.on{color:var(--gold)}
+
+/* cards in the game */
+.cards-btn{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;width:42px;height:44px;margin-right:6px;flex:none;color:var(--gold);background:rgba(7,5,13,.55);border:2px solid var(--frame);font-family:var(--display);line-height:1}
+.cards-btn span{font-size:14px}
+.cards-btn b{font-size:18px;font-weight:normal;color:var(--ink)}
+.cards-btn i{position:absolute;top:-7px;right:-7px;min-width:18px;height:18px;padding:0 3px;font-style:normal;font-family:var(--label);font-size:10px;line-height:14px;color:#2a0a18;background:var(--sakura);border:2px solid var(--edge);animation:glowpack 1.4s ease-in-out infinite}
+@keyframes glowpack{50%{box-shadow:0 0 10px rgba(255,143,182,.8)}}
+.pill.battle{letter-spacing:.02em}
+.skirmish .sk-k{font-family:var(--label);font-size:11px;color:var(--sakura);display:flex;align-items:center;gap:8px;justify-content:space-between}
+.skirmish .sk-t{font-size:14px;line-height:1.65;color:var(--soft);margin:4px 0 10px}
+.sk-btns{display:grid;grid-template-columns:1fr 1.4fr;gap:8px}
+.sk-done{font-size:12.5px;padding:6px 8px;margin-bottom:8px;border:2px solid var(--line);background:rgba(7,5,13,.4)}
+.sk-done.ok{border-color:rgba(126,232,160,.5)} .sk-done.no{border-color:rgba(255,125,114,.5)}
+.sk-done span{display:block;color:var(--muted);font-size:11.5px}
+.dt.hunt{border-color:rgba(255,143,182,.5)}
+.dv-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.dv{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:7px 8px;text-align:left;background:linear-gradient(180deg,#2a2244,#15102a);border:2px solid var(--line);box-shadow:inset 0 0 0 1px rgba(255,143,182,.15)}
+.dv.sel{border-color:var(--sakura);box-shadow:inset 0 0 0 1px var(--sakura),0 0 14px rgba(255,143,182,.35)}
+.dv.rec{border-color:rgba(102,220,203,.55)}
+.dv-g{font-size:20px;line-height:1;color:var(--sakura)}
+.dv-n{font-family:var(--display);font-size:17px;line-height:1.05;color:var(--gold)}
+.dv-p{font-size:10.5px;line-height:1.35;color:var(--muted)}
+.dv-detail .dv-ab{font-size:12px;line-height:1.45;color:var(--soft)}
+.dv-detail .dv-ab b{color:var(--teal)}
+.dv-detail .dv-ab.divine b{color:var(--sakura)}
+.dv-detail .dv-f{font-style:italic;color:var(--muted);font-size:11.5px}
 </style>
 </head>
 <body>
@@ -589,7 +615,7 @@ body.big .dlg-text{font-size:18px} body.big .choice .lbl{font-size:17px} body.bi
 <div id="app"></div>
 <div id="overlay-root"></div>
 <script>
-const BUILD = '2026-11-08 11:12 UTC';
+const BUILD = '2026-11-11 12:08 UTC';
 ;
 /* =========================================================
    ANOTHER LIFE v2 — core data
@@ -1651,19 +1677,20 @@ function choiceState(c){
   }
   return {blocked, check};
 }
-function choose(i){
+function choose(i, forced){
   const c = choices()[i]; if(!c) return;
   if(c.req && !c.req(S, ctxVars(), castObj())) return;
   const arc = ARC[S.year.arc.id];
   let br, roll=null;
   if(c.check){
     if(c.auto && c.auto(S, ctxVars(), castObj())){ br = c.win; roll={auto:true, ok:true}; }
-    else { roll = rollCheck(c.check); br = roll.ok ? c.win : c.lose; const st = c.check.stat==='combat' ? (S.st.str>=S.st.mag?'str':'mag') : c.check.stat; const D=dirState(); if(D.style[st]!=null) D.style[st]++; }
+    else { roll = forced || (c.check.stat==='combat' && S.card && typeof cbStoryBattle==='function' ? cbStoryBattle(c) : rollCheck(c.check)); br = roll.ok ? c.win : c.lose; const st = c.check.stat==='combat' ? (S.st.str>=S.st.mag?'str':'mag') : c.check.stat; const D=dirState(); if(D.style[st]!=null) D.style[st]++; }
   } else br = c;
   const label = fmt(c.label);
   const text = fmt(br.t);
   S._turn = {id:uid(), age:S.age, arc:fmt(arc.title), label, npcs:[], flags:[], rip:[]};
   const chips = applyFx(br.fx);
+  if(roll && roll.chips) chips.push(...roll.chips);
   if(typeof divineChoice==='function') chips.push(...divineChoice(arc, c, roll, chips));
   if(typeof keepTurn==='function') keepTurn(S._turn, chips);
   delete S._turn;
@@ -1671,7 +1698,7 @@ function choose(i){
   if(br.log || c.log){ const lg = fmt(br.log || c.log); chronicle(lg); if(typeof spawnRumour==='function') spawnRumour(lg, chips); }
   const gv = br.go!=null ? br.go : c.go; let go = typeof gv==='function' ? gv(S, ctxVars(), castObj()) : gv;
   if(!go) go = 'END';
-  S.year.arc.prev = {label, text, chips, roll: roll ? {roll:roll.roll, ok:roll.ok, bonus:roll.bonus, dc:roll.dc, parts:roll.parts, reroll:roll.reroll, auto:roll.auto} : null};
+  S.year.arc.prev = {label, text, chips, roll: roll ? (roll.battle ? {battle:true, ok:roll.ok, rounds:roll.rounds, standing:roll.standing, of:roll.of} : {roll:roll.roll, ok:roll.ok, bonus:roll.bonus, dc:roll.dc, parts:roll.parts, reroll:roll.reroll, auto:roll.auto}) : null};
   if(S.hp<=0 && !arc.final && typeof divineSave==='function' && divineSave()) S.year.arc.prev.chips.push(['✝ Cittine: "Not yet."','seed']);
   if(S.hp<=0 && !arc.final){ S.year.phase='done'; S.year.dead=true; HOOKS.save(); return; }
   if(go==='END'){ S.year.phase='done'; if(arc.onEnd) arc.onEnd(S, ctxVars(), castObj()); }
@@ -5258,7 +5285,7 @@ ARCS.push({
       ]},
     b:{ scene:'tavern', text:(s,v)=>({
         spy:`It comes out in the end, the way these things do. {x} is a spy for ${v.side}, mapping {home}'s roads and counting its young people. ${v.trust?'{x.He} tells you {x.him}self, tiredly. "Someone was always going to work it out. I hoped it would be someone kind."':'You have the proof in your hand.'}`,
-        witness:`{x} is a scholar, of a sort, who has spent twenty years chasing the same question you have: ${enigmaQ(enigmas()[v.ei])} ${v.trust||v.seen?'{x.He} has found something. {x.He} is willing to share it, with the right person.':'{x.He} has found something, and {x.he} does not trust you with it. Yet.'}`,
+        witness:`{x} is a scholar, of a sort, who has spent twenty years chasing the same question you have: ${enigmas()[v.ei] ? enigmaQ(enigmas()[v.ei]) : 'what really happened here, all those years ago?'} ${v.trust||v.seen?'{x.He} has found something. {x.He} is willing to share it, with the right person.':'{x.He} has found something, and {x.he} does not trust you with it. Yet.'}`,
         runaway:`{x} isn't a stranger at all, not really. {x.He} was born in {capital} to a family with a great deal of money and a very small heart, and {x.he} ran. ${v.trust?'{x.He} tells you everything, and asks you not to tell anyone {x.he} is here.':'And someone from that family has just ridden into {home}, asking questions of their own.'}`
       })[v.k],
       choices:[
@@ -5642,6 +5669,921 @@ function crisisEnding(kind, path){
   const W = S.world, k = W && W.crisis ? W.crisis.k : 'demon';
   const E = CRISIS_END[k]; if(!E || !E[kind]) return null;
   return E[kind](path);
+}
+
+;
+/* =========================================================
+   CARD COMBAT (namespaced as CB): see cardlab for the standalone lab
+   ========================================================= */
+const CB = (function(){
+/* =========================================================
+   CARD COMBAT LAB: engine
+   Every fighter is one card: ATK, RES and a list of abilities.
+   Levelling up opens a pack; the chosen card is absorbed into the
+   character card (stats add, abilities stack and level up).
+   Combat: turn-based. An attack trades blows: the attacker deals its ATK,
+   the defender hits back with its ATK (Magic-style power/toughness).
+   RES is how much damage a fighter can take before falling in a fight.
+   ========================================================= */
+
+/* ---------- seeded randomness ---------- */
+function rngFrom(seed){ let a = seed>>>0 || 1; return ()=>{ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+let RNG = Math.random;
+const rnd = ()=>RNG();
+const rint = (a,b)=>a+Math.floor(rnd()*(b-a+1));
+const pickOne = arr=>arr[Math.floor(rnd()*arr.length)];
+function weighted(items, w){ let tot=0; const ws=items.map(i=>{ const x=Math.max(0,w(i)); tot+=x; return x; }); if(tot<=0) return null; let r=rnd()*tot; for(let i=0;i<items.length;i++){ r-=ws[i]; if(r<=0) return items[i]; } return items[items.length-1]; }
+
+/* ---------- abilities ---------- */
+/* kind: kw (keyword), aura (helps allies), trig (trigger), mod (changes other abilities), spell (an action with a cooldown)
+   max: the most levels it can stack to. Every text() takes the level and (optionally) the unit, for spell numbers. */
+const AB = {
+  // divine gifts: one per reborn soul
+  wellspring:{name:'Wellspring', kind:'divine', max:1, text:()=>`Its spells have no cooldown. It can cast every single turn.`},
+  prism:{name:'Starforge', kind:'divine', max:1, text:()=>`Half the ATK its level-up cards give becomes Spell Power instead. Spell Power adds to every spell's damage and healing.`},
+  wildheart:{name:'Wild Crown', kind:'divine', max:1, text:()=>`Beasts it defeats can be tamed. One tamed creature fights beside it, and gains a third of the ATK and RES its cards have given.`},
+  saint:{name:'Saint\'s Cut', kind:'divine', max:1, text:()=>`Every third attack it makes in a fight is a Saint's Cut: double damage, and it can't be hit back.`},
+  fortune:{name:'Golden Thread', kind:'divine', max:1, text:()=>`Once per fight, a blow that would fell it leaves it standing at 1 RES. Its packs hold an extra card.`},
+  banquet:{name:'Eternal Banquet', kind:'divine', max:1, text:()=>`Before every fight the party eats well: every ally starts with +1 ATK and +3 RES.`},
+  unveil:{name:'Unveiling', kind:'divine', max:1, text:()=>`Its first hit in every fight deals +3 damage. It sees the odds of every story check.`},
+  // keywords
+  guard:    {name:'Guard', kind:'kw', max:1, text:()=>`Enemies must attack this first.`},
+  swift:    {name:'First Strike', kind:'kw', max:1, text:()=>`Strikes first when it attacks. If the target falls, it can't hit back.`},
+  ranged:   {name:'Ranged', kind:'kw', max:1, text:()=>`Its attacks can't be hit back.`},
+  lifesteal:{name:'Lifesteal', kind:'kw', max:3, text:l=>`Heals for the damage it deals${l>1?`, +${l-1}`:''}.`},
+  venom:    {name:'Venom', kind:'kw', max:5, text:l=>`Its attacks poison: ${l} damage to the target at the end of every round. Stacks.`},
+  thorns:   {name:'Thorns', kind:'kw', max:6, text:l=>`When attacked, deals ${l} damage back.`},
+  ward:     {name:'Ward', kind:'kw', max:4, text:l=>`Starts each fight with ${l} Ward. Each Ward blocks one hit completely.`},
+  armor:    {name:'Armor', kind:'kw', max:4, text:l=>`Takes ${l} less damage from every hit.`},
+  regen:    {name:'Regenerate', kind:'kw', max:5, text:l=>`Heals ${l} at the end of every round.`},
+  pierce:   {name:'Pierce', kind:'kw', max:1, text:()=>`Its hits ignore Armor and Ward.`},
+  cleave:   {name:'Cleave', kind:'kw', max:2, text:l=>`Attacks also hit the enemies beside the target for ${l>1?'full':'half'} damage.`},
+  twin:     {name:'Twin Strike', kind:'kw', max:1, text:()=>`Attacks twice each turn.`},
+  rebirth:  {name:'Rebirth', kind:'kw', max:1, text:()=>`The first time it falls each fight, it rises again with half its RES.`},
+  // auras
+  rally:    {name:'Rally', kind:'aura', max:4, text:l=>`Allies have +${l} ATK.`},
+  bulwark:  {name:'Bulwark', kind:'aura', max:4, text:l=>`Allies have +${l} RES.`},
+  // triggers
+  volley:   {name:'Opening Volley', kind:'trig', max:4, text:l=>`Start of combat: deal ${2*l} damage to a random enemy.`},
+  sanctuary:{name:'Sanctuary', kind:'trig', max:3, text:l=>`Start of combat: every ally gains ${l} Ward.`},
+  mend:     {name:'Mend', kind:'trig', max:4, text:l=>`Start of each round: heal the most wounded ally for ${l+1}.`},
+  momentum: {name:'Momentum', kind:'trig', max:4, text:l=>`Start of each round: gain +${l} ATK.`},
+  frenzy:   {name:'Frenzy', kind:'trig', max:4, text:l=>`Each time it attacks, it first gains +${l} ATK.`},
+  enrage:   {name:'Enrage', kind:'trig', max:4, text:l=>`Whenever it's hurt and survives: gain +${l} ATK.`},
+  bloodthirst:{name:'Bloodthirst', kind:'trig', max:3, text:l=>`When it defeats an enemy: heal ${2*l} and gain +${l} ATK.`},
+  avenger:  {name:'Avenger', kind:'trig', max:3, text:l=>`When an ally falls: gain +${l} ATK and +${l} RES.`},
+  lastbreath:{name:'Last Breath', kind:'trig', max:4, text:l=>`When it falls: deal ${2*l} damage to every enemy.`},
+  martyr:   {name:'Martyr', kind:'trig', max:3, text:l=>`When it falls: heal every ally ${3*l} and give them +${l} ATK.`},
+  spellblade:{name:'Spellblade', kind:'trig', max:3, text:l=>`After it casts a spell: gain +${l} ATK.`},
+  // modifiers
+  arcane:   {name:'Arcane Focus', kind:'mod', max:5, text:l=>`Its spells deal and heal +${l}.`},
+  quick:    {name:'Quickcast', kind:'mod', max:2, text:l=>`Its spell cooldowns are ${l} shorter (never below 1).`},
+  echo:     {name:'Echo', kind:'mod', max:1, text:()=>`Its spells are cast twice.`},
+  overflow: {name:'Overflow', kind:'mod', max:1, text:()=>`Its healing past full becomes Ward: 1 Ward per 3 extra.`},
+  bloodpact:{name:'Blood Pact', kind:'mod', max:1, text:()=>`Its spells have no cooldown, but every cast costs it 2 RES.`},
+  shieldwall:{name:'Shieldwall', kind:'mod', max:3, text:l=>`Gains +1 ATK for every ${4-l} RES it has when a fight starts.`},
+  // spells: cd = rounds between casts; first cast is ready on round 1
+  firebolt: {name:'Firebolt', kind:'spell', max:5, cd:2, tgt:'enemy', text:(l,u)=>`Deal ${spellN(3+2*(l-1),u)} damage to an enemy.`},
+  frost:    {name:'Frost Shard', kind:'spell', max:4, cd:2, tgt:'enemy', text:(l,u)=>`Deal ${spellN(1+l,u)} damage. The target loses ${l} ATK.`},
+  meteor:   {name:'Meteor', kind:'spell', max:4, cd:4, tgt:'none', text:(l,u)=>`Deal ${spellN(2+l,u)} damage to every enemy.`},
+  heal:     {name:'Heal', kind:'spell', max:5, cd:2, tgt:'ally', text:(l,u)=>`Restore ${spellN(3+2*(l-1),u)} RES to an ally.`},
+  barrier:  {name:'Barrier', kind:'spell', max:3, cd:4, tgt:'none', text:l=>`Every ally gains ${l} Ward.`},
+  bash:     {name:'Shield Bash', kind:'spell', max:4, cd:3, tgt:'enemy', text:(l,u)=>`Deal damage equal to its current RES${l>1?` +${l-1}`:''}${u&&(ab(u,'arcane')+spellLvl(u)+(u.sp||0))?` +${ab(u,'arcane')+spellLvl(u)+(u.sp||0)}`:''}. No hit back.`},
+  drain:    {name:'Drain Life', kind:'spell', max:4, cd:2, tgt:'enemy', text:(l,u)=>`Deal ${spellN(1+l,u)} damage and heal that much.`},
+  haste:    {name:'Haste', kind:'spell', max:2, cd:3, tgt:'other', text:l=>`Another ally acts again this round${l>1?' with +2 ATK':''}.`},
+  inspire:  {name:'Inspire', kind:'spell', max:4, cd:2, tgt:'ally', text:(l)=>`An ally gains +${l+1} ATK for the rest of the fight.`},
+  hex:      {name:'Hex', kind:'spell', max:4, cd:3, tgt:'enemy', text:l=>`An enemy loses ${l+1} ATK and ${l} Armor/Ward.`},
+  plague:   {name:'Plague Cloud', kind:'spell', max:4, cd:3, tgt:'none', text:l=>`Poison every enemy for ${l} (stacks with Venom).`},
+  execute:  {name:'Execute', kind:'spell', max:4, cd:3, tgt:'enemy', text:(l,u)=>`Defeat an enemy with ${spellN(3+2*l,u)} RES or less left.`},
+  warcry:   {name:'War Cry', kind:'spell', max:3, cd:2, tgt:'none', text:l=>`Gain Guard and ${l} Ward until your next turn.`}
+};
+const ab = (u,id)=>(u.ab && u.ab[id]) || 0;
+const spellN = (n,u)=>n + (u ? ab(u,'arcane') + spellLvl(u) + (u.sp||0) : 0);
+const spellLvl = u=>Math.floor(((u.lvl||1)-1)/2);   // spells grow as the caster levels up
+const KIND_ORDER = {divine:-1, kw:0, aura:1, trig:2, mod:3, spell:4};
+
+/* ---------- character cards ---------- */
+/* tags steer what a character's packs offer */
+const HEROES = {
+  lina:{name:'Lina', title:'Childhood friend · archer', atk:2, res:8, ab:{ranged:1}, tags:['blade','wild','heal'], trait:'Steady hands: her packs lean towards bows, healing and luck.'},
+  sera:{name:'Seraphine', title:'Noble rival · ice mage', atk:1, res:8, ab:{frost:1}, tags:['arcane','ward','fire'], trait:'Prodigy: her packs lean towards spells and wards.'},
+  rook:{name:'Rook', title:'Wolf beastkin · brawler', atk:3, res:9, ab:{frenzy:1}, tags:['fury','blood','blade'], trait:'Pack instinct: his packs lean towards fury and blood.'},
+  nimue:{name:'Nimue', title:'Ancient elf · professor', atk:1, res:9, ab:{heal:1}, tags:['holy','arcane','heal'], trait:'Eight centuries of study: her packs lean towards healing and arcane lore.'},
+  you:{name:'You', title:'The Reborn', atk:2, res:10, ab:{}, tags:['blade','stat','wild'], trait:'Otherworlder: a soul from somewhere else.'}
+};
+function makeChar(k){ const H = HEROES[k]; return {key:k, name:H.name, title:H.title, art:H.art||k, lvl:1, xp:0, atk:H.atk, res:H.res, sp:0, ab:Object.assign({}, H.ab), tags:H.tags.slice(), trait:H.trait, packSize:H.packSize||3, absorbed:[], pending:0, slots:1, equip:[]}; }
+
+/* ---------- the card pool ---------- */
+const RAR = {c:{name:'Common', w:62}, u:{name:'Uncommon', w:27}, r:{name:'Rare', w:9.5}, l:{name:'Legendary', w:1.5}};
+const C = (id, name, rar, atk, res, abl, tags, flav)=>({id, name, rar, atk, res, ab:abl||null, tags:tags||[], flav:flav||''});
+const CARDS = [
+  // commons: mostly raw stats, a few cheap tricks
+  C('whetstone','Whetstone','c',2,0,null,['stat','blade'],'A sharper edge.'),
+  C('vest','Padded Vest','c',0,4,null,['stat','ward'],'Thick, ugly, comforting.'),
+  C('spar','Sparring Partner','c',1,3,null,['stat','blade'],'Bruises, mostly.'),
+  C('ration','Hearty Stew','c',1,3,null,['stat','heal'],'Mama\'s recipe.'),
+  C('drill','Morning Drills','c',2,2,null,['stat','blade','fury'],'Again. Again.'),
+  C('hide','Boar Hide','c',0,5,null,['stat','ward'],'Smells terrible.'),
+  C('thorny','Thorny Vines','c',0,2,['thorns',1],['ward','wild'],'Touch me and see.'),
+  C('hooked','Hooked Blade','c',1,0,['venom',1],['poison','blade'],'Dipped in something green.'),
+  C('temper','Short Temper','c',1,2,['enrage',1],['fury'],'Don\'t poke it.'),
+  C('spark','Spark','c',0,0,['firebolt',1],['fire','arcane'],'A spell, not a stat in sight.'),
+  C('firstaid','First Aid','c',0,2,['heal',1],['heal','holy'],'Bandages and a kind word.'),
+  C('charm','Lucky Charm','c',1,2,['ward',1],['ward','wild'],'Probably works.'),
+  C('frostc','Frost Shard','c',0,0,['frost',1],['arcane','wild'],'Cold enough to slow a bear.'),
+  // uncommons: real abilities, modest stats
+  C('tower','Tower Shield','u',0,5,['guard',1],['guard','ward','stat'],'Stand behind me.'),
+  C('bow','Longbow','u',1,0,['ranged',1],['blade','wild'],'Hit them before they reach you.'),
+  C('fang','Vampire Fang','u',1,0,['lifesteal',1],['blood'],'It hums when it bites.'),
+  C('chain','Chainmail','u',0,3,['armor',1],['ward','stat'],'Rings within rings.'),
+  C('gland','Venom Gland','u',0,0,['venom',2],['poison'],'Handle with gloves.'),
+  C('regrow','Troll Blood','u',0,3,['regen',1],['blood','heal'],'It grows back.'),
+  C('hymn','Healing Hymn','u',0,1,['mend',1],['holy','heal'],'Sung under the breath.'),
+  C('moment','Building Momentum','u',1,0,['momentum',1],['fury','blade'],'Slow start. Then not.'),
+  C('frenzy','Frenzy','u',0,1,['frenzy',1],['fury','blood'],'More. More!'),
+  C('wardc','Warding Sigil','u',0,0,['ward',2],['ward','arcane'],'Drawn in chalk, holds like iron.'),
+  C('banner','War Banner','u',0,1,['rally',1],['holy','wild'],'Everyone stands taller.'),
+  C('bashc','Shield Bash','u',0,3,['bash',1],['guard','ward'],'The shield is also a weapon.'),
+  C('drainc','Drain Touch','u',0,1,['drain',1],['blood','arcane'],'Take a little. Keep a little.'),
+  C('focus','Arcane Focus','u',0,0,['arcane',1],['arcane','fire'],'Every spell, a little sharper.'),
+  C('volleyc','Opening Volley','u',0,0,['volley',1],['fire','blade'],'Fire first, ask later.'),
+  C('spikes','Spiked Pauldrons','u',0,3,['thorns',2],['ward','fury'],'Hugs not recommended.'),
+  C('cleaver','Cleaver','u',2,0,['cleave',1],['blade','fury'],'Wide swings.'),
+  C('inspirec','Inspiring Words','u',0,1,['inspire',1],['holy','wild'],'You can do this.'),
+  C('hexc','Hex','u',0,0,['hex',1],['arcane','blood'],'A whispered curse.'),
+  C('berserk','Berserker Rage','u',4,-1,['enrage',1],['fury','blood'],'Stronger. Angrier. Thinner.'),
+  C('tome','Hermit\'s Tome','u',-1,0,['arcane',2],['arcane','holy'],'All study and no sword.'),
+  C('warcryc','War Cry','u',1,2,['warcry',1],['guard','fury'],'Look at ME.'),
+  // rares
+  C('glass','Glass Cannon','r',5,-3,null,['stat','fury'],'Hits like a cart. Breaks like a cup.'),
+  C('jugger','Juggernaut','r',3,5,null,['stat','guard'],'Simply more.'),
+  C('twinc','Twin Daggers','r',-1,0,['twin',1],['blade'],'One for each hand.'),
+  C('meteorc','Meteor','r',0,0,['meteor',1],['fire','arcane'],'Look up.'),
+  C('hastec','Haste','r',0,0,['haste',1],['arcane','wild'],'Go. Go now.'),
+  C('thirst','Bloodthirst','r',1,0,['bloodthirst',1],['blood','fury'],'Every kill a meal.'),
+  C('oath','Avenger\'s Oath','r',1,2,['avenger',1],['holy','fury'],'For them.'),
+  C('sanct','Sanctuary','r',0,1,['sanctuary',1],['holy','ward'],'A circle of light around everyone.'),
+  C('quickc','Quickcast','r',0,0,['quick',1],['arcane'],'Words come faster now.'),
+  C('overc','Overflow','r',0,1,['overflow',1],['holy','heal'],'Too much healing? There\'s no such thing.'),
+  C('breath','Last Breath','r',0,3,['lastbreath',2],['fire','blood'],'Take them with you.'),
+  C('martyrc','Martyr','r',0,3,['martyr',1],['holy','heal'],'So they may live.'),
+  C('bladec','Spellblade','r',1,0,['spellblade',1],['arcane','blade'],'Cast, then cut.'),
+  C('execc','Executioner','r',1,0,['execute',1],['blade','blood'],'Finish it.'),
+  C('wallc','Shieldwall','r',0,4,['shieldwall',1],['guard','ward'],'The bigger the wall, the harder it hits.'),
+  C('plaguec','Plague Cloud','r',0,0,['plague',1],['poison','arcane'],'Breathe deep.'),
+  C('piercec','Piercing Edge','r',1,0,['pierce',1],['blade'],'Through the gaps.'),
+  C('bulwarkc','Bulwark','r',0,1,['bulwark',1],['guard','holy'],'Everyone stands firmer.'),
+  C('barrierc','Barrier','r',0,0,['barrier',1],['ward','arcane'],'Light, everywhere, at once.'),
+  // legendaries
+  C('echoc','Echo Crystal','l',0,0,['echo',1],['arcane'],'Everything twice.'),
+  C('pact','Blood Pact','l',0,6,['bloodpact',1],['blood','arcane'],'Pay in blood. Never wait.'),
+  C('titan','Titan\'s Heart','l',4,9,null,['stat'],'Pure, simple, enormous.'),
+  C('phoenix','Phoenix Feather','l',1,2,['rebirth',1],['fire','holy'],'Not yet.'),
+  // spell power
+  Object.assign(C('candle','Midnight Candle','c',0,1,null,['arcane','fire'],'Burnt down to the stub, every night.'), {sp:1}),
+  Object.assign(C('runes','Runic Tattoos','u',0,1,null,['arcane','blood'],'They glow when you cast.'), {sp:2}),
+  Object.assign(C('starchart','Star Charts','r',0,2,null,['arcane','holy'],'The sky, folded into your pocket.'), {sp:3}),
+  // gear cards: more item slots
+  Object.assign(C('pouch','Belt Pouch','c',0,1,null,['gear','wild'],'Room for one more thing.'), {slots:1}),
+  Object.assign(C('harness','Adventurer\'s Harness','u',1,1,null,['gear','blade'],'Straps, buckles, possibilities.'), {slots:1}),
+  Object.assign(C('bandolier','Bandolier','r',0,0,null,['gear'],'A loop for everything.'), {slots:2})
+];
+const MAX_SLOTS = 4;
+const CARD = Object.fromEntries(CARDS.map(c=>[c.id,c]));
+
+/* ---------- divine gift cards ----------
+   Keyed by the old cheat ids, so every story that knows about a cheat still works. */
+const DIVINE = {
+  mana:{name:'Wellspring of a Thousand Stars', short:'Wellspring', glyph:'✶', atk:0, res:0, ab:{wellspring:1, frost:1}, tags:['arcane','fire'], flav:'Mana without a bottom. Cast, and cast, and cast.'},
+  prism:{name:'The Starforge Prism', short:'Starforge', glyph:'◈', atk:0, res:0, sp:1, ab:{prism:1, firebolt:1}, tags:['arcane','fire'], flav:'Steel goes in. Starlight comes out.'},
+  tamer:{name:'Covenant of the Wild Crown', short:'Wild Crown', glyph:'❦', atk:0, res:2, ab:{wildheart:1}, tags:['wild','heal'], flav:'Beasts know a king when they see one.'},
+  sword:{name:'Edge of the First Saint', short:'Saint\'s Edge', glyph:'†', atk:1, res:0, ab:{saint:1, swift:1}, tags:['blade','fury'], flav:'The first saint cut the dark in half. Your hands remember how.'},
+  luck:{name:'Fortune\'s Golden Thread', short:'Golden Thread', glyph:'☘', atk:0, res:1, ab:{fortune:1}, tags:['wild','stat'], flav:'Somewhere, a goddess keeps tugging it your way.'},
+  cook:{name:'The Eternal Banquet', short:'Banquet', glyph:'♨', atk:0, res:1, ab:{banquet:1}, tags:['holy','heal'], flav:'No one has ever lost a fight on a full stomach. Probably.'},
+  appraise:{name:'Eye of Unveiling', short:'Unveiling', glyph:'◉', atk:0, res:0, ab:{unveil:1, pierce:1}, tags:['blade','poison'], flav:'Every armour has a gap. Every lie has a seam.'}
+};
+/* the reborn's own card: race sets the base, the divine gift is absorbed at birth */
+const RACE_CARD = {human:{atk:2, res:10}, demon:{atk:3, res:9, tags:['blood','fire']}};
+function makeReborn(name, race, gift){
+  const ch = makeChar('you'); ch.name = name; ch.key = 'you';
+  const rc = RACE_CARD[race] || RACE_CARD.human; ch.atk = rc.atk; ch.res = rc.res; if(rc.tags) ch.tags = ch.tags.concat(rc.tags);
+  ch.baseAtk = ch.atk; ch.baseRes = ch.res;
+  const D = DIVINE[gift];
+  if(D){ ch.atk += D.atk; ch.res += D.res; ch.sp = D.sp||0; Object.assign(ch.ab, D.ab); ch.tags = ch.tags.concat(D.tags); ch.divine = gift; ch.title = D.short; ch.trait = `Divine gift: ${D.name}.`; }
+  if(gift==='luck') ch.packSize = 4;
+  return ch;
+}
+
+/* ---------- packs ---------- */
+function cardAllowed(ch, card){ if(card.slots && (ch.slots||1) + card.slots > MAX_SLOTS) return false; if(!card.ab) return true; if(ab(ch,'wellspring') && ['quick','bloodpact'].includes(card.ab[0])) return false; const [id] = card.ab, def = AB[id]; return ab(ch,id) < def.max; }
+const isStatCard = c=>c.atk+c.res>=3;
+function rollRarity(lvl){
+  const w = {c:RAR.c.w - 2.2*lvl, u:RAR.u.w + 1.2*lvl, r:RAR.r.w + .8*lvl, l:RAR.l.w + .25*lvl};
+  return weighted(Object.keys(w), k=>w[k]);
+}
+function drawCard(ch, filter, taken){
+  for(let tries=0; tries<30; tries++){
+    const rar = rollRarity(ch.lvl);
+    const pool = CARDS.filter(c=>c.rar===rar && filter(c) && cardAllowed(ch,c) && !taken.has(c.id));
+    const c = weighted(pool, c=>1 + (c.tags.some(t=>ch.tags.includes(t)) ? 2.2 : 0));
+    if(c) return c;
+  }
+  return weighted(CARDS.filter(c=>cardAllowed(ch,c) && !taken.has(c.id)), ()=>1);
+}
+/* one card leans on stats, one on abilities, the rest are wild */
+function openPack(ch){
+  const taken = new Set(), out = [];
+  const add = f=>{ const c = drawCard(ch, f, taken); if(c){ taken.add(c.id); out.push(c); } };
+  add(isStatCard); add(c=>!!c.ab); for(let i=2;i<ch.packSize;i++) add(()=>true);
+  return out.sort(()=>rnd()-.5);
+}
+/* absorb a card into a character card */
+function absorb(ch, card){
+  let atk = card.atk;
+  if(ab(ch,'prism') && atk>0){ const sp = Math.ceil(atk/2); ch.sp = (ch.sp||0) + sp; atk -= sp; }   // Starforge: steel into starlight
+  ch.atk = Math.max(0, ch.atk + atk); ch.res = Math.max(1, ch.res + card.res);
+  if(card.sp) ch.sp = (ch.sp||0) + card.sp;
+  if(card.ab){ const [id, l] = card.ab; if(l>0) ch.ab[id] = Math.min(AB[id].max, (ch.ab[id]||0) + l); }
+  if(card.slots) ch.slots = Math.min(MAX_SLOTS, (ch.slots||1) + card.slots);
+  ch.absorbed.push(card.id);
+}
+
+/* ---------- items ----------
+   Items are cards too, but they aren't absorbed: they sit in a character's item slots
+   and can be swapped, moved or taken off between fights. While equipped, their stats add on
+   and their abilities stack with the character's own (up to each ability's cap). */
+const I = (id, name, rar, kind, atk, res, abs, flav)=>({id, name, rar, kind, atk, res, abs:abs||[], flav:flav||''});
+const ITEM_KIND = {weapon:'⚔', armor:'⛨', trinket:'❖', tome:'✎'};
+const ITEMS = [
+  // common
+  I('sword','Iron Sword','c','weapon',2,0,[],'Plain and honest.'),
+  I('jerkin','Leather Jerkin','c','armor',0,4,[],'Creaks when you move.'),
+  I('boots','Travel Boots','c','armor',1,2,[],'Broken in on a hundred roads.'),
+  I('amulet','Wooden Amulet','c','trinket',0,1,[['ward',1]],'Carved by a grandmother.'),
+  I('herbs','Herb Pouch','c','trinket',0,1,[['regen',1]],'Chew one when it hurts.'),
+  I('wand','Apprentice Wand','c','tome',0,0,[['firebolt',1]],'Points the right way, mostly.'),
+  I('kit','Healer\'s Kit','c','trinket',0,1,[['heal',1]],'Clean bandages, sharp scissors.'),
+  I('club','Spiked Club','c','weapon',2,0,[['thorns',1]],'Ugly. Effective.'),
+  // uncommon
+  I('kite','Kite Shield','u','armor',0,4,[['guard',1]],'Hide behind it. Others will too.'),
+  I('mail','Chain Shirt','u','armor',0,3,[['armor',1]],'Heavier than it looks.'),
+  I('bowi','Hunting Bow','u','weapon',2,0,[['ranged',1]],'For deer. Mostly.'),
+  I('serpent','Serpent Dagger','u','weapon',1,0,[['venom',2]],'Green along the edge.'),
+  I('focusring','Ring of Focus','u','trinket',0,0,[['arcane',1]],'Hums under your thoughts.'),
+  I('cloak','Shadow Cloak','u','armor',0,2,[['ward',2]],'Light slides off it.'),
+  I('brand','Burning Brand','u','weapon',2,0,[['volley',1]],'Lit at both ends.'),
+  I('spellbook','Frost Primer','u','tome',0,1,[['frost',1],['arcane',1]],'Chapter one: cold.'),
+  I('fangring','Fang Ring','u','trinket',1,0,[['lifesteal',1]],'It bites back.'),
+  // rare
+  I('greatsword','Greatsword','r','weapon',5,-1,[['cleave',1]],'Two hands, wide swings.'),
+  I('vampblade','Thirsting Blade','r','weapon',2,0,[['lifesteal',1],['bloodthirst',1]],'It always wants more.'),
+  I('aegis','Aegis','r','armor',0,5,[['guard',1],['armor',1]],'Nothing gets past.'),
+  I('staff','Archmage\'s Staff','r','tome',0,1,[['arcane',2],['quick',1]],'Older than the tower it came from.'),
+  I('thorncrown','Crown of Thorns','r','armor',0,3,[['thorns',3]],'Wear it and dare them.'),
+  I('warhorn','War Horn','r','trinket',1,1,[['rally',1]],'One blast and everyone stands taller.'),
+  I('standard','Holy Standard','r','trinket',0,2,[['bulwark',1],['mend',1]],'It never touches the ground.'),
+  I('twinfangs','Twin Fangs','r','weapon',1,0,[['twin',1]],'A matched pair.'),
+  I('stormtome','Tome of Storms','r','tome',0,0,[['meteor',1]],'Do not read aloud indoors.'),
+  // legendary
+  I('mirror','Mirror Orb','l','trinket',0,1,[['echo',1]],'Everything you cast, twice.'),
+  I('gauntlets','Titan\'s Gauntlets','l','weapon',4,4,[['enrage',1]],'Made for hands much larger.'),
+  I('plume','Phoenix Plume','l','trinket',0,2,[['rebirth',1],['lastbreath',2]],'Warm to the touch, always.')
+];
+const ITEM = Object.fromEntries(ITEMS.map(i=>[i.id,i]));
+let ITEM_UID = 0;
+const newItem = id=>({uid:'it'+Date.now().toString(36)+(ITEM_UID++)+Math.floor(rnd()*1e4), id});
+/* a fighter as it walks into battle: the card plus whatever it's carrying */
+function effective(ch){
+  const e = Object.assign({}, ch, {ab:Object.assign({}, ch.ab), src:{}});
+  for(const it of (ch.equip||[]).slice(0, ch.slots||1)){
+    const d = ITEM[it.id]; if(!d) continue;
+    e.atk += d.atk; e.res += d.res;
+    if(d.sp) e.sp = (e.sp||0) + d.sp;
+    for(const [id,l] of d.abs){ e.ab[id] = Math.min(AB[id].max, (e.ab[id]||0) + l); (e.src[id] = e.src[id]||[]).push(d.name); }
+  }
+  e.atk = Math.max(0, e.atk); e.res = Math.max(1, e.res);
+  return e;
+}
+/* loot: choose one of a few; better odds from higher tiers and bosses */
+function rollLoot(tier, n, boss){
+  const out = [], taken = new Set();
+  for(let i=0;i<n;i++){
+    for(let tries=0; tries<20; tries++){
+      let rar = rollRarity(tier + (boss?6:0)); if(boss && rar==='c') rar = 'u';
+      const pool = ITEMS.filter(x=>x.rar===rar && !taken.has(x.id));
+      if(pool.length){ const it = pickOne(pool); taken.add(it.id); out.push(it); break; }
+    }
+  }
+  return out;
+}
+function itemValue(ch, it){
+  let v = it.atk*1.15 + it.res; const e = effective(ch);
+  for(const [id,l] of it.abs){ const room = Math.max(0, Math.min(l, AB[id].max - ab(e,id))); v += (AB_VALUE[id]||2) * room; if(['arcane','quick','echo','spellblade'].includes(id)) v += Object.keys(ch.ab).filter(k=>AB[k]&&AB[k].kind==='spell').length*1.8 - 2; }
+  return v;
+}
+/* hand out a bag of items to whoever gets the most from each one */
+function autoEquip(party, bag){
+  const all = bag.concat(...party.map(c=>c.equip)); for(const c of party) c.equip = [];
+  const left = [];
+  for(const it of all.sort((a,b)=>Math.max(...party.map(c=>itemValue(c,ITEM[b.id])))-Math.max(...party.map(c=>itemValue(c,ITEM[a.id]))))){
+    const best = party.filter(c=>c.equip.length < (c.slots||1)).sort((a,b)=>itemValue(b,ITEM[it.id])-itemValue(a,ITEM[it.id]))[0];
+    if(best) best.equip.push(it); else left.push(it);
+  }
+  return left;
+}
+function abilityLines(u){
+  return Object.entries(u.ab).filter(([k,l])=>l>0 && AB[k]).sort((a,b)=>KIND_ORDER[AB[a[0]].kind]-KIND_ORDER[AB[b[0]].kind]).map(([k,l])=>({id:k, lvl:l, def:AB[k]}));
+}
+const XP_NEED = l=>3 + 2*l;
+
+/* ---------- enemies ---------- */
+const TUNE = {fAtk:.31, fRes:.35, bAtk:.2, bRes:.24, resMul:1.85, atkMul:1.45, slotValue:4, lootPerLevel:1};
+const FOES = {
+  slime:{name:'Slime', glyph:'◕', atk:1, res:8, ab:{regen:1}, beast:true},
+  boar:{name:'Wild Boar', glyph:'♉', atk:3, res:8, ab:{thorns:1}, beast:true},
+  wyvern:{name:'Wyvern', glyph:'Ψ', atk:4, res:10, ab:{swift:1}, beast:true},
+  wolf:{name:'Dire Wolf', glyph:'ᛉ', atk:3, res:5, ab:{swift:1}, beast:true},
+  bandit:{name:'Bandit', glyph:'⚔', atk:2, res:8, ab:{}},
+  archer:{name:'Goblin Archer', glyph:'➶', atk:2, res:5, ab:{ranged:1}},
+  spider:{name:'Cave Spider', glyph:'※', atk:1, res:6, ab:{venom:1}, beast:true},
+  skel:{name:'Skeleton Guard', glyph:'☠', atk:1, res:9, ab:{guard:1, armor:1}},
+  imp:{name:'Imp', glyph:'♆', atk:1, res:5, ab:{volley:1}, beast:true},
+  cultist:{name:'Cultist', glyph:'✶', atk:1, res:6, ab:{firebolt:1}},
+  shaman:{name:'Shaman', glyph:'❂', atk:1, res:7, ab:{heal:1, mend:1}},
+  wraith:{name:'Wraith', glyph:'☾', atk:2, res:6, ab:{ward:1, lifesteal:1}},
+  ogre:{name:'Ogre', glyph:'▲', atk:4, res:14, ab:{}, beast:true},
+  knight:{name:'Black Knight', glyph:'♜', atk:3, res:11, ab:{guard:1, armor:1}},
+  berserker:{name:'Berserker', glyph:'✠', atk:3, res:9, ab:{enrage:1, frenzy:1}},
+  // bosses
+  general:{name:'Demon General', glyph:'♛', atk:4, res:17, ab:{enrage:1, meteor:1}, boss:true},
+  lich:{name:'The Lich', glyph:'♚', atk:3, res:24, ab:{firebolt:2, plague:1, ward:2, arcane:1}, boss:true}
+};
+const FOE_TIERS = [['slime','bandit','spider','imp','archer','wolf','boar'], ['wolf','archer','cultist','skel','spider','wraith','shaman','boar'], ['ogre','knight','berserker','wraith','shaman','cultist','skel','wyvern']];
+const FOE_POOLS = {wild:['slime','wolf','spider','boar','imp','ogre','wyvern'], people:['bandit','archer','berserker','knight','cultist','shaman'], dark:['skel','wraith','cultist','imp','spider','shaman']};
+function makeFoe(k, tier){
+  const F = FOES[k], m = 1 + (F.boss ? TUNE.bAtk : TUNE.fAtk)*(tier-1), mr = 1 + (F.boss ? TUNE.bRes : TUNE.fRes)*(tier-1), up = F.boss ? 0 : Math.floor((tier-1)/4);
+  const abl = {}; for(const [id,l] of Object.entries(F.ab)) abl[id] = Math.min(AB[id].max, l + (AB[id].max>1 ? up : 0));
+  return {key:k, name:F.name, glyph:F.glyph, atk:Math.round(F.atk*m*TUNE.atkMul), res:Math.round(F.res*mr*TUNE.resMul), ab:abl, boss:!!F.boss, lvl:tier};
+}
+function makeEncounter(tier, opts={}){
+  tier = Math.max(1, tier);
+  const n = opts.n || (tier<=1 ? 2 : 3);
+  if(opts.boss){ const boss = opts.boss===true ? (tier>=10 ? 'lich' : 'general') : opts.boss; const out=[makeFoe(boss,tier)]; for(let i=1;i<n;i++) out.push(makeFoe(pickOne(FOE_TIERS[Math.min(2, Math.floor(tier/4))]), tier-1)); return out; }
+  // tougher kinds of enemy drift in gradually as the tier rises
+  const f = (tier-1)/3, lo = Math.min(2, Math.floor(f)), hi = Math.min(2, lo+1), mix = f - Math.floor(f);
+  const themed = opts.pool && FOE_POOLS[opts.pool];
+  const out = [];
+  for(let i=0;i<n;i++){
+    let pool = FOE_TIERS[rnd()<mix ? hi : lo];
+    if(themed){ const p2 = pool.filter(k=>themed.includes(k)); if(p2.length) pool = p2; }
+    out.push(makeFoe(pickOne(pool), tier));
+  }
+  return out;
+}
+/* a tamed creature: the beast as it was tamed, plus a share of what your cards have given you */
+function petUnit(pet, owner){
+  const F = FOES[pet.key] || FOES.slime;
+  const gainA = Math.max(0, owner.atk - (owner.baseAtk!=null ? owner.baseAtk : 2)), gainR = Math.max(0, owner.res - (owner.baseRes!=null ? owner.baseRes : 10));
+  return {key:pet.key, name:pet.name, glyph:F.glyph, pet:true, lvl:owner.lvl, atk:pet.atk + Math.ceil(gainA/3), res:pet.res + Math.ceil(gainR/3), ab:Object.assign({}, pet.ab)};
+}
+function tamePet(foe, name){ return {key:foe.key, name:name || FOES[foe.key].name, atk:Math.max(1, Math.round(foe.atk*.8)), res:Math.max(4, Math.round(foe.res*.8)), ab:Object.assign({}, foe.ab), at:foe.lvl}; }
+
+/* ---------- combat ---------- */
+function toUnit(c, side, i){
+  const u = {id:side+i, side, idx:i, key:c.key, name:c.name, glyph:c.glyph, art:c.art, boss:c.boss, lvl:c.lvl,
+    baseAtk:c.atk, baseRes:c.res, sp:c.sp||0, pet:!!c.pet, beast:!!(FOES[c.key]&&FOES[c.key].beast), ab:Object.assign({}, c.ab), atk:c.atk, res:c.res, hp:c.res, ward:0, poison:0, alive:true,
+    acted:false, extra:0, cds:{}, reborn:false, guardTmp:false, wardTmp:0};
+  for(const [k,l] of Object.entries(u.ab)) if(l>0 && AB[k] && AB[k].kind==='spell') u.cds[k] = 0;   // ready on round 1
+  return u;
+}
+function newBattle(party, foes){
+  party = party.map(c=>c.equip ? effective(c) : c);
+  const B = {round:0, units:[], ev:[], over:null, phase:'start', turn:null};
+  party.forEach((c,i)=>B.units.push(toUnit(c,'p',i)));
+  foes.forEach((c,i)=>B.units.push(toUnit(c,'e',i)));
+  return B;
+}
+const side = (B,s)=>B.units.filter(u=>u.side===s);
+const alive = (B,s)=>B.units.filter(u=>u.side===s && u.alive);
+const foesOf = (B,u)=>alive(B, u.side==='p'?'e':'p');
+const alliesOf = (B,u)=>alive(B, u.side);
+const say = (B, s, cls)=>B.ev.push({t:'text', s, cls});
+const vb = (u, he, you)=>u && u.name==='You' ? you : he;   // 'You attack', 'Mal attacks'
+function spellCd(u, id){ if(ab(u,'bloodpact') || ab(u,'wellspring')) return 0; return Math.max(1, AB[id].cd - ab(u,'quick')); }
+
+function heal(B, u, n, src){
+  if(!u.alive || n<=0) return 0;
+  const room = u.res - u.hp, got = Math.min(room, n);
+  u.hp += got;
+  if(got>0) B.ev.push({t:'heal', u:u.id, n:got});
+  if(n>got && src && ab(src,'overflow')){ const w = Math.floor((n-got)/3); if(w>0){ u.ward += w; B.ev.push({t:'ward', u:u.id, n:w}); } }
+  return got;
+}
+function buffAtk(B, u, n, why){ if(!u.alive || !n) return; u.atk = Math.max(0, u.atk + n); B.ev.push({t:'atk', u:u.id, n, why}); }
+function buffRes(B, u, n){ if(!u.alive || !n) return; u.res += n; u.hp += n; B.ev.push({t:'res', u:u.id, n}); }
+
+/* every hit goes through here. opts: {attack, spell, poison, noWard} */
+function hurt(B, src, u, n, opts={}){
+  if(!u.alive || n<=0) return 0;
+  const pierce = src && ab(src,'pierce') && !opts.poison;
+  if(!opts.poison && !pierce && u.ward>0){ u.ward--; B.ev.push({t:'block', u:u.id}); return 0; }
+  if(!opts.poison && !pierce) n = Math.max(0, n - ab(u,'armor'));
+  if(n<=0){ B.ev.push({t:'dmg', u:u.id, n:0, armor:true}); return 0; }
+  u.hp -= n;
+  B.ev.push({t:'dmg', u:u.id, n, src:src && src.id, poison:!!opts.poison});
+  if(src && src.alive && opts.attack && ab(src,'lifesteal')) heal(B, src, n + ab(src,'lifesteal') - 1, src);
+  if(u.hp<=0) fall(B, u, src);
+  else if(ab(u,'enrage')) buffAtk(B, u, ab(u,'enrage'), 'Enrage');
+  return n;
+}
+function fall(B, u, killer){
+  if(ab(u,'fortune') && !u.fortuned){ u.fortuned = true; u.hp = 1; B.ev.push({t:'reborn', u:u.id}); say(B, `The Golden Thread holds. ${u.name} ${vb(u,'stays','stay')} standing.`, 'gold'); return; }
+  if(ab(u,'rebirth') && !u.reborn){ u.reborn = true; u.hp = Math.max(1, Math.ceil(u.res/2)); B.ev.push({t:'reborn', u:u.id}); say(B, `${u.name} ${vb(u,'rises','rise')} again!`, 'gold'); return; }
+  u.alive = false; u.hp = 0;
+  B.ev.push({t:'fall', u:u.id});
+  say(B, `${u.name} ${vb(u,'falls','fall')}.`, u.side==='p'?'bad':'good');
+  if(ab(u,'lastbreath')) for(const e of foesOf(B,u)) hurt(B, u, 2*ab(u,'lastbreath'), {spell:true});
+  if(ab(u,'martyr')) for(const a of alliesOf(B,u)){ heal(B, a, 3*ab(u,'martyr'), u); buffAtk(B, a, ab(u,'martyr'), 'Martyr'); }
+  for(const a of alliesOf(B,u)) if(ab(a,'avenger')){ buffAtk(B, a, ab(a,'avenger'), 'Avenger'); buffRes(B, a, ab(a,'avenger')); }
+  if(killer && killer.alive && killer.side!==u.side && ab(killer,'bloodthirst')){ heal(B, killer, 2*ab(killer,'bloodthirst'), killer); buffAtk(B, killer, ab(killer,'bloodthirst'), 'Bloodthirst'); }
+  checkOver(B);
+}
+function checkOver(B){
+  if(B.over) return;
+  if(!alive(B,'e').length) B.over = 'win'; else if(!alive(B,'p').length) B.over = 'lose';
+}
+const hasGuard = u=>ab(u,'guard') || u.guardTmp;
+function validTargets(B, u){
+  const fs = foesOf(B,u), g = fs.filter(hasGuard);
+  return g.length ? g : fs;
+}
+/* one attack: blows are traded unless the attacker is Ranged, or strikes first and kills */
+function strike(B, a, t){
+  if(!a.alive || !t.alive) return;
+  if(ab(a,'frenzy')) buffAtk(B, a, ab(a,'frenzy'), 'Frenzy');
+  B.ev.push({t:'attack', u:a.id, tgt:t.id});
+  let aDmg = a.atk, hitsBack = !ab(a,'ranged');
+  const tDmg = t.atk;
+  if(ab(a,'saint')){ a.cuts = (a.cuts||0) + 1; if(a.cuts%3===0){ aDmg *= 2; hitsBack = false; B.ev.push({t:'saint', u:a.id}); say(B, `Saint's Cut!`, 'gold'); } }
+  if(ab(a,'unveil') && !a.unveiled){ a.unveiled = true; aDmg += 3; }
+  const v = ab(a,'venom');
+  if(ab(a,'swift')){
+    const d = hurt(B, a, t, aDmg, {attack:true}); if(d>0 && v && t.alive){ t.poison += v; B.ev.push({t:'poison', u:t.id, n:v}); }
+    if(hitsBack && t.alive && a.alive) hurt(B, t, a, tDmg, {attack:true});
+  } else {
+    const d = hurt(B, a, t, aDmg, {attack:true}); if(d>0 && v && t.alive){ t.poison += v; B.ev.push({t:'poison', u:t.id, n:v}); }
+    if(hitsBack && a.alive) hurt(B, t, a, tDmg, {attack:true, back:true});   // trades blows even if the target just fell
+  }
+  if(ab(t,'thorns') && a.alive) hurt(B, t, a, ab(t,'thorns'), {});
+  if(ab(a,'cleave') && a.alive){
+    const row = side(B, t.side), i = row.indexOf(t), dmg = ab(a,'cleave')>1 ? aDmg : Math.ceil(aDmg/2);
+    for(const n of [row[i-1], row[i+1]]) if(n && n.alive) hurt(B, a, n, dmg, {attack:true});
+  }
+}
+function attack(B, a, t){
+  strike(B, a, t);
+  if(ab(a,'twin') && a.alive && !B.over){ const ts = validTargets(B,a); const t2 = t.alive && ts.includes(t) ? t : pickOne(ts); if(t2) strike(B, a, t2); }
+}
+/* spells */
+function castOnce(B, u, id, t){
+  const l = ab(u,id), arc = ab(u,'arcane') + spellLvl(u) + (u.sp||0);
+  switch(id){
+    case 'firebolt': hurt(B, u, t, 3+2*(l-1)+arc, {spell:true}); break;
+    case 'frost': hurt(B, u, t, 1+l+arc, {spell:true}); if(t.alive) buffAtk(B, t, -l, 'Frost'); break;
+    case 'meteor': for(const e of foesOf(B,u)) hurt(B, u, e, 2+l+arc, {spell:true}); break;
+    case 'heal': heal(B, t, 3+2*(l-1)+arc, u); break;
+    case 'barrier': for(const a of alliesOf(B,u)){ a.ward += l; B.ev.push({t:'ward', u:a.id, n:l}); } break;
+    case 'bash': hurt(B, u, t, u.hp + (l-1) + arc, {spell:true}); break;
+    case 'drain': { const d = hurt(B, u, t, 1+l+arc, {spell:true}); heal(B, u, d, u); break; }
+    case 'haste': t.extra++; if(l>1) buffAtk(B, t, 2, 'Haste'); B.ev.push({t:'haste', u:t.id}); break;
+    case 'inspire': buffAtk(B, t, l+1, 'Inspire'); break;
+    case 'hex': buffAtk(B, t, -(l+1), 'Hex'); if(t.ward){ t.ward = Math.max(0, t.ward-l); } if(t.ab.armor){ t.ab.armor = Math.max(0, t.ab.armor - l); } B.ev.push({t:'hex', u:t.id}); break;
+    case 'plague': for(const e of foesOf(B,u)){ e.poison += l; B.ev.push({t:'poison', u:e.id, n:l}); } break;
+    case 'execute': if(t.hp <= 3+2*l+arc){ B.ev.push({t:'execute', u:t.id}); t.hp = 0; t.ward = 0; fall(B, t, u); } else say(B, `${t.name} ${vb(t,'is','are')} too strong to finish yet.`, 'muted'); break;
+    case 'warcry': u.guardTmp = true; u.ward += l; u.wardTmp += l; B.ev.push({t:'ward', u:u.id, n:l}); break;
+  }
+}
+function cast(B, u, id, t){
+  const def = AB[id];
+  B.ev.push({t:'cast', u:u.id, spell:id, tgt:t && t.id});
+  say(B, `${u.name} ${vb(u,'casts','cast')} ${def.name}${t && t.id!==u.id ? ` on ${t.name}` : ''}.`, 'spell');
+  if(ab(u,'bloodpact')) hurt(B, null, u, 2, {poison:true});
+  const times = ab(u,'echo') ? 2 : 1;
+  for(let i=0;i<times && u.alive && !B.over;i++){
+    let tg = t;
+    if(def.tgt==='enemy' && (!tg || !tg.alive)) tg = pickOne(foesOf(B,u)); if(def.tgt==='enemy' && !tg) break;
+    if((def.tgt==='ally' || def.tgt==='other') && (!tg || !tg.alive)) break;
+    castOnce(B, u, id, tg);
+  }
+  u.cds[id] = spellCd(u, id);
+  if(u.alive && ab(u,'spellblade')) buffAtk(B, u, ab(u,'spellblade'), 'Spellblade');
+}
+const spellReady = (u,id)=>u.cds[id]!=null && u.cds[id]<=0;
+function readySpells(u){ return Object.keys(u.cds).filter(id=>spellReady(u,id)); }
+function spellTargets(B, u, id){
+  const t = AB[id].tgt;
+  if(t==='enemy') return foesOf(B,u);
+  if(t==='ally') return alliesOf(B,u);
+  if(t==='other') return alliesOf(B,u).filter(a=>a!==u);
+  return [];
+}
+
+/* ---------- turn structure ---------- */
+function startBattle(B){
+  // auras and Shieldwall are settled when the fight starts
+  for(const s of ['p','e']){
+    const row = side(B,s);
+    const rally = row.reduce((n,u)=>n+ab(u,'rally'),0), bul = row.reduce((n,u)=>n+ab(u,'bulwark'),0);
+    for(const u of row){
+      const own = ab(u,'rally'), ownB = ab(u,'bulwark');
+      u.atk += rally - own; u.res += bul - ownB; u.hp = u.res;
+      if(ab(u,'shieldwall')) u.atk += Math.floor(u.res / (4-ab(u,'shieldwall')));
+      u.ward = ab(u,'ward');
+    }
+  }
+  for(const u of B.units) if(ab(u,'banquet')) for(const a of side(B,u.side)){ a.atk += 1; a.res += 3; a.hp += 3; }
+  if(B.units.some(u=>ab(u,'banquet'))) say(B, 'Everyone ate well before the fight.', 'gold');
+  say(B, 'The fight begins.', 'gold');
+  for(const u of B.units) if(ab(u,'sanctuary')) for(const a of alliesOf(B,u)){ a.ward += ab(u,'sanctuary'); B.ev.push({t:'ward', u:a.id, n:ab(u,'sanctuary')}); }
+  for(const u of B.units) if(u.alive && ab(u,'volley') && !B.over){ const t = pickOne(foesOf(B,u)); if(t){ say(B, `${u.name} ${vb(u,'opens','open')} with a volley.`); hurt(B, u, t, 2*ab(u,'volley'), {spell:true}); } }
+  checkOver(B);
+  startRound(B);
+}
+function startRound(B){
+  if(B.over) return;
+  B.round++;
+  B.ev.push({t:'round', n:B.round});
+  for(const u of B.units){ u.acted = false; u.extra = 0; if(u.guardTmp){ u.guardTmp = false; } if(u.wardTmp){ u.ward = Math.max(0, u.ward - u.wardTmp); u.wardTmp = 0; } }
+  for(const u of B.units){
+    if(!u.alive) continue;
+    for(const id in u.cds) if(u.cds[id]>0 && B.round>1) u.cds[id]--;
+    if(ab(u,'momentum')) buffAtk(B, u, ab(u,'momentum'), 'Momentum');
+    if(ab(u,'mend')){ const hurtA = alliesOf(B,u).filter(a=>a.hp<a.res).sort((a,b)=>(a.hp-a.res)-(b.hp-b.res))[0]; if(hurtA) heal(B, hurtA, ab(u,'mend')+1, u); }
+  }
+  B.phase = 'p';
+}
+function endRound(B){
+  for(const u of B.units){
+    if(!u.alive) continue;
+    if(u.poison>0){ hurt(B, null, u, u.poison, {poison:true}); }
+    if(u.alive && ab(u,'regen')) heal(B, u, ab(u,'regen'), u);
+  }
+  checkOver(B);
+  if(!B.over && B.round>=30){ B.over = 'draw'; say(B, 'Both sides are exhausted.', 'muted'); }
+  if(!B.over) startRound(B);
+}
+/* whose turn is it? party members act in any order the player likes; enemies in a row */
+function nextActor(B, s){ return alive(B,s).find(u=>!u.acted) || alive(B,s).find(u=>u.extra>0) || null; }
+function act(B, u, action){
+  if(B.over || !u.alive) return;
+  if(u.acted && u.extra>0) u.extra--; else u.acted = true;
+  if(action.type==='attack'){ const t = B.units.find(x=>x.id===action.tgt); say(B, `${u.name} ${vb(u,'attacks','attack')} ${t.name==='You'?'you':t.name}.`); attack(B, u, t); }
+  else if(action.type==='spell'){ const t = action.tgt ? B.units.find(x=>x.id===action.tgt) : null; cast(B, u, action.id, t); }
+  else say(B, `${u.name} ${vb(u,'waits','wait')}.`, 'muted');
+  checkOver(B);
+}
+/* after an action: move the battle along to the next decision */
+function advance(B){
+  if(B.over) return;
+  if(B.phase==='p' && !nextActor(B,'p')) B.phase = 'e';
+  if(B.phase==='e' && !nextActor(B,'e')){ endRound(B); }
+}
+
+/* ---------- the AI (plays enemies, and your side on Auto) ---------- */
+function threat(u){ return u.atk + (u.poison?0:0) + Object.keys(u.cds).length*1.5 + ab(u,'mend')*1.5; }
+function scoreAttack(B, a, t){
+  const real = n=>t.ward>0 && !ab(a,'pierce') ? 0 : Math.max(0, n - (ab(a,'pierce')?0:ab(t,'armor')));
+  const dmg = real(a.atk + ab(a,'frenzy')) * (ab(a,'twin')?1.6:1);
+  const kills = dmg >= t.hp;
+  let s = Math.min(dmg, t.hp) + (kills ? 6 + threat(t)*1.5 : 0);
+  if(!ab(a,'ranged') && !(ab(a,'swift') && kills)){
+    const back = Math.max(0, t.atk - ab(a,'armor')) * (a.ward>0?0:1) + ab(t,'thorns');
+    if(back >= a.hp) s -= 12 + threat(a); else s -= back*.45;
+  }
+  if(t.ward>0 && !ab(a,'pierce')) s += 1.5;   // stripping a ward is worth something
+  return s;
+}
+function scoreSpell(B, u, id, t){
+  const l = ab(u,id), arc = ab(u,'arcane') + spellLvl(u) + (u.sp||0), echo = ab(u,'echo')?1.8:1, cost = ab(u,'bloodpact') ? (u.hp<=3 ? 99 : 2.5) : 0;
+  const dmgTo = (x,n)=>x.ward>0 && !ab(u,'pierce') ? 1.5 : Math.min(n - ab(x,'armor'), x.hp) + (n - ab(x,'armor') >= x.hp ? 6 + threat(x)*1.5 : 0);
+  let s = 0;
+  switch(id){
+    case 'firebolt': s = dmgTo(t, 3+2*(l-1)+arc); break;
+    case 'frost': s = dmgTo(t, 1+l+arc) + Math.min(l, t.atk)*1.2; break;
+    case 'meteor': s = foesOf(B,u).reduce((n,x)=>n+dmgTo(x, 2+l+arc),0); break;
+    case 'heal': { const miss = t.res - t.hp; s = miss<2 ? -1 : Math.min(miss, 3+2*(l-1)+arc)*1.15 + (t.hp<=4 ? 4 : 0); break; }
+    case 'barrier': s = alliesOf(B,u).filter(a=>a.ward===0).length*2.6*l; break;
+    case 'bash': s = dmgTo(t, u.hp+(l-1)+arc); break;
+    case 'drain': s = dmgTo(t, 1+l+arc) + Math.min(u.res-u.hp, 1+l+arc)*.6; break;
+    case 'haste': s = t.acted && !t.extra ? Math.max(...foesOf(B,u).map(x=>scoreAttack(B,t,x)), 0) + 1 : -1; break;
+    case 'inspire': s = (l+1)*(2 + Math.max(0, 6-B.round)*.25) * (t.alive?1:0); break;
+    case 'hex': s = Math.min(l+1, t.atk)*1.6 + (t.ward?2:0) + (ab(t,'armor')?2:0); break;
+    case 'plague': s = foesOf(B,u).length * l * 1.6; break;
+    case 'execute': s = t.hp <= 3+2*l+arc ? 8 + threat(t)*1.8 + t.hp*.5 : -2; break;
+    case 'warcry': s = alliesOf(B,u).some(a=>a!==u && a.hp<=4) ? 5 : 1.5; break;
+  }
+  return s*echo - cost;
+}
+function bestAction(B, u){
+  let best = {type:'wait', s:-1.5};
+  for(const t of validTargets(B,u)){ const s = scoreAttack(B,u,t); if(s>best.s) best = {type:'attack', tgt:t.id, s}; }
+  for(const id of readySpells(u)){
+    const tg = AB[id].tgt;
+    if(tg==='none'){ const s = scoreSpell(B,u,id,null); if(s>best.s) best = {type:'spell', id, s}; }
+    else for(const t of spellTargets(B,u,id)){ const s = scoreSpell(B,u,id,t); if(s>best.s) best = {type:'spell', id, tgt:t.id, s}; }
+  }
+  return best;
+}
+/* run a whole fight with the AI on both sides */
+function autoBattle(party, foes){
+  const B = newBattle(party, foes); startBattle(B);
+  let guard = 0;
+  while(!B.over && guard++<800){
+    const s = B.phase; const u = nextActor(B, s);
+    if(!u){ advance(B); continue; }
+    act(B, u, bestAction(B,u)); advance(B);
+  }
+  return B;
+}
+
+/* ---------- building a party for the simulator ---------- */
+const AB_VALUE = {guard:2.5, swift:3, ranged:3, lifesteal:3, venom:2.5, thorns:1.4, ward:2.2, armor:3.2, regen:2.2, pierce:2, cleave:3, twin:6, rebirth:5,
+  rally:3.5, bulwark:3.5, volley:2, sanctuary:3, mend:2.6, momentum:3.2, frenzy:2.6, enrage:2.4, bloodthirst:2.4, avenger:2, lastbreath:1.6, martyr:1.8, spellblade:1.6,
+  arcane:1.6, quick:2.5, echo:6, overflow:1, bloodpact:3, shieldwall:2.5, firebolt:3.5, frost:3, meteor:4.5, heal:3.4, barrier:3, bash:3, drain:3.2, haste:3.5, inspire:3, hex:2.4, plague:3, execute:3.4, warcry:2};
+const STRATS = {
+  stats:{name:'Pure stats', pick:(ch,cards)=>cards.slice().sort((a,b)=>(b.atk*1.15+b.res)-(a.atk*1.15+a.res))[0]},
+  abilities:{name:'Abilities first', pick:(ch,cards)=>cards.slice().sort((a,b)=>((b.ab?10:0)+'culr'.indexOf(b.rar))-((a.ab?10:0)+'culr'.indexOf(a.rar)))[0]},
+  smart:{name:'Balanced', pick:(ch,cards)=>cards.slice().sort((a,b)=>cardValue(ch,b)-cardValue(ch,a))[0]},
+  spells:{name:'Spellcaster', pick:(ch,cards)=>cards.slice().sort((a,b)=>spellValue(ch,b)-spellValue(ch,a))[0]},
+  random:{name:'Random', pick:(ch,cards)=>pickOne(cards)}
+};
+function spellValue(ch, c){
+  if(!c.ab) return (c.atk+c.res)*.3;
+  const [id,l] = c.ab, k = AB[id].kind;
+  return (k==='spell' ? 10 : ['arcane','quick','echo','spellblade','bloodpact','overflow'].includes(id) ? 9 : 2) + l + (c.atk+c.res)*.3;
+}
+function cardValue(ch, c){
+  let v = c.atk*1.15 + c.res + (c.slots||0)*TUNE.slotValue;
+  if(c.ab){ const [id,l] = c.ab, have = ab(ch,id); v += (AB_VALUE[id]||2) * l * (have ? .85 : 1); if(AB[id].kind==='spell' && ab(ch,'arcane')) v += 1; if(['arcane','quick','echo','spellblade'].includes(id)) v += Object.keys(ch.ab).filter(k=>AB[k]&&AB[k].kind==='spell').length * 1.6 - 1.5; }
+  return v;
+}
+function buildParty(level, strat, items=true){
+  const party = ['you','lina','sera'].map(makeChar);
+  for(const ch of party) for(let l=2;l<=level;l++){ ch.lvl = l; const pack = openPack(ch); absorb(ch, STRATS[strat].pick(ch, pack)); }
+  if(items){
+    // roughly what a party picks up on the way: a start item each, then loot from fights
+    const bag = []; for(let i=0;i<3;i++) bag.push(newItem(pickOne(ITEMS.filter(x=>x.rar==='c')).id));
+    for(let l=2;l<=level;l++) for(let k=0;k<TUNE.lootPerLevel;k++) if(rnd()<.8){ const [it] = rollLoot(l, 1, l%5===0); if(it) bag.push(newItem(it.id)); }
+    autoEquip(party, bag);
+  }
+  return party;
+}
+function simulate(strat, level, tier, n, seed, items=true){
+  RNG = rngFrom(seed || 12345);
+  let w=0, rounds=0, survivors=0;
+  for(let i=0;i<n;i++){
+    const party = buildParty(level, strat, items);
+    const B = autoBattle(party, makeEncounter(tier));
+    if(B.over==='win'){ w++; survivors += alive(B,'p').length; }
+    rounds += B.round;
+  }
+  RNG = Math.random;
+  return {win:w/n, rounds:rounds/n, survivors:w?survivors/w:0};
+}
+return {TUNE, AB, CARDS, CARD, ITEMS, ITEM, ITEM_KIND, RAR, HEROES, FOES, DIVINE, KIND_ORDER, MAX_SLOTS, XP_NEED, STRATS, AB_VALUE,
+  ab, makeChar, makeReborn, openPack, absorb, abilityLines, effective, rollLoot, autoEquip, newItem, itemValue, cardValue,
+  makeEncounter, makeFoe, petUnit, tamePet, newBattle, startBattle, act, advance, nextActor, bestAction, validTargets, spellTargets, readySpells, spellReady,
+  alive, side, hasGuard, spellLvl, autoBattle, simulate, buildParty, rngFrom, setRng:f=>{RNG=f;}, getRng:()=>RNG};
+
+})();
+if(typeof module!=='undefined') module.exports = CB;
+
+;
+/* =========================================================
+   CARDS IN A LIFE
+   Your soul arrives with a Divine card. You grow a character card by
+   fighting: battles give XP, levels give packs, wins give loot.
+   Friends you grow close to join the party with cards of their own.
+   Every story choice that used to roll for a fight is now a battle.
+   ========================================================= */
+
+/* ---------- the divine gifts take over the old cheat names ---------- */
+const DIVINE_STORY = {
+  mana:{desc:'Mana with no bottom. Your spells never need to cool down, so you can cast every single turn.', perk:'Spells every turn · +4 to Magic checks'},
+  prism:{desc:'Strength poured into you comes out as starlight: half your raw power becomes Spell Power, feeding every spell you cast.', perk:'ATK becomes Spell Power · +3 to Magic checks'},
+  tamer:{desc:'Beasts know a king when they see one. Tame the creatures you defeat; one fights beside you and grows with you.', perk:'Tame beasts · Puru the slime joins you'},
+  sword:{desc:'Your blade moves before theirs, and every third blow is a Saint\'s Cut that no one can answer.', perk:'First Strike, Saint\'s Cut · +4 to Strength checks'},
+  luck:{desc:'Once in every fight, fate simply refuses to let you fall. Your packs hold an extra card.', perk:'Survive one blow per fight · reroll failed checks'},
+  cook:{desc:'Your cooking makes knights weep and armies march. Your whole party fights well fed.', perk:'Party +1 ATK, +3 RES · +50% gold'},
+  appraise:{desc:'You see the seams in everything: armour, lies, odds. Your first strike always finds the gap.', perk:'Pierce, first hit +3 · see exact odds'}
+};
+CHEATS.prism = {name:'', desc:'', perk:'', fx:{mag:1, wit:1}, boost:{mag:3}};
+for(const k in CB.DIVINE) if(CHEATS[k]) Object.assign(CHEATS[k], {name:CB.DIVINE[k].name}, DIVINE_STORY[k]);
+const DIVINE_ORDER = ['mana','prism','tamer','sword','luck','cook','appraise'];
+
+/* ---------- setting up a life's cards ---------- */
+const STARTER_ITEM = {sword:'sword', mana:'wand', prism:'amulet', tamer:'herbs', luck:'boots', cook:'kit', appraise:'club'};
+function cardsInit(){
+  if(!S || S.card) return;
+  S.card = CB.makeReborn(S.name, S.race, S.cheat in CB.DIVINE ? S.cheat : 'sword');
+  S.card.equip = [CB.newItem(STARTER_ITEM[S.cheat] || 'sword')];
+  S.cards = {}; S.bag = []; S.tamed = []; S.pet = null; S.cxp = 0; S.cwins = 0;
+  if(S.cheat==='tamer'){ S.tamed.push({key:'slime', name:'Puru', atk:1, res:8, ab:{regen:1}, at:1}); S.pet = 0; }
+}
+(function(){
+  const base = newLife;
+  newLife = function(c){ base(c); cardsInit(); HOOKS.save(); };
+  const mig = migrateWorld;
+  migrateWorld = function(){ mig(); cardsInit(); };
+})();
+const cxpNeed = ()=>CB.XP_NEED(S.card.lvl);
+/* friends who fight beside you: the two closest companions, once you're properly close */
+const JOIN_AT = 3;
+function partyComps(){
+  return Object.keys(COMP).filter(k=>CB.HEROES[k] && rel(k)>=JOIN_AT).sort((a,b)=>rel(b)-rel(a)).slice(0,2);
+}
+function compCard(k){
+  if(!S.cards[k]){ const ch = CB.makeChar(k); ch.lvl = S.card.lvl; ch.pending = S.card.lvl - 1; S.cards[k] = ch; }
+  return S.cards[k];
+}
+function partyCards(){ return [S.card].concat(partyComps().map(compCard)); }
+function petNow(){ return S.pet!=null && S.tamed && S.tamed[S.pet] && CB.ab(S.card,'wildheart') ? S.tamed[S.pet] : null; }
+function partyUnits(){
+  const out = partyCards().map(c=>Object.assign({}, c, {equip:c.equip}));
+  const p = petNow(); if(p) out.push(CB.petUnit(p, S.card));
+  return out;
+}
+function pendingPacks(){ if(!S || !S.card) return 0; return partyCards().reduce((n,c)=>n+(c.pending||0), 0); }
+/* XP: levels give the whole party a pack */
+function cardXp(n){
+  const chips = []; if(!n) return chips;
+  S.cxp += n; chips.push([`+${n} XP`, 'up']);
+  while(S.cxp >= cxpNeed()){
+    S.cxp -= cxpNeed(); S.card.lvl++; S.card.pending++;
+    for(const k in S.cards){ const c = S.cards[k]; c.lvl = S.card.lvl; if(partyComps().includes(k)) c.pending++; }
+    chips.push([`⚔ Level ${S.card.lvl}! A pack to open`, 'seed']);
+  }
+  return chips;
+}
+FX_EXT.cxp = v=>cardXp(v);
+
+/* ---------- what you fight ---------- */
+function battleTier(off){ return Math.max(1, S.card.lvl + (off||0)); }
+function dcOffset(dc){ return Math.round((dc - 11)/2.5); }
+function checkDc(c){ return typeof c.check.dc==='function' ? c.check.dc(S, ctxVars(), castObj()) : c.check.dc; }
+function foesFor(off, opts={}){
+  const size = partyUnits().length;
+  const n = opts.n || clamp(size, 1, 3);
+  const pool = opts.pool || (stageOf(S.age)==='child' ? 'wild' : null);
+  return CB.makeEncounter(battleTier(off), {n, pool, boss:opts.boss});
+}
+/* who you're fighting, judged from the scene: people, the dead and the dark, or beasts */
+function storyPool(c){
+  let t = '';
+  try{ const b = curBeat(); t = (typeof b.text==='function' ? b.text(S, ctxVars(), castObj()) : b.text) + ' ' + c.label + ' ' + (ARC[S.year.arc.id].title||''); }catch(e){ t = c.label||''; }
+  t = String(t).toLowerCase();
+  if(/skeleton|undead|ghost|wraith|lich|zombie|barrow|crypt|cult|black sun|demon|necro|corpse/.test(t)) return 'dark';
+  if(/goblin|bandit|thug|soldier|knight|guard|bully|thief|raider|mercenar|assassin|duel|rival|brawl|tackle|fist|noble|pirate|cutthroat/.test(t)) return 'people';
+  if(/wolf|boar|beast|slime|spider|bear|monster|wyvern|dragon|ogre|serpent|creature|hound/.test(t)) return 'wild';
+  return null;
+}
+function storyFoes(c){ return foesFor(dcOffset(checkDc(c)), {pool:storyPool(c) || (stageOf(S.age)==='child' ? 'wild' : null)}); }
+const TIER_WORD = off=>off<=-1 ? ['easy','Easy'] : off===0 ? ['fair','Fair'] : off===1 ? ['risky','Hard'] : ['desp','Deadly'];
+/* rewards for a finished fight; returns chips */
+function battleSpoils(B, tier, kind){
+  const win = B.over==='win', chips = [];
+  if(win) S.cwins = (S.cwins||0) + 1;
+  S.cfights = (S.cfights||0) + 1;
+  chips.push(...cardXp(win ? 3 + Math.round(tier*1.3) : 2));
+  return chips;
+}
+/* a battle fought without the battle screen (Auto mode, simulations) */
+function autoTame(B){
+  if(!CB.ab(S.card,'wildheart') || B.over!=='win') return null;
+  const beasts = B.units.filter(u=>u.side==='e' && u.beast && !u.boss);
+  if(!beasts.length || S.tamed.length>=6) return null;
+  const best = beasts.sort((a,b)=>(b.baseAtk+b.baseRes)-(a.baseAtk+a.baseRes))[0];
+  const cur = petNow();
+  if(cur && cur.atk + cur.res >= Math.round((best.baseAtk+best.baseRes)*.8)) return null;
+  const pet = CB.tamePet({key:best.key, atk:best.baseAtk, res:best.baseRes, ab:best.ab, lvl:best.lvl});
+  S.tamed.push(pet); S.pet = S.tamed.length-1;
+  return pet;
+}
+function cbStoryBattle(c){
+  const off = dcOffset(checkDc(c)), B = CB.autoBattle(partyUnits(), storyFoes(c));
+  const chips = battleSpoils(B, battleTier(off), 'story');
+  const pet = autoTame(B); if(pet) chips.push([`Tamed a ${CB.FOES[pet.key].name}`, 'seed']);
+  return battleRoll(B, chips);
+}
+function battleRoll(B, chips){
+  const standing = CB.alive(B,'p').filter(u=>!u.pet).length;
+  return {battle:true, ok:B.over==='win', rounds:B.round, standing, of:CB.side(B,'p').filter(u=>!u.pet).length, chips};
+}
+
+/* ---------- hunting: a battle every year, if you want it ---------- */
+DOWNTIME.push({id:'hunt', cond:()=>false, label:s=>stageOf(s.age)==='child' ? 'Hunt slimes past the fence' : 'Hunt monsters',
+  desc:'A battle · XP, gold, maybe loot', fx:()=>huntFx(), t:'You went looking for trouble, and found some.'});
+function huntGold(tier, win){ return win ? 4 + tier*3 : 0; }
+function huntFx(){
+  let r = S._hunt; delete S._hunt;
+  if(!r){   // fought without the battle screen
+    const tier = battleTier(0), B = CB.autoBattle(partyUnits(), foesFor(0, {pool:'wild'}));
+    const chips = battleSpoils(B, tier, 'hunt');
+    if(B.over==='win' && R()<.6){ const [it] = CB.rollLoot(tier, 1, false); if(it){ S.bag.push(CB.newItem(it.id)); chips.push([`Loot: ${it.name}`, 'seed']); S.bag = CB.autoEquip(partyCards(), S.bag); } }
+    autoTame(B);
+    r = {gold:huntGold(tier, B.over==='win'), chips};
+    S._huntChips = chips;
+  }
+  return r.gold ? {gold:r.gold} : {};
+}
+(function(){
+  const base = downtimeOptions;
+  downtimeOptions = function(){
+    const o = base();
+    if(S.card && S.age>=6 && !o.some(d=>d.id==='hunt')){ o.unshift(DOWNTIME.find(d=>d.id==='hunt')); if(o.length>4) o.pop(); }
+    return o;
+  };
+  const baseDown = chooseDowntime;
+  chooseDowntime = function(id){
+    baseDown(id);
+    if(id==='hunt' && S.year && S.year.down && S._huntChips){ S.year.down.chips = (S.year.down.chips||[]).concat(S._huntChips); delete S._huntChips; }
+  };
+})();
+
+/* ---------- the year's encounter ----------
+   Every year has trouble in it: something at the fence, bandits on the road, a barrow
+   that opened in the night. It waits at the year's end; fight it, or let it pass. */
+const SKIRMISH = [
+  // childhood
+  {st:'child', title:'Slimes in the Turnip Field', t:`Papa's turnip field is wobbling. Slimes have moved in and are eating everything green. Mama hands you a broom and a look.`, pool:'wild', foes:['slime'], off:-1, gold:5},
+  {st:'child', title:'Something at the Fence', t:`Every night this week, something has tested the fence behind the chicken coop. Tonight you're waiting for it, with a stick and a lantern.`, pool:'wild', off:0, gold:6},
+  {st:'child', title:'The Cave Behind the Waterfall', t:`Every child in the village knows about the cave. Nobody has ever gone in past the first bend. Until today.`, pool:'wild', off:0, gold:8},
+  {st:'child', title:'Spiders in the Old Mill', t:`The miller will pay a silver to anyone who clears out the old mill. He says the spiders are "about the size of a cat". He is lying.`, pool:'wild', foes:['spider'], off:1, gold:10},
+  {st:'child', title:'The Boar of the Long Field', t:`A boar the size of a cart has torn through three gardens. The hunters are away. You are not.`, pool:'wild', foes:['boar'], off:0, gold:8},
+  // academy
+  {st:'academy', title:'Labyrinth Practical', t:`This term's practical exam: survive the training labyrinth under the academy. The monsters are real. The healers are, thankfully, also real.`, pool:null, off:0, gold:10},
+  {st:'academy', title:'Night Patrol', t:`Students take turns patrolling the academy forest at night. Tonight is your turn, and tonight the forest is not empty.`, pool:'wild', off:0, gold:10},
+  {st:'academy', title:'Goblin Raiders', t:`Goblins keep raiding the supply carts on the academy road. The headmaster asked for volunteers. Your hand went up before you thought about it.`, pool:'people', off:1, gold:14},
+  {st:'academy', title:'The Sealed Library Wing', t:`Something is moving in the sealed wing of the library. The seal is still intact. Whatever is inside is not happy about that.`, pool:'dark', off:1, gold:14},
+  // adulthood
+  {st:'adult', title:'Bandits on the King\'s Road', t:`A merchant comes running down the road with an arrow through his hat. Behind him, the bandits are already spreading out.`, pool:'people', off:0, gold:20},
+  {st:'adult', title:'Wyvern Season', t:`A wyvern has started nesting on the cliffs above town. The guild bounty is generous. The wyvern disagrees.`, pool:'wild', foes:['wyvern'], off:1, gold:28},
+  {st:'adult', title:'The Old Barrow', t:`The barrow-mound outside town opened in the night. Something walked out of it. Something else is still walking.`, pool:'dark', off:0, gold:22},
+  {st:'adult', title:'A Black Sun Cellar', t:`You followed a trail of black candles to a cellar under the tannery. The cultists inside are not surprised to see you.`, pool:'dark', foes:['cultist'], off:1, gold:24, cond:()=>clues()>=1},
+  {st:'adult', title:'Guild Bounty: Ogre', t:`An ogre has been taking sheep, then fences, then a whole shed. The guild board says URGENT. The guild board is right.`, pool:'wild', foes:['ogre'], off:1, gold:30},
+  {st:'adult', title:'Caravan Escort', t:`The caravan master needed swords for the pass road and didn't say why. Halfway up the pass, you find out.`, pool:'people', off:0, gold:26}
+];
+function rollSkirmish(){
+  const st = stageOf(S.age), seen = S.skSeen || (S.skSeen = []);
+  let pool = SKIRMISH.map((k,i)=>[k,i]).filter(([k])=>k.st===st && (!k.cond || k.cond(S)));
+  const fresh = pool.filter(([,i])=>!seen.includes(i)); if(fresh.length) pool = fresh;
+  const [k, i] = pool[Math.floor(R()*pool.length)];
+  seen.push(i);
+  return {i, done:null};
+}
+const skirmishDef = sk=>SKIRMISH[sk.i];
+function skirmishFoes(sk){
+  const K = skirmishDef(sk), size = partyUnits().length, n = clamp(size, 1, 3);
+  const foes = foesFor(K.off, {pool:K.pool, n});
+  if(K.foes){ foes[0] = CB.makeFoe(K.foes[0], battleTier(K.off)); }   // the named threat leads
+  return foes;
+}
+/* settle the encounter: fought (with a result from the battle screen, or auto) or let pass */
+function resolveSkirmish(how, result){
+  const sk = S.year && S.year.skirmish; if(!sk || sk.done) return;
+  const K = skirmishDef(sk);
+  if(how==='pass'){ sk.done = {passed:true, chips:[]}; HOOKS.save(); return; }
+  let chips, ok;
+  if(result){ chips = result.chips; ok = result.ok; }
+  else {
+    const B = CB.autoBattle(partyUnits(), skirmishFoes(sk));
+    ok = B.over==='win'; chips = battleSpoils(B, battleTier(K.off), 'skirmish');
+    if(ok && R()<.55){ const [it] = CB.rollLoot(battleTier(K.off), 1, false); if(it){ S.bag.push(CB.newItem(it.id)); chips.push([`Loot: ${it.name}`, 'seed']); S.bag = CB.autoEquip(partyCards(), S.bag); } }
+    const pet = autoTame(B); if(pet) chips.push([`Tamed a ${CB.FOES[pet.key].name}`, 'seed']);
+  }
+  if(ok) chips.push(...applyFx({gold:K.gold}));
+  else chips.push(...applyFx({hp:-Math.round(S.maxhp*.12)}));
+  sk.done = {ok, chips};
+  chronicle(ok ? `${K.title}: won the fight.` : `${K.title}: driven off, bruised.`);
+  HOOKS.save();
+}
+(function(){
+  const base = finishArc;
+  finishArc = function(){
+    base();
+    if(S && S.card && S.year && S.year.phase==='yearend' && S.age>=6 && !S.year.skirmish) S.year.skirmish = rollSkirmish();
+    HOOKS.save();
+  };
+  const down = chooseDowntime;
+  chooseDowntime = function(id){
+    if(S && S.year && S.year.skirmish && !S.year.skirmish.done) resolveSkirmish('fight');
+    down(id);
+  };
+})();
+/* open every waiting pack with the Balanced pick, and hand out spare items (simulations, and a convenience button) */
+function cardsAutoPick(){
+  for(const c of partyCards()) while(c.pending>0){ c.pending--; CB.absorb(c, CB.STRATS.smart.pick(c, CB.openPack(c))); }
+  S.bag = CB.autoEquip(partyCards(), S.bag);
 }
 
 ;
@@ -6705,7 +7647,7 @@ const PRO_THOUGHT = {
 /* what you'll do with a second life */
 const PRO_PATH = {
   hero:{label:'"I want to matter. I want to be the hero, this time."', god:'verne', gift:'sword'},
-  mage:{label:'"I want to find out what I\'m truly capable of."', god:'miscura', gift:'mana'},
+  mage:{label:'"I want to find out what I\'m truly capable of."', god:'miscura', gift:'prism'},
   rich:{label:'"I never want to be poor, or tired, ever again."', god:'zaan', gift:'cook'},
   love:{label:'"I want to find people, and hold on to them."', god:'lumi', gift:'tamer'},
   free:{label:'"I just want to live. Slowly. For me."', god:'tarsia', gift:'luck'}
@@ -8945,6 +9887,7 @@ function hud(){
       <div class="who-sub">${esc(place)}</div>
     </div>
     <div class="purse"><span class="g"><i>G</i>${S.gold}</span><span class="f"><i>★</i>${S.fame}</span></div>
+    ${S.card ? `<button class="cards-btn" id="open-cards" aria-label="Your party and cards, level ${S.card.lvl}${pendingPacks()?`, ${pendingPacks()} packs to open`:''}"><span>⚔</span><b>${S.card.lvl}</b>${pendingPacks()?`<i>${pendingPacks()}</i>`:''}</button>` : ''}
     <button class="menu-btn" id="open-menu" aria-label="Menu"><span></span><span></span><span></span></button>
   </header>`;
 }
@@ -8973,6 +9916,7 @@ function renderGame(){
   paintScenes();
   $('#open-sheet').onclick = ()=>openSheet('status');
   $('#open-menu').onclick = ()=>openSheet(UI.tab==='settings'?'settings':UI.tab||'status');
+  const ocb = $('#open-cards'); if(ocb) ocb.onclick = ()=>{ buzz(); CBUI.openCards(0); };
   $('#stage').onclick = advance;
   drawPanel();
 }
@@ -9030,6 +9974,7 @@ function advance(){
 function showDice(r){
   const d=$('#dice'); if(!d) return;
   if(r.auto){ d.innerHTML=`<div class="die-box ok"><b>✓</b><span>SURE THING</span></div>`; d.className='dice show'; return; }
+  if(r.battle){ d.innerHTML=`<div class="die-box ${r.ok?'ok':'no'}"><b>⚔</b><span>${r.ok?'VICTORY':'DEFEAT'}</span></div><div class="die-detail"><div class="die-res">${r.ok?'WON':'LOST'}</div><div class="die-math">${r.rounds} rounds · ${r.standing}/${r.of} standing</div></div>`; d.className='dice show '+(r.ok?'ok':'no'); d.onclick=e=>{ e.stopPropagation(); d.classList.toggle('open'); }; return; }
   const parts = r.parts.map(p=>`${p[1]>=0?'+':'−'}${Math.abs(p[1])} ${esc(p[0])}`).join('<br>');
   d.className='dice show rolling';
   d.innerHTML=`<div class="die-box"><b id="dieN">?</b><span>d20</span></div><div class="die-detail"><div class="die-res">…</div><div class="die-math">${r.roll+r.bonus} vs ${r.dc}</div><div class="die-parts">${parts}</div></div>`;
@@ -9051,7 +9996,9 @@ function drawChoices(){
     <div class="menu-list" role="list">${cs.map((c,i)=>choiceRow(c,i)).join('')}</div>
     <div class="dlg-foot"><button class="mini" id="logBtn">LOG</button><span class="hint">Choose</span></div>
   </div>`;
-  panel.querySelectorAll('[data-choice]').forEach(b=>b.onclick=()=>{ buzz(); choose(+b.dataset.choice); UI.flow=null; render(); });
+  panel.querySelectorAll('[data-choice]').forEach(b=>b.onclick=()=>{ buzz(); const i = +b.dataset.choice, c = choices()[i];
+    if(c && c.check && c.check.stat==='combat' && S.card && !(c.auto && c.auto(S, ctxVars(), castObj()))) return startStoryBattle(i);
+    choose(i); UI.flow=null; render(); });
   $('#logBtn').onclick = ()=>openLog();
 }
 function choiceRow(c,i){
@@ -9059,6 +10006,7 @@ function choiceRow(c,i){
   let tag='';
   if(st.check){
     if(st.check.auto) tag = `<span class="pill sure">SURE</span>`;
+    else if(st.check.stat==='combat' && S.card){ const off = dcOffset(checkDc(c)), [cls,word] = TIER_WORD(off); tag = `<span class="pill ${cls} battle">⚔ BATTLE · ${word.toUpperCase()}${S.cheat==='appraise'?' '+Math.round(battleOdds(c)*100)+'%':''}</span>`; }
     else { const [cls,word]=st.check.diff; const ic = st.check.stat==='combat'?'⚔':STATS[st.check.stat].ic; tag = `<span class="pill ${cls}">${ic} ${word.toUpperCase()}${S.cheat==='appraise'?' '+Math.round(st.check.p*100)+'%':''}</span>`; }
   }
   if(c.ctxTag==='secret') tag = `<span class="pill sure">SURE</span>`;
@@ -9115,11 +10063,25 @@ function drawYearEnd(){
     ${sum.length?`<div class="chips">${chipsHtml(sum)}</div>`:'<div class="muted small">A quiet year.</div>'}
     ${planted.length?`<div class="threads">${planted.map(c=>`<div class="thread">${esc(c[0].replace(/^🌱 /,''))}</div>`).join('')}</div>`:''}`;
   stage.appendChild(rep);
+  const sk = y.skirmish;
+  if(sk && !sk.done){
+    const K = skirmishDef(sk), [cls,word] = TIER_WORD(K.off);
+    panel.innerHTML = `<div class="win dlg skirmish">
+      <div class="sk-k">⚔ This year's trouble <span class="pill ${cls}">${word.toUpperCase()}</span></div>
+      <div class="panel-h">${esc(K.title)}</div>
+      <div class="sk-t story">${esc(K.t)}</div>
+      <div class="sk-btns"><button class="btn ghost" id="skpass">Let it pass</button><button class="btn primary" id="skfight">⚔ Fight</button></div>
+    </div>`;
+    $('#skfight').onclick = ()=>{ buzz(); startSkirmish(); };
+    $('#skpass').onclick = ()=>{ buzz(); resolveSkirmish('pass'); drawYearEnd(); };
+    return;
+  }
   panel.innerHTML = `<div class="win dlg">
+    ${sk && sk.done && !sk.done.passed ? `<div class="sk-done ${sk.done.ok?'ok':'no'}">⚔ ${esc(skirmishDef(sk).title)}: ${sk.done.ok?'won':'lost'} ${sk.done.chips.length?`<span>${sk.done.chips.map(c=>esc(c[0])).join(' · ')}</span>`:''}</div>` : ''}
     <div class="panel-h">How do you spend the quiet months?</div>
-    <div class="downs">${opts.map(d=>`<button class="dt ${d.ctx?'ctx':''}" data-down="${d.id}"><b>${esc(fmt(d.label))}</b><span>${esc(fmt(d.desc))}</span></button>`).join('')}</div>
+    <div class="downs">${opts.map(d=>`<button class="dt ${d.ctx?'ctx':''} ${d.id==='hunt'?'hunt':''}" data-down="${d.id}"><b>${d.id==='hunt'?'⚔ ':''}${esc(fmt(d.label))}</b><span>${esc(fmt(d.desc))}</span></button>`).join('')}</div>
   </div>`;
-  panel.querySelectorAll('[data-down]').forEach(b=>b.onclick=()=>{ buzz(); chooseDowntime(b.dataset.down); UI.flow=null; render(); });
+  panel.querySelectorAll('[data-down]').forEach(b=>b.onclick=()=>{ buzz(); if(b.dataset.down==='hunt' && S.card) return startHunt(); chooseDowntime(b.dataset.down); UI.flow=null; render(); });
 }
 
 /* ---------- ending ---------- */
@@ -9192,7 +10154,7 @@ const CREATE_LINES = [
   `"Lovely name! What do you want to be born as?"`,
   `"Ooh, and you get to pick your look! I'm very good at faces. Mostly."`,
   `"And this was your old life, right? You'll remember all of it. It might come in handy."`,
-  `"Oh, and! Everyone from your world gets one cheat skill. It's in the rules. I think. Pick one!"`
+  `"Oh, and! Everyone from your world gets one Divine card. A gift from upstairs. It's in the rules. I think. Pick one!"`
 ];
 /* the prologue: a soul in the abyss, a voice, then a god's realm */
 const proFast = ()=>!!window.PRO_FAST || (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -9274,7 +10236,7 @@ function drawCreatePanel(){
       : `<div class="ages-soon"><span class="muted small">No portrait for this body yet, so you get a generated look for now.</span><button class="btn ghost" id="shuffle" aria-label="New random look">⚄ New look</button></div>`;
     body = `<div class="body-pick">${card('m')}${card('f')}</div>${ages}`;
   }
-  if(P.kind==='gift') body = grid(CHEATS,'cheat', o=>o.perk, c.path && PRO_PATH[c.path] ? PRO_PATH[c.path].gift : null);
+  if(P.kind==='gift') body = divineGrid(c, c.path && PRO_PATH[c.path] ? PRO_PATH[c.path].gift : null);
   const ready = ()=>P.kind==='name' ? !!c.name.trim() : P.kind==='race' ? !!c.race : P.kind==='gift' ? !!c.cheat : true;
   const typedKey = c.n+'|'+c.at;
   const fresh = c._typed!==typedKey;
@@ -9323,6 +10285,13 @@ function drawCreatePanel(){
   const bb = $('#back'); if(bb) bb.onclick = proBack;
   const nx = $('#next'); if(nx) nx.onclick = ()=>{ if(!ready()) return; buzz(); proAdvance(); };
   fitScreenSoon();
+}
+/* the Divine cards on offer at your rebirth */
+function divineGrid(c, rec){
+  const sel = c.cheat ? CB.DIVINE[c.cheat] : null;
+  const lines = d=>CB.abilityLines({ab:d.ab}).map(l=>`<div class="dv-ab ${l.def.kind}"><b>${esc(l.def.name)}</b> ${esc(l.def.text(l.lvl))}</div>`).join('');
+  return `<div class="dv-grid">${DIVINE_ORDER.map(k=>{ const d = CB.DIVINE[k]; return `<button class="dv ${c.cheat===k?'sel':''} ${rec===k?'rec':''}" data-pick="cheat:${k}"><span class="dv-g">${d.glyph}</span><span class="dv-n">${rec===k?'✦ ':''}${esc(d.name)}</span><span class="dv-p">${esc(CHEATS[k].perk)}</span></button>`; }).join('')}</div>
+    <div class="detail dv-detail">${sel ? `<b>${esc(sel.name)}</b><span>${esc(CHEATS[c.cheat].desc)}</span>${lines(sel)}${sel.atk||sel.res||sel.sp?`<i>${[sel.atk?`+${sel.atk} ATK`:'', sel.res?`+${sel.res} RES`:'', sel.sp?`+${sel.sp} Spell Power`:''].filter(Boolean).join('  ')}</i>`:''}<span class="dv-f">${esc(sel.flav)}</span>${rec===c.cheat?`<span class="rec-note">✦ ${esc(godName(c.god))} thinks this one suits you.</span>`:''}` : `<span class="muted">${rec?`✦ marks ${esc(godName(c.god))}'s suggestion. `:''}Each Divine card becomes part of your soul's card in battle, and colours your story too.</span>`}</div>`;
 }
 /* the realm folds shut, and you are born */
 function proBirth(){
@@ -9511,6 +10480,7 @@ function openPerson(id){
   $('#pBack').onclick=()=>openSheet('bonds');
 }
 const GUIDE = [
+  ['⚔ Battles & cards', 'Your soul is a card: ATK, RES (how much you can take in a fight) and abilities, starting with the Divine card you chose at rebirth. Battles give XP; every level opens a pack, and the card you pick is absorbed for good. Items go in item slots and can be swapped between fights. Friends you grow close to join your party with cards of their own. Story fights, the year\'s trouble and hunting are all battles now. Tap ⚔ at the top to see your party.'],
   ['🗝 World Keys', 'Every world is built from its World Key. The same Key always makes the same land, people and secrets, so you can share a Key with a friend and compare your lives.'],
   ['📜 Stories', 'Each year you pick one of three stories. The Director chooses them from what is actually happening: your village’s trouble, the people you know, old promises and grudges coming due, and the kinds of choices you tend to make.'],
   ['🔍 Enigmas', 'Every world hides three mysteries with a different answer each time. Find Keys by following leads, chasing them in the quiet months, or spending time with the people who know something. Three Keys unlock the truth. The Codex tracks them.'],
@@ -9626,6 +10596,744 @@ lastW=window.innerWidth; lastH=window.innerHeight;
 DOLL.ready.then(render);
 if(document.fonts && document.fonts.ready) document.fonts.ready.then(()=>{ measureFont(); });
 initCloud();
+
+;
+/* styles for the card screens (lives inside their own shadow root) */
+const CB_CSS = `
+:host{--night:#0b0915;--win-a:#241e3c;--win-b:#130f22;--raise:#2d2648;--frame:#cfa552;--frame-hi:#f6dc94;--frame-lo:#7a5a24;--edge:#07050d;--line:#4a3f68;--ink:#f4ead4;--soft:#d6cab0;--muted:#9a8fab;--sakura:#ff8fb6;--gold:#f2cd6e;--teal:#66dccb;--good:#7ee8a0;--bad:#ff7d72;--poison:#a8e05f;
+  --display:'Jersey 10',var(--pixel);--label:'Silkscreen',var(--pixel);--pixel:'DotGothic16','MS Gothic',ui-monospace,monospace;
+  --rc:#b9b0c8;--ru:#66dccb;--rr:#f2cd6e;--rl:#ff8fb6;color-scheme:dark}
+*{box-sizing:border-box;-webkit-user-select:none;user-select:none}
+#cbroot{position:fixed;inset:0;overflow-y:auto;overscroll-behavior:contain;background:radial-gradient(120% 80% at 50% 0%,#1d1636 0%,var(--night) 60%);color:var(--ink);font-family:var(--pixel);font-size:15px;line-height:1.6;-webkit-tap-highlight-color:transparent;-webkit-font-smoothing:none;touch-action:manipulation}
+img{image-rendering:pixelated}
+button{font:inherit;color:inherit;cursor:pointer;-webkit-appearance:none;appearance:none;background:none;border:none;padding:0}
+button:disabled{cursor:default}
+button:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+#app{max-width:560px;margin:0 auto;min-height:100%}
+.muted{color:var(--muted)} .small{font-size:12.5px;line-height:1.55} .gold{color:var(--gold)} .teal{color:var(--teal)} .center{text-align:center}
+.up{color:var(--good)} .dn{color:var(--bad)}
+.win{position:relative;background:linear-gradient(180deg,var(--win-a),var(--win-b));border:3px solid var(--edge);box-shadow:inset 0 0 0 2px var(--frame),inset 0 0 0 4px var(--edge),0 4px 0 rgba(0,0,0,.45)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:8px 14px;font-family:var(--label);font-size:12px;letter-spacing:.04em;background:var(--raise);border:3px solid var(--edge);box-shadow:inset 0 0 0 2px var(--frame-lo),0 3px 0 rgba(0,0,0,.45);color:var(--ink)}
+.btn small{font-family:var(--pixel);font-size:11px;color:var(--soft);letter-spacing:0}
+.btn.primary{background:linear-gradient(#f6dc94,#cfa552);color:#2a1a08;box-shadow:inset 0 0 0 2px #fff3c4,0 3px 0 rgba(0,0,0,.45)}
+.btn.primary small{color:#5a3d12}
+.btn.primary:disabled{filter:grayscale(.8) brightness(.6)}
+.btn.ghost{background:rgba(45,38,72,.7)}
+.btn.danger{color:var(--bad)}
+.btn.wide{width:100%}
+.btn.sm{min-height:34px;padding:4px 10px}
+.btn.on{color:var(--teal);box-shadow:inset 0 0 0 2px var(--teal),0 3px 0 rgba(0,0,0,.45)}
+.btn.glow{animation:glow 1.6s ease-in-out infinite}
+@keyframes glow{50%{box-shadow:inset 0 0 0 2px #fff3c4,0 0 18px rgba(242,205,110,.55),0 3px 0 rgba(0,0,0,.45)}}
+.row{padding:0 12px;margin:10px 0}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.eyebrow{font-family:var(--label);font-size:11px;letter-spacing:.12em;color:var(--frame);margin:2px 0 8px;text-transform:uppercase}
+.badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 4px;margin-left:5px;background:var(--sakura);color:#2a0a18;font-size:11px;font-style:normal;font-family:var(--label);border:2px solid var(--edge)}
+/* top bar */
+.screen{display:flex;flex-direction:column;min-height:100vh;min-height:100dvh;padding:calc(env(safe-area-inset-top) + 8px) 0 calc(env(safe-area-inset-bottom) + 12px)}
+.topbar{margin:0 10px 8px;padding:8px 10px}
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.tabs button{padding:7px 4px;font-family:var(--label);font-size:12px;color:var(--soft);background:rgba(7,5,13,.5);border:2px solid var(--line)}
+.tabs button.on{color:var(--gold);border-color:var(--frame)}
+.plvl{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px}
+.plvl span{font-family:var(--label);font-size:11px;color:var(--gold);white-space:nowrap}
+.plvl small{color:var(--muted);font-size:11px;white-space:nowrap}
+.xpbar{flex:1;height:8px;background:var(--edge);border:1px solid var(--line)}
+.xpbar i{display:block;height:100%;background:linear-gradient(90deg,var(--teal),#a8f5ea);transition:width .5s}
+.body{padding:0 10px}
+.panel{padding:14px;margin-bottom:10px}
+/* party chips */
+.chips{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px}
+.chip{position:relative;display:flex;align-items:center;gap:6px;padding:5px;background:rgba(7,5,13,.55);border:2px solid var(--line);text-align:left;font-size:13px;line-height:1.2}
+.chip small{display:block;font-size:10.5px;color:var(--muted)}
+.chip.on{border-color:var(--teal);background:rgba(102,220,203,.08)}
+.chip .badge{position:absolute;top:-8px;right:-6px;margin:0}
+.chip-art{flex:none;width:34px;height:34px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:var(--edge);border:1px solid var(--line)}
+/* the character card */
+.cardwrap{display:flex;justify-content:center}
+.ccard{width:min(100%,370px);background:linear-gradient(180deg,#2a2244,#15102a);border:3px solid var(--edge);box-shadow:inset 0 0 0 3px var(--frame),inset 0 0 0 5px var(--edge),0 6px 0 rgba(0,0,0,.5),0 0 30px rgba(242,205,110,.08);padding:9px;display:flex;flex-direction:column;gap:7px}
+.ccard.flash{animation:cflash 1.2s ease-out}
+@keyframes cflash{0%{box-shadow:inset 0 0 0 3px #fff3c4,inset 0 0 0 5px var(--edge),0 0 40px rgba(242,205,110,.9)}100%{}}
+.cc-top{display:flex;align-items:baseline;justify-content:space-between;padding:2px 6px;background:rgba(7,5,13,.55);border:2px solid var(--frame-lo)}
+.cc-name{font-family:var(--display);font-size:30px;line-height:1;color:var(--gold)}
+.cc-lv{font-family:var(--label);font-size:11px;color:var(--teal)}
+.cc-art{height:clamp(150px,26vh,210px);display:flex;justify-content:center;align-items:flex-start;overflow:hidden;background:linear-gradient(#3a2e5c,#1b1533);border:2px solid var(--frame-lo)}
+.cc-art img{flex:none;max-width:none}
+.cc-type{font-size:12px;color:var(--soft);padding:0 4px}
+.cc-type span{color:var(--muted)}
+.cc-text{background:rgba(244,234,212,.06);border:2px solid var(--line);padding:6px 8px;display:flex;flex-direction:column;gap:5px;max-height:34vh;overflow-y:auto}
+.cc-trait{font-size:11.5px;color:var(--muted);font-style:italic;border-top:1px dashed var(--line);padding-top:5px}
+.abl{display:flex;gap:7px;font-size:12.5px;line-height:1.45}
+.abl b{color:var(--ink)}
+.abl .lv{font-style:normal;font-family:var(--label);font-size:10px;color:var(--gold);margin-left:2px}
+.abl .abt{display:block;color:var(--soft)}
+.abl .abg{flex:none;width:16px;text-align:center;color:var(--frame)}
+.abl.k-spell .abg,.abl.k-spell b{color:var(--teal)}
+.abl.k-trig .abg{color:var(--sakura)}
+.abl .cd{margin-left:6px;font-family:var(--label);font-size:9.5px;color:var(--teal);border:1px solid rgba(102,220,203,.5);padding:0 3px}
+.abl.new{animation:newline 1.6s ease-out;background:rgba(242,205,110,.12);outline:1px solid rgba(242,205,110,.5)}
+@keyframes newline{0%{background:rgba(242,205,110,.5)}}
+.cc-stats{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.gem{position:relative;display:flex;align-items:center;gap:5px;padding:2px 10px 2px 8px;min-width:76px;background:var(--edge);border:2px solid var(--frame)}
+.gem i{font-style:normal;font-size:16px}
+.gem b{font-family:var(--display);font-size:32px;line-height:1}
+.gem.atk i,.gem.atk b{color:#ffb38a} .gem.res i,.gem.res b{color:#9fd8ff}
+.gem.res{justify-content:flex-end}
+.gem em{position:absolute;top:-16px;right:4px;font-style:normal;font-family:var(--display);font-size:22px;animation:rise 1.6s ease-out forwards}
+.gem.pop{animation:pop .5s ease-out}
+@keyframes pop{40%{transform:scale(1.18)}}
+@keyframes rise{0%{opacity:0;transform:translateY(8px)}20%{opacity:1}100%{opacity:0;transform:translateY(-14px)}}
+.pips{flex:1;display:flex;flex-wrap:wrap;gap:2px;justify-content:center}
+.pips i{width:7px;height:9px;border:1px solid var(--edge)}
+.r-c{--r:var(--rc)} .r-u{--r:var(--ru)} .r-r{--r:var(--rr)} .r-l{--r:var(--rl)}
+.pips i{background:var(--r)}
+details.sandbox{margin:14px 2px;padding:8px 10px;border:2px dashed var(--line)}
+details.sandbox summary{font-family:var(--label);font-size:11px;color:var(--muted);cursor:pointer}
+/* overlays */
+#layer:empty{display:none}
+.ov{position:fixed;inset:0;z-index:20;background:rgba(5,3,12,.86);display:flex;align-items:center;justify-content:center;padding:12px;overflow-y:auto}
+.sheet{width:min(100%,420px);padding:14px;display:flex;flex-direction:column;gap:8px}
+.sh-head{display:flex;align-items:center;gap:8px;font-size:17px}
+.sh-head .x{margin-left:auto;width:32px;height:32px;border:2px solid var(--line)}
+.sh-stats{display:flex;flex-wrap:wrap;gap:10px;font-size:13px;color:var(--soft)}
+/* packs */
+.pack-ov{align-items:flex-start;padding-top:calc(env(safe-area-inset-top) + 14px)}
+.pack-stage{width:min(100%,440px);display:flex;flex-direction:column;align-items:stretch;gap:10px}
+.pack{align-self:center;margin-top:12vh;width:200px;height:280px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:repeating-linear-gradient(45deg,#3d2a63 0 10px,#33235a 10px 20px);border:4px solid var(--edge);box-shadow:inset 0 0 0 4px var(--frame),inset 0 0 0 7px var(--edge),0 0 40px rgba(242,205,110,.25),0 8px 0 rgba(0,0,0,.5);animation:hover 2.4s ease-in-out infinite}
+.pack .pk-top{font-size:46px;color:var(--gold);line-height:1;text-shadow:0 0 12px rgba(242,205,110,.7)}
+.pack .pk-name{font-family:var(--display);font-size:28px;color:var(--ink)}
+.pack .pk-sub{font-size:12px;color:var(--soft)}
+.pack .pk-tap{margin-top:14px;font-family:var(--label);font-size:11px;color:var(--teal);animation:blink 1.2s steps(2) infinite}
+.pack.burst{animation:burst .5s ease-in forwards}
+@keyframes hover{50%{transform:translateY(-6px) rotate(-1deg)}}
+@keyframes burst{30%{transform:scale(1.08) rotate(3deg)}100%{transform:scale(1.5);opacity:0;filter:brightness(3)}}
+@keyframes blink{50%{opacity:.3}}
+.pk-head{text-align:center;font-size:14px;color:var(--soft)}
+.pk-head b{color:var(--gold)}
+.pgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.pgrid.n3 .pcard:last-child{grid-column:1/3;justify-self:center;width:calc(50% - 4px)}
+.pcard{position:relative;min-height:236px;perspective:900px;text-align:left;transition:transform .25s,opacity .25s}
+.pcard .pc-back,.pcard .pc-face{position:absolute;inset:0;-webkit-backface-visibility:hidden;backface-visibility:hidden;transition:transform .55s cubic-bezier(.3,1.4,.5,1)}
+.pcard .pc-back{display:flex;align-items:center;justify-content:center;background:repeating-linear-gradient(45deg,#3d2a63 0 8px,#33235a 8px 16px);border:3px solid var(--edge);box-shadow:inset 0 0 0 3px var(--frame-lo);font-size:30px;color:var(--frame)}
+.pcard .pc-face{transform:rotateY(180deg);display:flex;flex-direction:column;gap:4px;padding:8px;background:linear-gradient(180deg,#2a2244,#15102a);border:3px solid var(--edge);box-shadow:inset 0 0 0 2px var(--r),inset 0 0 0 4px var(--edge)}
+.pcard.flip .pc-back{transform:rotateY(-180deg)}
+.pcard.flip .pc-face{transform:rotateY(0)}
+.pcard.r-l .pc-face{animation:legend 2.2s linear infinite}
+@keyframes legend{50%{box-shadow:inset 0 0 0 2px #ffd1e3,inset 0 0 0 4px var(--edge),0 0 18px rgba(255,143,182,.6)}}
+.pcard.sel{transform:translateY(-6px)}
+.pcard.sel .pc-face{box-shadow:inset 0 0 0 2px var(--r),inset 0 0 0 4px var(--edge),0 0 0 3px var(--gold),0 0 22px rgba(242,205,110,.6)}
+.pcard.dim{opacity:.55}
+.pcard.absorbing{animation:absorb .52s ease-in forwards;z-index:3}
+@keyframes absorb{40%{transform:translateY(-14px) scale(1.06)}100%{transform:translateY(160px) scale(.2);opacity:0;filter:brightness(2.5)}}
+.pc-rar{font-family:var(--label);font-size:9.5px;letter-spacing:.08em;color:var(--r)}
+.pc-name{font-family:var(--display);font-size:22px;line-height:1;color:var(--ink)}
+.pc-art{display:flex;align-items:center;justify-content:center;height:44px;font-size:30px;color:var(--r);background:rgba(7,5,13,.5);border:1px solid var(--line)}
+.pc-stats{display:flex;gap:6px;flex-wrap:wrap}
+.pd{font-family:var(--label);font-size:11px;padding:1px 4px;border:1px solid currentColor}
+.pd.a.up{color:#ffb38a} .pd.r.up{color:#9fd8ff} .pd.zero{color:var(--muted)}
+.pc-ab{font-size:11.5px;line-height:1.4;color:var(--soft)}
+.pc-ab b{display:block;color:var(--teal);font-size:12.5px}
+.pc-ab .stack{display:block;font-size:10.5px;color:var(--gold)}
+.pc-ab .kindtag{display:block;font-size:10px;color:var(--muted)}
+.pc-ab .abt{display:block;margin-top:2px}
+.pc-flav{margin-top:auto;font-size:10.5px;color:var(--muted);font-style:italic}
+.pk-preview{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;min-height:24px;font-size:14px}
+/* fight menu */
+.stepper{display:grid;grid-template-columns:50px 1fr 50px;gap:8px;align-items:center;text-align:center;margin-bottom:10px}
+.stepper b{font-family:var(--display);font-size:30px;line-height:1;color:var(--gold)}
+.stepper small{display:block;font-size:11.5px;color:var(--muted)}
+.panel .btn+.btn{margin-top:8px}
+.party-mini{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+.pm{display:flex;gap:8px;align-items:center;padding:6px;background:rgba(7,5,13,.5);border:2px solid var(--line)}
+.pm small{color:var(--muted)}
+/* combat */
+.combat{gap:8px;padding-left:8px;padding-right:8px}
+.cbar{display:flex;align-items:center;gap:8px}
+.ctitle{flex:1;text-align:center;font-family:var(--label);font-size:12px;color:var(--gold)}
+.row-e,.row-p{display:flex;justify-content:center;gap:6px}
+.row-e .mc,.row-p .mc{flex:0 1 calc((100% - 12px)/3);min-width:0}
+.mc{position:relative;display:flex;flex-direction:column;align-items:stretch;gap:3px;padding:5px;min-height:150px;background:linear-gradient(180deg,#2a2244,#15102a);border:3px solid var(--edge);box-shadow:inset 0 0 0 2px var(--frame-lo);text-align:left;transition:transform .18s,opacity .3s,filter .3s}
+.mc.s-e{box-shadow:inset 0 0 0 2px #7a3a4a}
+.mc.boss{box-shadow:inset 0 0 0 2px var(--sakura),0 0 16px rgba(255,143,182,.3)}
+.mc-art{height:clamp(62px,9.5vh,100px);display:flex;align-items:center;justify-content:center;overflow:hidden;background:rgba(7,5,13,.55);border:1px solid var(--line)}
+.mc-art img{flex:none;max-width:none}
+.glyph{font-size:36px;line-height:1;color:#ff9a8a;text-shadow:0 0 10px rgba(255,90,90,.35)}
+.boss .glyph{color:var(--sakura);font-size:42px}
+.mc-name{font-size:11.5px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mc-stats{display:flex;justify-content:space-between;font-family:var(--display);font-size:21px;line-height:1}
+.mc-stats .a{color:#ffb38a} .mc-stats .r{color:#9fd8ff} .mc-stats small{font-size:14px;color:var(--muted)}
+.hpbar{height:6px;background:var(--edge);border:1px solid var(--line)}
+.hpbar i{display:block;height:100%;background:var(--good);transition:width .35s}
+.hpbar i.low{background:var(--bad)}
+.mc-st{display:flex;gap:4px;flex-wrap:wrap;min-height:14px;font-size:11px;line-height:1.2}
+.mc-st i{font-style:normal}
+.s-g{color:var(--gold)} .s-w{color:#9fd8ff} .s-a{color:var(--soft)} .s-p{color:var(--poison)}
+.mc.dead{opacity:.28;filter:grayscale(1)}
+.mc.done{opacity:.6}
+.mc.actor{box-shadow:inset 0 0 0 2px var(--teal),0 0 0 2px var(--teal),0 0 16px rgba(102,220,203,.45);transform:translateY(-4px);opacity:1}
+.mc.tgt{box-shadow:inset 0 0 0 2px var(--gold),0 0 0 2px var(--gold);animation:tgt 1s ease-in-out infinite}
+@keyframes tgt{50%{box-shadow:inset 0 0 0 2px #fff3c4,0 0 0 2px var(--gold),0 0 18px rgba(242,205,110,.6)}}
+.mc.lunge-up{animation:lungeup .32s ease-out}
+.mc.lunge-dn{animation:lungedn .32s ease-out}
+.mc.hit{animation:hit .3s ease-out}
+.mc.casting{animation:cast .5s ease-out}
+@keyframes lungeup{40%{transform:translateY(-16px)}}
+@keyframes lungedn{40%{transform:translateY(16px)}}
+@keyframes hit{20%{transform:translateX(-5px)}50%{transform:translateX(5px)}80%{transform:translateX(-2px)}}
+@keyframes cast{40%{filter:brightness(1.8) drop-shadow(0 0 8px var(--teal))}}
+.clog{min-height:58px;flex:1 1 auto;padding:4px 6px;font-size:12px;line-height:1.5;color:var(--soft);display:flex;flex-direction:column;justify-content:flex-end}
+.clog div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.clog div:not(:last-child){opacity:.55}
+.clog .good{color:var(--good)} .clog .bad{color:var(--bad)} .clog .gold{color:var(--gold)} .clog .spell{color:var(--teal)}
+.actbar{padding:8px;margin-top:auto;min-height:118px}
+.ab-head{font-size:13px;margin-bottom:6px}
+.ab-head b{color:var(--teal)}
+.ab-btns{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.act{display:flex;flex-direction:column;align-items:flex-start;padding:6px 8px;min-height:44px;font-size:13px;line-height:1.25;text-align:left;background:var(--raise);border:2px solid var(--line)}
+.act small{font-size:10.5px;color:var(--muted)}
+.act.on{border-color:var(--gold);color:var(--gold)}
+.act.sp{color:var(--teal)}
+.act.sp.on{border-color:var(--teal);background:rgba(102,220,203,.12)}
+.act:disabled{opacity:.4}
+.act.ghost{background:rgba(7,5,13,.5);color:var(--soft)}
+.waiting{display:flex;align-items:center;justify-content:center;height:100px;color:var(--muted);font-size:13px;text-align:center}
+.float{position:fixed;z-index:30;pointer-events:none;transform:translate(-50%,0);font-family:var(--display);font-size:24px;line-height:1;text-shadow:0 2px 0 #000,0 0 6px #000;animation:float 1.1s ease-out forwards;white-space:nowrap}
+.f-dmg{color:#ff6b5e} .f-heal{color:var(--good)} .f-ward{color:#9fd8ff} .f-buff{color:var(--gold)} .f-poison{color:var(--poison)} .f-spell{color:var(--teal);font-size:18px}
+@keyframes float{0%{opacity:0;transform:translate(-50%,6px) scale(.8)}15%{opacity:1;transform:translate(-50%,0) scale(1.15)}100%{opacity:0;transform:translate(-50%,-34px)}}
+/* results */
+.result{width:min(100%,340px);padding:20px;text-align:center;display:flex;flex-direction:column;gap:6px}
+.res-big{font-family:var(--display);font-size:56px;line-height:1;color:var(--gold)}
+.lost .res-big{color:var(--bad)}
+.lvlup{color:var(--teal);font-size:14px}
+/* lab */
+.lres{text-align:center;margin-top:10px}
+.bigpct{font-family:var(--display);font-size:52px;line-height:1}
+.bigpct.good{color:var(--good)} .bigpct.mid{color:var(--gold)} .bigpct.bad{color:var(--bad)}
+.mat{width:100%;border-collapse:collapse;margin-top:10px;font-size:12px;text-align:center}
+.mat th{font-family:var(--label);font-size:9px;color:var(--muted);font-weight:normal;padding:3px 1px}
+.mat td{padding:4px 1px;border:1px solid var(--edge)}
+.mat td:first-child{color:var(--gold)}
+.seg{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
+.seg button{padding:5px 8px;font-size:11.5px;border:2px solid var(--line);background:rgba(7,5,13,.5)}
+.seg button.on{border-color:var(--teal);color:var(--teal)}
+.libc{padding:6px 8px;margin-bottom:5px;border-left:4px solid var(--r);background:rgba(7,5,13,.45)}
+.libc b{font-size:13.5px}
+.lib-st{float:right;font-size:12px;color:var(--soft)}
+/* items */
+.from{display:block;font-size:10.5px;color:#c9a8ff}
+.abl.itemonly .abg{color:#c9a8ff}
+.gem small.itm{position:absolute;bottom:-14px;left:50%;transform:translateX(-50%);font-size:9.5px;color:#c9a8ff;white-space:nowrap}
+.slots{margin:16px 0 0;padding:8px 10px 10px}
+.sl-head{display:flex;align-items:center;justify-content:space-between}
+.sl-head .eyebrow{margin:0}
+.bagbtn{font-family:var(--label);font-size:11px;padding:4px 8px;border:2px solid var(--line);color:var(--soft)}
+.bagbtn b{color:var(--gold)}
+.sl-row{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
+.sl-row.n1{grid-template-columns:1fr}
+.islot{display:grid;grid-template-columns:28px 1fr;grid-template-rows:auto auto;column-gap:6px;align-items:center;padding:6px;min-height:48px;text-align:left;background:rgba(7,5,13,.55);border:2px solid var(--r,var(--line));font-size:13px;line-height:1.25}
+.islot .ik{grid-row:1/3;font-size:20px;color:var(--r,var(--muted));text-align:center}
+.islot .is{font-size:10.5px;color:var(--muted)}
+.islot.empty{border-style:dashed;color:var(--muted)}
+.ilist{display:flex;flex-direction:column;gap:5px}
+.irow{display:flex;align-items:center;gap:8px;padding:6px 8px;text-align:left;background:rgba(7,5,13,.5);border:2px solid var(--line);border-left:4px solid var(--r)}
+.irow.sel{border-color:var(--gold);border-left-color:var(--r)}
+.irow .ik{font-size:18px;color:var(--r);flex:none;width:22px;text-align:center}
+.irow .ib{flex:1;font-size:13px;line-height:1.3}
+.irow .ib small{color:var(--soft);font-size:11px}
+.irow .iab{display:block;font-size:11px;color:var(--teal)}
+.irow .iab i{color:var(--muted)}
+.irow .iact{flex:none;display:flex;flex-direction:column;align-items:flex-end;font-size:11px;gap:2px}
+.irow .iact small{color:var(--muted);font-size:10px}
+.give{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}
+.give .btn{flex-direction:column;gap:0;font-size:11px}
+.cur .pcard{width:100%;min-height:0}
+.icard .pc-face{position:relative;inset:auto;transform:none}
+.pcard.icard{min-height:0}
+.pcard.icard .pc-face{min-height:200px}
+.cur .pcard.icard .pc-face{min-height:0}
+.pd.slot{color:#c9a8ff}
+.loot{margin-top:6px;text-align:left}
+.loot.nudge .eyebrow{color:var(--sakura);animation:blink .5s steps(2) 3}
+.result{max-height:92vh;overflow-y:auto}
+.result .pgrid{gap:6px}
+.result .pcard.icard .pc-face{min-height:170px}
+@media (prefers-reduced-motion: reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+
+.abl.k-divine .abg,.abl.k-divine b{color:var(--sakura)}
+.cbhead{display:flex;align-items:center;gap:8px;margin:0 10px 8px}
+.cbhead .ttl{flex:1;font-family:var(--display);font-size:26px;line-height:1;color:var(--gold)}
+.cbx{width:40px;height:40px;border:2px solid var(--line);background:rgba(7,5,13,.6);font-size:16px}
+.gem.sp i,.gem.sp b{color:#c9a8ff}
+.intro{margin:10vh auto 0;width:min(100%,420px);padding:18px;display:flex;flex-direction:column;gap:12px}
+.intro .it-k{font-family:var(--label);font-size:11px;letter-spacing:.14em;color:var(--sakura)}
+.intro h2{margin:0;font-family:var(--display);font-size:34px;line-height:1;color:var(--gold);font-weight:normal}
+.intro p{margin:0;font-size:14.5px;line-height:1.7;color:var(--soft)}
+.foes{display:flex;gap:6px;flex-wrap:wrap}
+.foes span{font-size:12px;padding:3px 8px;border:2px solid #7a3a4a;background:rgba(7,5,13,.5)}
+.foes b{color:#ff9a8a;font-weight:normal}
+.pet-list{display:flex;flex-direction:column;gap:6px}
+.pet{display:flex;align-items:center;gap:10px;padding:8px;background:rgba(7,5,13,.5);border:2px solid var(--line);text-align:left}
+.pet.on{border-color:var(--teal)}
+.pet .glyph{font-size:28px;width:40px;text-align:center}
+.tame{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.tame button{padding:8px;border:2px solid var(--line);background:rgba(7,5,13,.5);text-align:left;font-size:13px}
+.tame button.sel{border-color:var(--teal)}
+.chipsr{display:flex;flex-wrap:wrap;gap:5px;justify-content:center}
+.chipsr span{font-size:12px;padding:2px 7px;border:2px solid var(--line);background:rgba(7,5,13,.5)}
+.chipsr .up{color:var(--good)} .chipsr .seed{color:var(--gold)} .chipsr .down{color:var(--bad)}
+`;
+
+;
+/* =========================================================
+   CARD SCREENS: your card and party, packs, items, and battles.
+   They live in a shadow root above the game so their styles never
+   touch the story screens (and vice versa).
+   ========================================================= */
+const CBUI = (function(){
+  let host = null, root = null, app = null, layer = null, FIGHT = null, VIEW = {sel:0, sand:false};
+  const $ = s=>root.querySelector(s), $$ = s=>[...root.querySelectorAll(s)];
+  const ROMAN = ['','I','II','III','IV','V','VI'];
+  const KIND_GLYPH = {divine:'✧', kw:'◈', aura:'♛', trig:'⟳', mod:'⚗', spell:'✦'};
+  const KIND_NAME = {divine:'Divine', kw:'Keyword', aura:'Aura', trig:'Trigger', mod:'Modifier', spell:'Spell'};
+  const AB = CB.AB, ab = CB.ab;
+  function ensure(){
+    if(root) return;
+    host = document.createElement('div'); host.id = 'cb-host';
+    host.style.cssText = 'position:fixed;inset:0;z-index:300;display:none';
+    document.body.appendChild(host);
+    root = host.attachShadow({mode:'open'});
+    root.innerHTML = `<style>${CB_CSS}</style><div id="cbroot"><div id="app"></div></div><div id="layer"></div>`;
+    app = root.getElementById('app'); layer = root.getElementById('layer');
+  }
+  function show(){ ensure(); host.style.display = 'block'; root.getElementById('cbroot').scrollTop = 0; }
+  function hide(){ if(host){ host.style.display = 'none'; app.innerHTML = ''; layer.innerHTML = ''; } FIGHT = null; }
+  const isOpen = ()=>!!host && host.style.display!=='none';
+
+  /* ---------- art ---------- */
+  function specFor(c){ if(!c) return null; if(c.key==='you') return playerArt(S); return CHAR_ART[c.key] || null; }
+  function artImg(c, kind){
+    if(c.glyph || c.pet) return `<span class="glyph">${c.glyph || '◕'}</span>`;
+    const sp = specFor(c); if(!sp) return '';
+    return kind==='head' ? `<img alt="" src="${PX.portrait(sp,'head')}" data-int="fit">` : `<img alt="" src="${PX.portrait(sp)}" data-int="bust">`;
+  }
+  function fitInt(r){
+    const dpr = window.devicePixelRatio||1;
+    (r ? [...r.querySelectorAll('img[data-int]')] : $$('img[data-int]')).forEach(img=>{
+      const go = ()=>{ const box = img.parentElement, W = box.clientWidth, H = box.clientHeight, pw = img.naturalWidth, ph = img.naturalHeight; if(!W||!H||!pw||!ph) return;
+        const t = img.dataset.int==='bust' ? Math.min(W/pw, H/(ph*.6)) : Math.min(W/pw, H/ph);
+        const m = Math.max(1, img.dataset.int==='bust' ? Math.floor(t*dpr+1e-6) : Math.round(t*dpr));
+        img.style.width = pw*m/dpr+'px'; img.style.height = ph*m/dpr+'px'; };
+      if(img.complete && img.naturalWidth) go(); else img.addEventListener('load', go, {once:true});
+    });
+  }
+
+  /* ---------- card pieces ---------- */
+  function abLine(id, lvl, u, cls='', extra=''){
+    const d = AB[id];
+    const cd = d.kind==='spell' ? `<span class="cd">${u && (ab(u,'wellspring')) ? 'no CD' : u && ab(u,'bloodpact') ? '2 RES' : `CD ${Math.max(1, d.cd - (u?ab(u,'quick'):0))}`}</span>` : '';
+    return `<div class="abl k-${d.kind} ${cls}"><span class="abg">${KIND_GLYPH[d.kind]}</span><div><b>${esc(d.name)}${d.max>1?` <i class="lv">${ROMAN[lvl]||lvl}</i>`:''}</b>${cd}<span class="abt">${esc(d.text(lvl, u))}</span>${extra}</div></div>`;
+  }
+  function bigCard(ch, hl){
+    hl = hl || {};
+    const e = CB.effective(ch), lines = CB.abilityLines(e);
+    const fromItems = id=>{ const own = ab(ch,id); if(!e.src[id]) return ''; return `<span class="from">◆ ${own ? `+${ab(e,id)-own} ` : ''}${esc(e.src[id].join(', '))}</span>`; };
+    const diff = (a,b)=>a!==b ? `<small class="itm">${a>b?'+':''}${a-b} items</small>` : '';
+    return `<article class="ccard ${hl.flash?'flash':''}">
+      <header class="cc-top"><span class="cc-name">${esc(ch.name)}</span><span class="cc-lv">Lv ${ch.lvl}</span></header>
+      <div class="cc-art">${artImg(ch,'bust')}</div>
+      <div class="cc-type">${esc(ch.title)} <span>· ${ch.absorbed.length} card${ch.absorbed.length===1?'':'s'} absorbed</span></div>
+      <div class="cc-text">
+        ${lines.length ? lines.map(l=>abLine(l.id, l.lvl, e, (hl.ab===l.id?'new ':'')+(ab(ch,l.id)?'':'itemonly'), fromItems(l.id))).join('') : '<div class="muted small">No abilities yet. Every pack is a chance to add one.</div>'}
+        <div class="cc-trait">${esc(ch.trait||'')}</div>
+      </div>
+      <footer class="cc-stats">
+        <span class="gem atk ${hl.atk?'pop':''}"><i>⚔</i><b>${e.atk}</b>${diff(e.atk,ch.atk)}${hl.atk?`<em class="${hl.atk>0?'up':'dn'}">${hl.atk>0?'+':''}${hl.atk}</em>`:''}</span>
+        ${e.sp ? `<span class="gem sp ${hl.sp?'pop':''}"><i>✦</i><b>${e.sp}</b>${hl.sp?`<em class="up">+${hl.sp}</em>`:''}</span>` : `<span class="pips">${ch.absorbed.slice(-14).map(id=>CB.CARD[id]?`<i class="r-${CB.CARD[id].rar}"></i>`:'').join('')}</span>`}
+        <span class="gem res ${hl.res?'pop':''}"><i>⛨</i><b>${e.res}</b>${diff(e.res,ch.res)}${hl.res?`<em class="${hl.res>0?'up':'dn'}">${hl.res>0?'+':''}${hl.res}</em>`:''}</span>
+      </footer>
+    </article>`;
+  }
+  function packCard(c, ch, i){
+    const art = c.slots ? '▤' : c.sp && !c.ab ? '✦' : c.ab ? KIND_GLYPH[AB[c.ab[0]].kind] : c.atk>=c.res ? '⚔' : '⛨';
+    const stat = (n, g, k)=>n ? `<span class="pd ${n>0?'up':'dn'} ${k}">${n>0?'+':''}${n} ${g}</span>` : '';
+    let abl = '';
+    if(c.ab){ const [id,l] = c.ab, have = ab(ch,id), to = Math.min(AB[id].max, have+l), d = AB[id];
+      abl = `<div class="pc-ab"><b>${esc(d.name)}${d.max>1?` ${ROMAN[to]}`:''}</b>${have?`<span class="stack">↑ stacks on yours</span>`:`<span class="kindtag">${KIND_NAME[d.kind]}${d.kind==='spell'?` · CD ${d.cd}`:''}</span>`}<span class="abt">${esc(d.text(to, ch))}</span></div>`; }
+    const prismNote = ab(ch,'prism') && c.atk>0 ? `<span class="pd slot">Starforge: ${Math.ceil(c.atk/2)} becomes ✦</span>` : '';
+    return `<button class="pcard r-${c.rar}" data-i="${i}">
+      <span class="pc-back"><span>✦</span></span>
+      <span class="pc-face">
+        <span class="pc-rar">${CB.RAR[c.rar].name}</span>
+        <span class="pc-name">${esc(c.name)}</span>
+        <span class="pc-art">${art}</span>
+        <span class="pc-stats">${stat(c.atk,'⚔','a')}${stat(c.res,'⛨','r')}${c.sp?`<span class="pd slot">+${c.sp} ✦ spell power</span>`:''}${c.slots?`<span class="pd slot">+${c.slots} item slot${c.slots>1?'s':''}</span>`:''}${prismNote}${!c.atk&&!c.res&&!c.slots&&!c.sp?'<span class="pd zero">no stats</span>':''}</span>
+        ${abl}
+        ${c.flav?`<span class="pc-flav">${esc(c.flav)}</span>`:''}
+      </span>
+    </button>`;
+  }
+  function itemCard(it, i, opts={}){
+    const stat = (n, g, k)=>n ? `<span class="pd ${n>0?'up':'dn'} ${k}">${n>0?'+':''}${n} ${g}</span>` : '';
+    return `<button class="pcard icard flip r-${it.rar} ${opts.cls||''}" data-i="${i}">
+      <span class="pc-face">
+        <span class="pc-rar">${CB.RAR[it.rar].name} ${it.kind}</span>
+        <span class="pc-name">${esc(it.name)}</span>
+        <span class="pc-art">${CB.ITEM_KIND[it.kind]}</span>
+        <span class="pc-stats">${stat(it.atk,'⚔','a')}${stat(it.res,'⛨','r')}${!it.atk&&!it.res?'<span class="pd zero">no stats</span>':''}</span>
+        ${it.abs.map(([id,l])=>`<div class="pc-ab"><b>${esc(AB[id].name)}${AB[id].max>1?` ${ROMAN[l]}`:''}</b><span class="abt">${esc(AB[id].text(l))}</span></div>`).join('')}
+        ${it.flav?`<span class="pc-flav">${esc(it.flav)}</span>`:''}
+      </span>
+    </button>`;
+  }
+  function itemRow(inst, owner, act){
+    const it = CB.ITEM[inst.id];
+    const st = [it.atk?`${it.atk>0?'+':''}${it.atk}⚔`:'', it.res?`${it.res>0?'+':''}${it.res}⛨`:''].filter(Boolean).join(' ');
+    return `<button class="irow r-${it.rar}" data-uid="${inst.uid}"><span class="ik">${CB.ITEM_KIND[it.kind]}</span><span class="ib"><b>${esc(it.name)}</b> <small>${st}</small><span class="iab">${it.abs.map(([id,l])=>`${esc(AB[id].name)}${AB[id].max>1?' '+ROMAN[l]:''}`).join(' · ')||'<i>stats only</i>'}</span></span><span class="iact">${owner?`<small>on ${esc(owner.name)}</small>`:''}${act||''}</span></button>`;
+  }
+  const chipsHtml = chips=>`<div class="chipsr">${chips.map(c=>`<span class="${c[1]}">${esc(c[0])}</span>`).join('')}</div>`;
+
+  /* =========================================================
+     YOUR CARDS
+     ========================================================= */
+  function openCards(sel){
+    show(); if(sel!=null) VIEW.sel = sel;
+    drawCards();
+  }
+  function drawCards(){
+    const party = partyCards(); if(VIEW.sel >= party.length) VIEW.sel = 0;
+    const ch = party[VIEW.sel], need = cxpNeed(), pet = petNow();
+    const waiting = Object.keys(S.cards).filter(k=>!partyComps().includes(k));
+    app.innerHTML = `<div class="screen">
+      <div class="cbhead"><span class="ttl">Your Party</span><button class="cbx" id="cbclose" aria-label="Close">✕</button></div>
+      <div class="topbar win"><div class="plvl"><span>Lv ${S.card.lvl}</span><div class="xpbar"><i style="width:${Math.round(S.cxp/need*100)}%"></i></div><small>${S.cxp}/${need} XP · ${S.cwins||0} won</small></div></div>
+      <div class="body">
+        <div class="chips">${party.map((c,i)=>{ const e = CB.effective(c); return `<button class="chip ${i===VIEW.sel?'on':''}" data-sel="${i}"><span class="chip-art">${artImg(c,'head')}</span><span>${esc(c.key==='you'?'You':c.name)}<small>${e.atk}⚔ ${e.res}⛨</small></span>${c.pending?`<i class="badge">${c.pending}</i>`:''}</button>`; }).join('')}</div>
+        ${party.length<3 ? `<p class="muted small center">${party.length===1 ? 'Grow close to a friend and they\'ll fight beside you (and get a card of their own).' : 'One more close friend can join the party.'}</p>` : ''}
+        <div class="cardwrap">${bigCard(ch)}</div>
+        <div class="row">${ch.pending ? `<button class="btn primary wide glow" id="open">Open pack <small>${ch.pending} waiting</small></button>` : ''}</div>
+        <div class="slots win">
+          <div class="sl-head"><span class="eyebrow">Item slots ${ch.equip.length}/${ch.slots}</span><button class="bagbtn" id="bag">Bag <b>${S.bag.length}</b></button></div>
+          <div class="sl-row n${ch.slots}">${Array.from({length:ch.slots}, (_,i)=>{ const x = ch.equip[i]; if(!x) return `<button class="islot empty" data-slot="${i}"><span class="ik">＋</span><span class="in">Empty slot</span></button>`; const it = CB.ITEM[x.id]; return `<button class="islot r-${it.rar}" data-slot="${i}"><span class="ik">${CB.ITEM_KIND[it.kind]}</span><span class="in">${esc(it.name)}</span><span class="is">${[it.atk?`${it.atk>0?'+':''}${it.atk}⚔`:'', it.res?`${it.res>0?'+':''}${it.res}⛨`:''].filter(Boolean).join(' ')}${it.abs.length?` · ${it.abs.map(([id])=>esc(AB[id].name)).join(', ')}`:''}</span></button>`; }).join('')}</div>
+        </div>
+        ${CB.ab(S.card,'wildheart') ? `<div class="slots win"><div class="sl-head"><span class="eyebrow">Wild Crown · tamed beasts</span></div>
+          <div class="pet-list">${S.tamed.length ? S.tamed.map((p,i)=>{ const u = CB.petUnit(p, S.card); return `<button class="pet ${S.pet===i?'on':''}" data-pet="${i}"><span class="glyph">${CB.FOES[p.key].glyph}</span><span><b>${esc(p.name)}</b> <small class="muted">${u.atk}⚔ ${u.res}⛨ · ${CB.abilityLines(u).map(l=>esc(l.def.name)).join(', ')||'no abilities'}</small><br><small class="${S.pet===i?'teal':'muted'}">${S.pet===i?'Fights beside you':'Tap to bring into battle'}</small></span></button>`; }).join('') : '<p class="muted small">Defeat a beast in battle to tame it.</p>'}</div></div>` : ''}
+        ${waiting.length ? `<p class="muted small center">${waiting.map(k=>esc(COMP[k].name)).join(', ')} ${waiting.length>1?'are':'is'} not in the party right now (you're closer to others).</p>` : ''}
+        <details class="sandbox" id="sandbox" ${VIEW.sand?'open':''}><summary>Shortcuts</summary>
+          <div class="row2"><button class="btn ghost" id="autoall">Auto-pick all packs</button><button class="btn ghost" id="autoeq">Auto-equip items</button></div>
+        </details>
+      </div></div>`;
+    fitInt();
+    $('#cbclose').onclick = ()=>{ hide(); if(typeof render==='function') render(); };
+    $('#sandbox').ontoggle = e=>{ VIEW.sand = e.target.open; };
+    $$('[data-sel]').forEach(b=>b.onclick=()=>{ VIEW.sel = +b.dataset.sel; drawCards(); });
+    const o = $('#open'); if(o) o.onclick = ()=>packFlow(ch);
+    $$('[data-slot]').forEach(b=>b.onclick=()=>itemSheet(ch, +b.dataset.slot));
+    $('#bag').onclick = bagSheet;
+    $$('[data-pet]').forEach(b=>b.onclick=()=>{ S.pet = +b.dataset.pet; HOOKS.save(); drawCards(); });
+    $('#autoall').onclick = ()=>{ cardsAutoPick(); HOOKS.save(); drawCards(); };
+    $('#autoeq').onclick = ()=>{ S.bag = CB.autoEquip(partyCards(), S.bag); HOOKS.save(); drawCards(); };
+  }
+  /* ---------- opening a pack ---------- */
+  function packFlow(ch){
+    if(!ch.pending) return;
+    const cards = CB.openPack(ch);
+    let picked = null;
+    layer.innerHTML = `<div class="ov pack-ov"><div class="pack-stage" id="pstage">
+      <div class="pack" id="pack"><span class="pk-top">✦</span><span class="pk-name">${esc(ch.key==='you'?'Your':ch.name+'\'s')} Pack</span><span class="pk-sub">Lv ${ch.lvl} · ${ch.packSize} cards</span><span class="pk-tap">Tap to open</span></div>
+    </div></div>`;
+    const stage = root.getElementById('pstage');
+    root.getElementById('pack').onclick = ()=>{
+      root.getElementById('pack').classList.add('burst');
+      setTimeout(()=>{
+        stage.innerHTML = `<div class="pk-head">Choose one card for <b>${esc(ch.key==='you'?'yourself':ch.name)}</b></div>
+          <div class="pgrid n${cards.length}">${cards.map((c,i)=>packCard(c, ch, i)).join('')}</div>
+          <div class="pk-preview" id="pprev"><span class="muted">Tap a card to see what it would do.</span></div>
+          <div class="row2"><button class="btn ghost" id="pclose">Later</button><button class="btn primary" id="pabsorb" disabled>Absorb</button></div>`;
+        const pcs = [...stage.querySelectorAll('.pcard')];
+        pcs.forEach((el,i)=>setTimeout(()=>el.classList.add('flip'), 250 + i*230));
+        pcs.forEach(el=>el.onclick=()=>{
+          if(!el.classList.contains('flip')) return;
+          picked = cards[+el.dataset.i];
+          pcs.forEach(x=>{ x.classList.toggle('sel', x===el); x.classList.toggle('dim', x!==el); });
+          const t = JSON.parse(JSON.stringify(ch)); CB.absorb(t, picked);
+          const arrow = (a,b)=>a===b ? `${a}` : `${a} → <b class="${b>a?'up':'dn'}">${b}</b>`;
+          root.getElementById('pprev').innerHTML = `<span>⚔ ${arrow(ch.atk,t.atk)}</span><span>⛨ ${arrow(ch.res,t.res)}</span>${(t.sp||0)!==(ch.sp||0)?`<span>✦ ${arrow(ch.sp||0,t.sp)}</span>`:''}${picked.ab?`<span class="gold">+ ${esc(AB[picked.ab[0]].name)}</span>`:''}${picked.slots?`<span class="teal">▤ ${ch.slots} → ${t.slots} slots</span>`:''}`;
+          const ab2 = root.getElementById('pabsorb'); ab2.disabled = false; ab2.textContent = `Absorb ${picked.name}`;
+        });
+        root.getElementById('pclose').onclick = ()=>{ layer.innerHTML=''; };
+        root.getElementById('pabsorb').onclick = ()=>{
+          if(!picked) return;
+          const before = {atk:ch.atk, res:ch.res, sp:ch.sp||0}, el = pcs.find(x=>x.classList.contains('sel'));
+          el.classList.add('absorbing');
+          setTimeout(()=>{
+            ch.pending--; CB.absorb(ch, picked); HOOKS.save();
+            const hl = {atk:ch.atk-before.atk, res:ch.res-before.res, sp:(ch.sp||0)-before.sp, ab:picked.ab?picked.ab[0]:null, flash:true};
+            stage.innerHTML = `<div class="pk-head">${esc(picked.name)} becomes part of <b>${esc(ch.key==='you'?'you':ch.name)}</b></div>
+              <div class="cardwrap">${bigCard(ch, hl)}</div>
+              <div class="row2"><button class="btn ghost" id="pdone">Done</button>${ch.pending?`<button class="btn primary" id="pnext">Next pack (${ch.pending})</button>`:''}</div>`;
+            fitInt(stage);
+            root.getElementById('pdone').onclick = ()=>{ layer.innerHTML=''; drawCards(); };
+            const nx = root.getElementById('pnext'); if(nx) nx.onclick = ()=>packFlow(ch);
+          }, 520);
+        };
+      }, 520);
+    };
+  }
+  /* ---------- items ---------- */
+  const ownerOf = uid=>partyCards().find(c=>c.equip.some(x=>x.uid===uid)) || null;
+  function equipInto(ch, slot, uid){
+    const from = ownerOf(uid); if(from===ch) return;
+    const fromIdx = from ? from.equip.findIndex(x=>x.uid===uid) : -1;
+    const inst = from ? from.equip[fromIdx] : S.bag.find(x=>x.uid===uid); if(!inst) return;
+    const old = ch.equip[slot] || null;
+    if(from){ if(old) from.equip[fromIdx] = old; else from.equip.splice(fromIdx, 1); }
+    else { S.bag.splice(S.bag.indexOf(inst), 1); if(old) S.bag.push(old); }
+    if(old) ch.equip[slot] = inst; else ch.equip.push(inst);
+    HOOKS.save();
+  }
+  function itemSheet(ch, slot){
+    const cur = ch.equip[slot], others = partyCards().filter(c=>c!==ch).flatMap(c=>c.equip.map(x=>({x, c})));
+    layer.innerHTML = `<div class="ov" id="isheet"><div class="win sheet">
+      <div class="sh-head"><b>${esc(ch.key==='you'?'Your':ch.name+'\'s')} item slot ${slot+1}</b><button class="x" id="ix">✕</button></div>
+      ${cur ? `<div class="cur">${itemCard(CB.ITEM[cur.id], 0, {cls:'wide'})}</div><button class="btn ghost wide" id="unequip">Take it off (back to the bag)</button>` : '<p class="muted small">Empty. Choose something to put here.</p>'}
+      <div class="eyebrow">In the bag (${S.bag.length})</div>
+      <div class="ilist">${S.bag.length ? S.bag.map(x=>itemRow(x, null, `<b class="teal">${cur?'Swap':'Equip'}</b>`)).join('') : '<p class="muted small">Nothing spare. Battles drop loot.</p>'}</div>
+      ${others.length ? `<div class="eyebrow">Carried by the others</div><div class="ilist">${others.map(({x,c})=>itemRow(x, c, `<b class="gold">${cur?'Swap':'Take'}</b>`)).join('')}</div>` : ''}
+    </div></div>`;
+    const close = ()=>{ layer.innerHTML=''; drawCards(); };
+    root.getElementById('ix').onclick = close; root.getElementById('isheet').onclick = e=>{ if(e.target.id==='isheet') close(); };
+    const un = root.getElementById('unequip'); if(un) un.onclick = ()=>{ S.bag.push(ch.equip.splice(slot,1)[0]); HOOKS.save(); close(); };
+    layer.querySelectorAll('.irow').forEach(b=>b.onclick = ()=>{ equipInto(ch, slot, b.dataset.uid); close(); });
+  }
+  function bagSheet(){
+    layer.innerHTML = `<div class="ov" id="bsheet"><div class="win sheet">
+      <div class="sh-head"><b>The bag · ${S.bag.length} spare item${S.bag.length===1?'':'s'}</b><button class="x" id="bx">✕</button></div>
+      <p class="muted small">Tap an item, then who should carry it.</p>
+      <div class="ilist">${S.bag.length ? S.bag.map(x=>itemRow(x, null, '')).join('') : '<p class="muted small">Empty.</p>'}</div>
+      <div id="bgive"></div>
+    </div></div>`;
+    const close = ()=>{ layer.innerHTML=''; drawCards(); };
+    root.getElementById('bx').onclick = close; root.getElementById('bsheet').onclick = e=>{ if(e.target.id==='bsheet') close(); };
+    layer.querySelectorAll('.irow').forEach(b=>b.onclick = ()=>{
+      layer.querySelectorAll('.irow').forEach(x=>x.classList.toggle('sel', x===b));
+      root.getElementById('bgive').innerHTML = `<div class="give">${partyCards().map((c,i)=>{ const free = c.equip.length < c.slots; return `<button class="btn ${free?'primary':'ghost'}" data-give="${i}">${esc(c.key==='you'?'You':c.name)}<small>${free?'free slot':'swap slot 1'}</small></button>`; }).join('')}</div>`;
+      layer.querySelectorAll('[data-give]').forEach(g=>g.onclick = ()=>{ const c = partyCards()[+g.dataset.give]; equipInto(c, c.equip.length < c.slots ? c.equip.length : 0, b.dataset.uid); close(); });
+    });
+  }
+
+  /* =========================================================
+     BATTLE
+     opts: {title, text, kicker, foes, tier, kind:'story'|'skirmish'|'hunt', loot:chance, onDone(result)}
+     ========================================================= */
+  function battle(opts){
+    show();
+    const units = partyUnits();
+    app.innerHTML = `<div class="screen"><div class="win intro">
+      <span class="it-k">${esc(opts.kicker || 'Battle')}</span>
+      <h2>${esc(opts.title)}</h2>
+      ${opts.text ? `<p>${esc(opts.text)}</p>` : ''}
+      <div class="eyebrow">You face</div>
+      <div class="foes">${opts.foes.map(f=>`<span><b>${f.glyph}</b> ${esc(f.name)} · ${f.atk}⚔ ${f.res}⛨</span>`).join('')}</div>
+      <div class="eyebrow">Your side</div>
+      <div class="foes">${units.map(u=>`<span>${esc(u.key==='you'?'You':u.name)} · ${CB.effective(u).atk}⚔ ${CB.effective(u).res}⛨</span>`).join('')}</div>
+      ${pendingPacks() ? `<p class="small gold">You have ${pendingPacks()} unopened pack${pendingPacks()>1?'s':''}. Open them first?</p><button class="btn ghost wide" id="bpacks">Open packs first</button>` : ''}
+      <div class="row2"><button class="btn ghost" id="bauto">Auto-battle ▸▸</button><button class="btn primary" id="bgo">⚔ Fight</button></div>
+    </div></div>`;
+    const go = auto=>{
+      const B = CB.newBattle(partyUnits().map(u=>Object.assign(u, {name:u.key==='you'?'You':u.name})), opts.foes);
+      FIGHT = {B, opts, auto, actor:null, mode:null, seen:0, busy:false, speed:1, log:[]};
+      CB.startBattle(B);
+      renderCombat(); play(()=>step());
+    };
+    root.getElementById('bgo').onclick = ()=>go(false);
+    root.getElementById('bauto').onclick = ()=>go(true);
+    const bp = root.getElementById('bpacks'); if(bp) bp.onclick = ()=>{ const back = ()=>battle(opts); openCards(); const c = $('#cbclose'); c.textContent = '⚔'; c.onclick = back; c.setAttribute('aria-label','Back to the battle'); };
+  }
+  const U = id=>FIGHT.B.units.find(u=>u.id===id);
+  function miniCard(u){
+    const F = FIGHT, pct = Math.max(0, Math.round(u.hp/u.res*100)), st = [];
+    if(CB.hasGuard(u)) st.push('<i class="s-g" title="Guard">⛨</i>');
+    if(u.ward) st.push(`<i class="s-w">◈${u.ward}</i>`);
+    if(ab(u,'armor')) st.push(`<i class="s-a">▣${ab(u,'armor')}</i>`);
+    if(u.poison) st.push(`<i class="s-p">☣${u.poison}</i>`);
+    if(ab(u,'swift')) st.push('<i>»</i>'); if(ab(u,'ranged')) st.push('<i>➶</i>'); if(u.sp) st.push(`<i style="color:#c9a8ff">✦${u.sp}</i>`);
+    const isActor = F.actor===u.id, done = u.side==='p' && u.acted && !u.extra, tgt = F.targets && F.targets.includes(u.id);
+    return `<button class="mc s-${u.side} ${u.alive?'':'dead'} ${u.boss?'boss':''} ${isActor?'actor':''} ${done?'done':''} ${tgt?'tgt':''}" data-u="${u.id}">
+      <span class="mc-art">${artImg(u,'head')}</span>
+      <span class="mc-name">${esc(u.name)}</span>
+      <span class="mc-stats"><span class="a">⚔${u.atk}</span><span class="r">⛨${Math.max(0,u.hp)}<small>/${u.res}</small></span></span>
+      <span class="hpbar"><i style="width:${pct}%" class="${pct<=30?'low':''}"></i></span>
+      <span class="mc-st">${st.join('')}</span>
+    </button>`;
+  }
+  function renderCombat(){
+    const F = FIGHT, B = F.B;
+    app.innerHTML = `<div class="screen combat">
+      <div class="cbar"><button class="btn ghost sm" id="flee">Flee</button><span class="ctitle">${esc(F.opts.title)} · Round ${B.round}</span><button class="btn ghost sm ${F.auto?'on':''}" id="autobtn">${F.auto?'Auto ▸▸':'Auto'}</button></div>
+      <div class="row-e">${CB.side(B,'e').map(miniCard).join('')}</div>
+      <div class="clog">${F.log.slice(-3).map(l=>`<div class="${l.cls||''}">${esc(l.s)}</div>`).join('')}</div>
+      <div class="row-p">${CB.side(B,'p').map(miniCard).join('')}</div>
+      <div class="actbar win" id="actbar"></div>
+    </div>`;
+    fitInt();
+    drawActions();
+    $('#flee').onclick = ()=>confirmBox('Flee the fight?', 'It counts as a loss.', 'Flee', ()=>{ F.B.over = 'lose'; finish(); });
+    $('#autobtn').onclick = ()=>{ F.auto = !F.auto; F.actor = null; F.targets = null; renderCombat(); if(F.auto && !F.busy) step(); };
+    $$('.mc').forEach(el=>{
+      el.onclick = ()=>tapUnit(el.dataset.u);
+      let t = 0; el.addEventListener('pointerdown', ()=>{ t = setTimeout(()=>{ t = -1; inspect(el.dataset.u); }, 480); });
+      ['pointerup','pointerleave','pointercancel'].forEach(ev=>el.addEventListener(ev, ()=>{ if(t>0) clearTimeout(t); }));
+      el.addEventListener('click', e=>{ if(t===-1){ e.stopImmediatePropagation(); t = 0; } }, true);
+    });
+  }
+  function drawActions(){
+    const F = FIGHT, B = F.B, bar = $('#actbar'); if(!bar) return;
+    if(B.over){ bar.innerHTML = ''; return; }
+    if(F.auto || B.phase!=='p' || F.busy || !F.actor){ bar.innerHTML = `<div class="waiting">${B.phase==='e' ? 'The enemy is acting…' : F.auto ? 'Fighting on Auto. Tap Auto to take over.' : '…'}</div>`; return; }
+    const u = U(F.actor), mode = F.mode || {type:'attack'}, spells = Object.keys(u.cds);
+    bar.innerHTML = `<div class="ab-head"><b>${esc(u.name)}</b> <span class="muted">${mode.type==='attack' ? 'Tap an enemy to attack' : `Choose a target for ${AB[mode.id].name}`}</span></div>
+      <div class="ab-btns">
+        <button class="act ${mode.type==='attack'?'on':''}" data-act="attack">⚔ Attack<small>${u.atk} dmg${ab(u,'ranged')?' · ranged':''}</small></button>
+        ${spells.map(id=>{ const ready = CB.spellReady(u,id); return `<button class="act sp ${mode.id===id?'on':''}" data-spell="${id}" ${ready?'':'disabled'}>✦ ${esc(AB[id].name)}<small>${ready?esc(short(AB[id].text(ab(u,id),u))):`ready in ${u.cds[id]}`}</small></button>`; }).join('')}
+        <button class="act ghost" data-act="ai">Let AI pick</button>
+        <button class="act ghost" data-act="wait">Wait</button>
+      </div>`;
+    bar.querySelectorAll('[data-act]').forEach(b=>b.onclick=()=>{ const k = b.dataset.act;
+      if(k==='attack'){ F.mode = {type:'attack'}; setTargets(); }
+      if(k==='wait') return doAct({type:'wait'});
+      if(k==='ai') return doAct(CB.bestAction(B, u)); });
+    bar.querySelectorAll('[data-spell]').forEach(b=>b.onclick=()=>{ const id = b.dataset.spell; if(AB[id].tgt==='none') return doAct({type:'spell', id}); F.mode = {type:'spell', id}; setTargets(); });
+  }
+  const short = t=>t.length>34 ? t.slice(0,33)+'…' : t;
+  function setTargets(){
+    const F = FIGHT, B = F.B, u = U(F.actor), m = F.mode || {type:'attack'};
+    F.targets = m.type==='attack' ? CB.validTargets(B,u).map(x=>x.id) : CB.spellTargets(B,u,m.id).map(x=>x.id);
+    renderCombat();
+  }
+  function tapUnit(id){
+    const F = FIGHT; if(!F) return; const B = F.B; if(B.over || F.busy || F.auto || B.phase!=='p') return;
+    if(F.targets && F.targets.includes(id)){ const m = F.mode || {type:'attack'}; return doAct(m.type==='attack' ? {type:'attack', tgt:id} : {type:'spell', id:m.id, tgt:id}); }
+    const u = U(id);
+    if(u && u.side==='p' && u.alive && (!u.acted || u.extra>0)){ F.actor = id; F.mode = {type:'attack'}; setTargets(); return; }
+    inspect(id);
+  }
+  function doAct(action){
+    const F = FIGHT, B = F.B, u = U(F.actor);
+    F.targets = null; F.mode = null; F.busy = true;
+    CB.act(B, u, action); CB.advance(B); F.actor = null;
+    play(()=>{ F.busy = false; step(); });
+  }
+  function step(){
+    const F = FIGHT; if(!F) return; const B = F.B;
+    if(B.over) return finish();
+    if(B.phase==='p' && !F.auto){
+      if(!F.actor || !U(F.actor).alive || (U(F.actor).acted && !U(F.actor).extra)){ const n = CB.nextActor(B,'p'); F.actor = n ? n.id : null; }
+      if(!F.actor){ CB.advance(B); return play(()=>step()); }
+      F.mode = {type:'attack'}; F.busy = false; setTargets(); return;
+    }
+    F.busy = true;
+    const u = CB.nextActor(B, B.phase);
+    if(!u){ CB.advance(B); return play(()=>step()); }
+    F.actor = u.id; renderCombat();
+    setTimeout(()=>{ if(FIGHT!==F) return; CB.act(B, u, CB.bestAction(B,u)); CB.advance(B); F.actor = null; play(()=>setTimeout(step, 120)); }, 330);
+  }
+  function play(done){
+    const F = FIGHT, B = F.B, evs = B.ev.slice(F.seen); F.seen = B.ev.length;
+    for(const e of evs) if(e.t==='text') F.log.push(e);
+    renderCombat();
+    let delay = 0;
+    const fl = (id, txt, cls)=>{ const d = delay; setTimeout(()=>floatAt(id, txt, cls), d); delay += 110; };
+    for(const e of evs){
+      if(e.t==='attack'){ const a = root.querySelector(`.mc[data-u="${e.u}"]`), t = root.querySelector(`.mc[data-u="${e.tgt}"]`); if(a) a.classList.add(a.classList.contains('s-p')?'lunge-up':'lunge-dn'); if(t) setTimeout(()=>t.classList.add('hit'), 120); }
+      if(e.t==='dmg') fl(e.u, e.n ? `-${e.n}` : 'blocked', e.poison ? 'f-poison' : 'f-dmg');
+      if(e.t==='heal') fl(e.u, `+${e.n}`, 'f-heal');
+      if(e.t==='block') fl(e.u, 'Ward!', 'f-ward');
+      if(e.t==='ward') fl(e.u, `+${e.n} ◈`, 'f-ward');
+      if(e.t==='atk') fl(e.u, `${e.n>0?'+':''}${e.n} ⚔`, e.n>0 ? 'f-buff' : 'f-dmg');
+      if(e.t==='res') fl(e.u, `+${e.n} ⛨`, 'f-buff');
+      if(e.t==='poison') fl(e.u, `☣${e.n}`, 'f-poison');
+      if(e.t==='cast'){ const a = root.querySelector(`.mc[data-u="${e.u}"]`); if(a) a.classList.add('casting'); fl(e.u, AB[e.spell].name, 'f-spell'); }
+      if(e.t==='reborn') fl(e.u, 'Not yet!', 'f-buff');
+      if(e.t==='saint') fl(e.u, 'Saint\'s Cut!', 'f-buff');
+      if(e.t==='execute') fl(e.u, 'Executed', 'f-dmg');
+      if(e.t==='haste') fl(e.u, 'Haste!', 'f-buff');
+    }
+    setTimeout(done, Math.min(900, 260 + delay*.6));
+  }
+  function floatAt(id, txt, cls){
+    const el = root.querySelector(`.mc[data-u="${id}"]`); if(!el) return;
+    const r = el.getBoundingClientRect(), f = document.createElement('div');
+    f.className = 'float '+cls; f.textContent = txt;
+    f.style.left = (r.left + r.width/2 + (Math.random()*24-12))+'px'; f.style.top = (r.top + r.height*.35)+'px';
+    layer.appendChild(f); setTimeout(()=>f.remove(), 1100);
+  }
+  function inspect(id){
+    const u = U(id); if(!u) return;
+    const lines = CB.abilityLines(u);
+    layer.innerHTML = `<div class="ov" id="insp"><div class="win sheet">
+      <div class="sh-head"><b>${esc(u.name)}</b>${u.boss?' <span class="gold">Boss</span>':''}<button class="x" id="ix">✕</button></div>
+      <div class="sh-stats"><span>⚔ ${u.atk} ATK</span><span>⛨ ${u.hp}/${u.res} RES</span>${u.sp?`<span>✦ ${u.sp} spell power</span>`:''}${u.ward?`<span>◈ ${u.ward} Ward</span>`:''}${u.poison?`<span>☣ ${u.poison} poison</span>`:''}</div>
+      ${lines.length ? lines.map(l=>abLine(l.id, l.lvl, u)).join('') : '<div class="muted small">No abilities.</div>'}
+    </div></div>`;
+    const close = ()=>{ layer.innerHTML=''; };
+    root.getElementById('ix').onclick = close; root.getElementById('insp').onclick = e=>{ if(e.target.id==='insp') close(); };
+  }
+  function finish(){
+    const F = FIGHT, B = F.B, o = F.opts, win = B.over==='win';
+    const chips = battleSpoils(B, o.tier, o.kind);
+    const loot = win && Math.random() < (o.loot==null ? .5 : o.loot) ? CB.rollLoot(o.tier, 2, false) : [];
+    const beasts = win && CB.ab(S.card,'wildheart') && S.tamed.length<6 ? B.units.filter(u=>u.side==='e' && u.beast && !u.boss) : [];
+    let took = null, tame = null;
+    HOOKS.save();
+    layer.innerHTML = `<div class="ov"><div class="win result ${win?'won':'lost'}">
+      <div class="res-big">${win ? 'Victory' : B.over==='draw' ? 'Stalemate' : 'Defeat'}</div>
+      <div class="small">${B.round} round${B.round===1?'':'s'} · ${CB.alive(B,'p').length} of ${CB.side(B,'p').length} standing</div>
+      ${chipsHtml(chips)}
+      ${loot.length?`<div class="loot"><div class="eyebrow">Loot · take one</div><div class="pgrid n${loot.length} lootgrid">${loot.map((it,i)=>itemCard(it,i)).join('')}</div></div>`:''}
+      ${beasts.length?`<div class="loot"><div class="eyebrow">Wild Crown · tame one?</div><div class="tame">${beasts.map((u,i)=>`<button data-tame="${i}"><b>${u.glyph}</b> ${esc(u.name)}<br><small class="muted">${Math.round(u.baseAtk*.8)}⚔ ${Math.round(u.baseRes*.8)}⛨</small></button>`).join('')}</div></div>`:''}
+      <button class="btn primary wide" id="cont">Continue</button>
+    </div></div>`;
+    layer.querySelectorAll('.lootgrid .pcard').forEach(el=>el.onclick=()=>{ took = loot[+el.dataset.i]; layer.querySelectorAll('.lootgrid .pcard').forEach(x=>{ x.classList.toggle('sel', x===el); x.classList.toggle('dim', x!==el); }); });
+    layer.querySelectorAll('[data-tame]').forEach(el=>el.onclick=()=>{ const i = +el.dataset.tame; tame = tame===i ? null : i; layer.querySelectorAll('[data-tame]').forEach(x=>x.classList.toggle('sel', +x.dataset.tame===tame)); });
+    root.getElementById('cont').onclick = ()=>{
+      if(took){ S.bag.push(CB.newItem(took.id)); chips.push([`Loot: ${took.name}`, 'seed']); }
+      if(tame!=null){ const u = beasts[tame]; const pet = CB.tamePet({key:u.key, atk:u.baseAtk, res:u.baseRes, ab:u.ab, lvl:u.lvl}); S.tamed.push(pet); if(S.pet==null || !petNow()) S.pet = S.tamed.length-1; chips.push([`Tamed: ${pet.name}`, 'seed']); }
+      HOOKS.save();
+      const cb = o.onDone; hide();
+      cb && cb(Object.assign(battleRoll(B, chips), {B}));
+    };
+  }
+  function confirmBox(title, text, yes, fn){
+    layer.innerHTML = `<div class="ov"><div class="win sheet"><div class="sh-head"><b>${esc(title)}</b></div><p class="small">${esc(text)}</p><div class="row2"><button class="btn ghost" id="cn">Cancel</button><button class="btn primary" id="cy">${esc(yes)}</button></div></div></div>`;
+    root.getElementById('cn').onclick=()=>{ layer.innerHTML=''; }; root.getElementById('cy').onclick=()=>{ layer.innerHTML=''; fn(); };
+  }
+  return {openCards, battle, hide, isOpen};
+})();
+
+/* ---------- the game asks for battles here ---------- */
+function startStoryBattle(i){
+  const c = choices()[i]; if(!c) return;
+  const off = dcOffset(checkDc(c)), foes = storyFoes(c), arc = ARC[S.year.arc.id];
+  CBUI.battle({kicker:fmt(arc.title), title:fmt(c.label), foes, tier:battleTier(off), kind:'story', loot:.35,
+    onDone:res=>{ choose(i, res); UI.flow = null; render(); }});
+}
+function startSkirmish(){
+  const sk = S.year.skirmish, K = skirmishDef(sk);
+  CBUI.battle({kicker:'This year\'s trouble', title:K.title, text:K.t, foes:skirmishFoes(sk), tier:battleTier(K.off), kind:'skirmish', loot:.55,
+    onDone:res=>{ resolveSkirmish('fight', {ok:res.ok, chips:res.chips}); render(); }});
+}
+function startHunt(){
+  const tier = battleTier(0);
+  CBUI.battle({kicker:'The quiet months', title:stageOf(S.age)==='child' ? 'Slime hunting' : 'The hunt', text:stageOf(S.age)==='child' ? 'Past the fence, where Mama said not to go, the slimes are fat and slow and worth a copper each.' : 'You pick a road, a forest, a ruin, and go looking for trouble.', foes:foesFor(0, {pool:'wild'}), tier, kind:'hunt', loot:.6,
+    onDone:res=>{ S._hunt = {gold:huntGold(tier, res.ok)}; S._huntChips = res.chips; chooseDowntime('hunt'); UI.flow = null; render(); }});
+}
+/* Eye of Unveiling: what the odds of a battle look like */
+function battleOdds(c){
+  const key = S.year.arc.id + ':' + S.year.arc.beat + ':' + fmt(c.label) + ':' + S.card.lvl;
+  if(battleOdds.k===key) return battleOdds.v;
+  let w = 0; for(let i=0;i<24;i++){ const B = CB.autoBattle(partyUnits(), storyFoes(c)); if(B.over==='win') w++; }
+  battleOdds.k = key; battleOdds.v = w/24; return battleOdds.v;
+}
 
 ;
 /* =========================================================
